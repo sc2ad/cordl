@@ -2,7 +2,7 @@ use std::{io::Write, path::{Path, PathBuf}, collections::{HashSet, HashMap}, fs:
 use anyhow::{Result, Context};
 
 use il2cpp_binary::{TypeData, Type, TypeEnum};
-use il2cpp_metadata_raw::{TypeDefinitionIndex, TypeIndex};
+use il2cpp_metadata_raw::{TypeDefinitionIndex};
 
 use super::{writer::{Writable, CppWriter}, cpp_type::CppType, config::GenerationConfig, metadata::Metadata};
 

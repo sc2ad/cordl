@@ -1,7 +1,7 @@
 use std::io::Write;
 
-use il2cpp_binary::{TypeEnum, Type};
-use il2cpp_metadata_raw::{Il2CppTypeDefinition, TypeDefinitionIndex};
+use il2cpp_binary::{TypeEnum};
+use il2cpp_metadata_raw::{TypeDefinitionIndex};
 
 use super::{config::GenerationConfig, writer::Writable, context::{CppCommentedString, CppContext, CppContextCollection}, metadata::Metadata};
 

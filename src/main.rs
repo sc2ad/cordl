@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use generate::config::GenerationConfig;
 use generate::context::{CppContextCollection, TypeTag};
 use generate::metadata::Metadata;
-use il2cpp_metadata_raw;
+
 use il2cpp_binary::{Elf, TypeData};
 use clap::{Parser, Subcommand};
 mod generate;
