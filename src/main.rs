@@ -1,6 +1,6 @@
 #![feature(entry_insert)]
 
-use std::fs;
+use std::{fs};
 use std::path::PathBuf;
 use generate::config::GenerationConfig;
 use generate::context::{CppContextCollection, TypeTag};
@@ -32,7 +32,8 @@ enum Commands {
     
 }
 
-fn main() {
+fn main() -> color_eyre::Result<()> {
+    color_eyre::install()?;
     // let cli = Cli::parse();
     let cli = Cli {
         metadata: PathBuf::from("global-metadata.dat"),
@@ -49,8 +50,8 @@ fn main() {
     let (code_registration, metadata_registration) = il2cpp_binary::registrations(&elf, &il2cpp_metadata).unwrap();
 
     let config = GenerationConfig {
-        header_path: PathBuf::from("include"),
-        source_path: PathBuf::from("src")
+        header_path: PathBuf::from("./codegen/include"),
+        source_path: PathBuf::from("./codegen/src")
     };
 
     let metadata = Metadata {
@@ -70,4 +71,6 @@ fn main() {
     //     write_type(&metadata, &config, &t, &dest);
     // }
     cpp_context_collection.get()[&TypeTag::TypeDefinition(123)].write().unwrap();
+
+    Ok(())
 }

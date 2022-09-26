@@ -1,5 +1,6 @@
 use std::{io::Write, sync::Arc};
 
+use color_eyre::eyre::Context;
 use il2cpp_binary::{TypeEnum};
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
@@ -267,9 +268,9 @@ impl CppType {
 }
 
 impl Writable for CppType {
-    fn write(&self, writer: &mut super::writer::CppWriter) {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         self.prefix_comments.iter().for_each(|pc| {
-            writeln!(writer, "// {pc}").unwrap();
+            writeln!(writer, "// {pc}").context("Prefix comment").unwrap();
         });
         // Forward declare
         writeln!(
@@ -277,17 +278,16 @@ impl Writable for CppType {
             "// Forward declaring type: {}::{}",
             self.namespace(),
             self.name()
-        )
-        .unwrap();
-        writeln!(writer, "namespace {} {{", self.namespace()).unwrap();
+        )?;
+        writeln!(writer, "namespace {} {{", self.namespace())?;
         writer.indent();
         if let Some(template) = &self.template_line {
-            template.write(writer);
+            template.write(writer)?;
         }
-        writeln!(writer, "struct {};", self.name()).unwrap();
+        writeln!(writer, "struct {};", self.name())?;
         // Write type definition
         if let Some(template) = &self.template_line {
-            template.write(writer);
+            template.write(writer).unwrap();
         }
         // Type definition plus inherit lines
         writeln!(
@@ -295,19 +295,19 @@ impl Writable for CppType {
             "struct {} : {} {{",
             self.name(),
             self.inherit.join(", ")
-        )
-        .unwrap();
+        )?;
         writer.indent();
         // Write all declarations within the type here
         self.declarations.iter().for_each(|d| {
-            d.write(writer);
+            d.write(writer).unwrap();
         });
         // Type complete
         writer.dedent();
-        writeln!(writer, "}};").unwrap();
+        writeln!(writer, "}};")?;
         // Namespace complete
         writer.dedent();
-        writeln!(writer, "}}").unwrap();
+        writeln!(writer, "}}")?;
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
+        Ok(())
     }
 }

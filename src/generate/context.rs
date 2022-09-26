@@ -1,4 +1,3 @@
-use anyhow::{Context, Result};
 use std::{
     collections::{HashMap, HashSet},
     fs::{create_dir_all, remove_file, File},
@@ -6,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use color_eyre::eyre::ContextCompat;
 use il2cpp_binary::{Type, TypeData, TypeEnum};
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
@@ -23,11 +23,12 @@ pub struct CppCommentedString {
 }
 
 impl Writable for CppCommentedString {
-    fn write(&self, writer: &mut CppWriter) {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
         if let Some(val) = &self.comment {
-            writeln!(writer, "// {val}").unwrap();
+            writeln!(writer, "// {val}")?;
         }
-        writeln!(writer, "{}", self.data).unwrap();
+        writeln!(writer, "{}", self.data)?;
+        Ok(())
     }
 }
 
@@ -203,40 +204,39 @@ impl CppContext {
         }
         x
     }
-    pub fn write(&self) -> Result<()> {
+    pub fn write(&self) -> color_eyre::Result<()> {
         // Write typedef file first
         if Path::exists(self.typedef_path.as_path()) {
-            remove_file(self.typedef_path.as_path()).unwrap();
+            remove_file(self.typedef_path.as_path())?;
         }
         if !Path::is_dir(
             self.typedef_path
                 .parent()
-                .context("parent is not a directory!")
-                .unwrap(),
+                .context("parent is not a directory!")?,
         ) {
             // Assume it's never a file
             create_dir_all(
                 self.typedef_path
                     .parent()
-                    .context("Failed to create all directories!")
-                    .unwrap(),
-            )
-            .unwrap();
+                    .context("Failed to create all directories!")?,
+            )?;
         }
+
+        println!("Writing {:?}", self.typedef_path.as_path());
         let mut writer = CppWriter {
-            stream: File::create(self.typedef_path.as_path()).unwrap(),
+            stream: File::create(self.typedef_path.as_path())?,
             indent: 0,
         };
         // Write includes for typedef
         self.typedef_includes
             .iter()
-            .for_each(|inc| inc.write(&mut writer));
+            .for_each(|inc| inc.write(&mut writer).unwrap());
         self.declarations
             .iter()
-            .for_each(|dec| dec.write(&mut writer));
+            .for_each(|dec| dec.write(&mut writer).unwrap());
         self.types.iter().for_each(|(k, v)| {
             writeln!(writer, "/* {:?} */", k).unwrap();
-            v.write(&mut writer);
+            v.write(&mut writer).unwrap();
         });
 
         // TODO: Write type impl and fundamental files here
