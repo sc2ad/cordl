@@ -181,13 +181,15 @@ impl CppContext {
             ns_path + "/"
         };
         let mut x = CppContext {
-            typedef_path: PathBuf::from(
-                path.clone() + "__" + &config.path_name(name.to_string()) + "_def.hpp",
-            ),
-            type_impl_path: PathBuf::from(
-                path.clone() + "__" + &config.path_name(name.to_string()) + "_impl.hpp",
-            ),
-            fundamental_path: PathBuf::from(path + &config.path_name(name.to_string()) + ".hpp"),
+            typedef_path: config
+                    .header_path
+                    .join(path.clone() + "__" + &config.path_name(name.to_string()) + "_def.hpp"),
+            type_impl_path: config
+                    .header_path
+                    .join(path.clone() + "__" + &config.path_name(name.to_string()) + "_impl.hpp"),
+            fundamental_path: config
+                    .header_path
+                    .join(path + &config.path_name(name.to_string()) + ".hpp"),
             typedef_includes: HashSet::new(),
             typeimpl_includes: HashSet::new(),
             declarations: Vec::new(),
