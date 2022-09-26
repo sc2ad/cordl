@@ -1,3 +1,5 @@
+#![feature(entry_insert)]
+
 use std::fs;
 use std::path::PathBuf;
 use generate::config::GenerationConfig;
@@ -60,7 +62,7 @@ fn main() {
 
     // First, make all the contexts
     for tdi in 0..metadata.metadata.type_definitions.len() {
-        cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi.try_into().unwrap()));
+        cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi.try_into().unwrap()), true);
     }
     // for t in &metadata.type_definitions {
     //     // Handle the generation for a single type
