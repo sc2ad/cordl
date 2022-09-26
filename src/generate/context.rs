@@ -175,7 +175,11 @@ impl CppContext {
         let name = metadata.metadata.get_str(t.name_index).unwrap();
 
         let ns_path = config.namespace_path(ns.to_string());
-        let path = ns_path + "/";
+        let path = if ns_path.is_empty() {
+            "GlobalNamespace/".to_string()
+        } else {
+            ns_path + "/"
+        };
         let mut x = CppContext {
             typedef_path: PathBuf::from(
                 path.clone() + "__" + &config.path_name(name.to_string()) + "_def.hpp",
