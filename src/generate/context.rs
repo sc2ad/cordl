@@ -11,7 +11,7 @@ use il2cpp_metadata_raw::TypeDefinitionIndex;
 
 use super::{
     config::GenerationConfig,
-    cpp_type::{CppType},
+    cpp_type::CppType,
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
@@ -142,6 +142,10 @@ impl CppContext {
         }
     }
 
+    fn should_make_rest(&self) -> bool {
+        return self.types.iter().any(|(_, t)| !t.made);
+    }
+
     fn make_rest(
         &mut self,
         metadata: &Metadata,
@@ -244,21 +248,21 @@ impl CppContextCollection {
     ) -> &mut CppContext {
         let tag = TypeTag::from(ty);
         if self.all_contexts.contains_key(&tag) {
-            let res = self.all_contexts.get_mut(&tag).unwrap();
+            // TODO: Check if existing context is already filled
+            if !fill {
+                return self.all_contexts.get_mut(&tag).unwrap();
+            }
 
-            // TODO: Handle if exists already but not made
-            // match ty {
-            //     TypeData::TypeDefinitionIndex(tdi) => {
-            //         if fill && res.types.iter().any(|(_, i)| !i.made) {
-            //             res.types.iter_mut().for_each(|(_, cpp_type)| {
-            //                 cpp_type.make_rest(metadata, config, self, &mut res, tdi);
-            //             });
-            //         }
-            //     }
-            //     _ => (),
-            // }
+            // Take ownership, modify and then replace
+            let mut res = self.all_contexts.remove(&tag).unwrap();
 
-            return res;
+            if let TypeData::TypeDefinitionIndex(tdi) = ty {
+                if fill {
+                    res.make_rest(metadata, config, self, tdi);
+                }
+            }
+
+            return self.all_contexts.entry(tag).or_insert(res);
         }
 
         let value = match ty {
