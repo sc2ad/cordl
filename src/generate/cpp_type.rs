@@ -1,7 +1,7 @@
 use std::{io::Write, sync::Arc};
 
 use color_eyre::eyre::Context;
-use il2cpp_binary::{TypeEnum};
+use il2cpp_binary::{Type, TypeEnum};
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
 use super::{
@@ -115,12 +115,84 @@ impl CppType {
             return;
         }
 
+        self.make_methods(metadata, config, ctx_collection, ctx, tdi);
         self.make_fields(metadata, config, ctx_collection, ctx, tdi);
         self.make_parents(metadata, config, ctx_collection, ctx, tdi);
         self.made = true;
     }
 
- fn make_fields(
+    fn make_methods(
+        &mut self,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        ctx_collection: &mut CppContextCollection,
+        ctx: &mut CppContext,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let t = self.get_type_definition(metadata, tdi);
+
+        // Then, handle fields
+        if t.method_count > 0 {
+            // Write comment for fields
+            self.declarations.push(Arc::new(CppCommentedString {
+                data: "".to_string(),
+                comment: Some("Methods".to_string()),
+            }));
+            // Then, for each field, write it out
+            for i in 0..t.method_count {
+                // TODO: Get method size
+                let method = metadata
+                    .metadata
+                    .methods
+                    .get((t.method_start + i as u32) as usize)
+                    .unwrap();
+                let m_name = metadata.metadata.get_str(method.name_index).unwrap();
+                let m_index = metadata
+                    .metadata_registration
+                    .method_specs
+                    .get(tdi as usize)
+                    .unwrap()
+                    .method_definition_index;
+                let m_ret_type = metadata
+                    .metadata_registration
+                    .types
+                    .get(method.return_type as usize)
+                    .unwrap();
+                let mut m_params: Vec<&Type> = vec![];
+
+                for p in 0..method.parameter_count {
+                    let param = metadata
+                        .metadata
+                        .parameters
+                        .get((method.parameter_start + p as u32) as usize)
+                        .unwrap();
+
+                    let param_type = metadata
+                        .metadata_registration
+                        .types
+                        .get(param.type_index as usize)
+                        .unwrap();
+                    m_params.push(param_type);
+                }
+
+                // Need to include this type
+                let cpp_type_name = ctx.cpp_name(ctx_collection, metadata, config, m_ret_type);
+                let param_names: Vec<String> = m_params
+                    .iter()
+                    .map(|p| ctx.cpp_name(ctx_collection, metadata, config, p))
+                    .collect();
+
+                self.declarations.push(Arc::new(CppCommentedString {
+                    data: "".to_string(), // TODO
+                    comment: Some(format!(
+                        "Method: {i}, name: {m_name}, Return Type Name: {cpp_type_name}, Index: {m_index} Parameters: {param_names:?}"
+                    )),
+                }));
+            }
+        }
+    }
+
+    fn make_fields(
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
@@ -205,7 +277,8 @@ impl CppType {
                     // In this case, just inherit the type
                     // But we have to:
                     // - Determine where to include it from
-                    let parent_ctx = ctx_collection.make_from(metadata, config, parent_type.data, true);
+                    let parent_ctx =
+                        ctx_collection.make_from(metadata, config, parent_type.data, true);
                     // - Include it
                     ctx.add_include_ctx(parent_ctx, "Including parent context".to_string());
                     // - Inherit it
@@ -270,7 +343,9 @@ impl CppType {
 impl Writable for CppType {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         self.prefix_comments.iter().for_each(|pc| {
-            writeln!(writer, "// {pc}").context("Prefix comment").unwrap();
+            writeln!(writer, "// {pc}")
+                .context("Prefix comment")
+                .unwrap();
         });
         // Forward declare
         writeln!(
