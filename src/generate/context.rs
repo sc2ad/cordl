@@ -139,6 +139,10 @@ impl CppContext {
                 to_incl.get_cpp_type_name(typ)
             }
             TypeEnum::Valuetype => "/* UNKNOWN VALUE TYPE! */".to_string(),
+            TypeEnum::Void => "void".to_string(),
+            TypeEnum::Boolean => "boolean".to_string(),
+            TypeEnum::Char => "char16_t".to_string(),
+            TypeEnum::String => "::StringW".to_string(),
             // TODO: Void and the other primitives
             _ => format!("/* UNKNOWN TYPE! {:?} */", typ.ty),
         }
