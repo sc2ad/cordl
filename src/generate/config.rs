@@ -7,16 +7,16 @@ pub struct GenerationConfig {
 
 impl GenerationConfig {
     pub fn namespace_cpp(&self, string: String) -> String {
-        return string.replace('<', "_").replace('>', "_").replace('`', "_").replace('/', "_").replace('.', "::");
+        string.replace(['<', '>', '`', '/'], "_").replace('.', "::")
     }
     pub fn name_cpp(&self, string: String) -> String {
         // Coincidentally the same as path_name
-        return string.replace('<', "_").replace('`', "_").replace('>', "_").replace('/', "_").replace('.', "_");
+        string.replace(['<', '`', '>', '/', '.'], "_")
     }
     pub fn namespace_path(&self, string: String) -> String {
-        return string.replace('<', "_").replace('>', "_").replace('`', "_").replace('/', "_").replace('.', "/");
+        string.replace(['<', '>', '`', '/'], "_").replace('.', "/")
     }
     pub fn path_name(&self, string: String) -> String {
-        return string.replace('<', "_").replace('>', "_").replace('`', "_").replace('.', "_").replace('/', "_");
+        string.replace(['<', '>', '`', '.', '/'], "_")
     }
 }

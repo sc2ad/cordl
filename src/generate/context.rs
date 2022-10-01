@@ -1,23 +1,34 @@
-use std::{io::Write, path::{Path, PathBuf}, collections::{HashSet, HashMap}, fs::{File, remove_file, create_dir_all}};
-use anyhow::{Result, Context};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::{create_dir_all, remove_file, File},
+    io::Write,
+    path::{Path, PathBuf},
+};
 
-use il2cpp_binary::{TypeData, Type, TypeEnum};
-use il2cpp_metadata_raw::{TypeDefinitionIndex, TypeIndex};
+use color_eyre::eyre::ContextCompat;
+use il2cpp_binary::{Type, TypeData, TypeEnum};
+use il2cpp_metadata_raw::TypeDefinitionIndex;
 
-use super::{writer::{Writable, CppWriter}, cpp_type::CppType, config::GenerationConfig, metadata::Metadata};
+use super::{
+    config::GenerationConfig,
+    cpp_type::CppType,
+    metadata::Metadata,
+    writer::{CppWriter, Writable},
+};
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub struct CppCommentedString {
     pub data: String,
     pub comment: Option<String>,
 }
 
 impl Writable for CppCommentedString {
-    fn write(&self, writer: &mut CppWriter) {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
         if let Some(val) = &self.comment {
-            writeln!(writer, "// {val}").unwrap();
+            writeln!(writer, "// {val}")?;
         }
-        writeln!(writer, "{}", self.data).unwrap();
+        writeln!(writer, "{}", self.data)?;
+        Ok(())
     }
 }
 
@@ -65,22 +76,28 @@ impl CppContext {
         &self.typedef_path
     }
     pub fn add_include(&mut self, inc: String) {
-        self.typedef_includes.insert(CppCommentedString{
+        self.typedef_includes.insert(CppCommentedString {
             data: "#include \"".to_owned() + &inc + "\"",
-            comment: None
+            comment: None,
         });
     }
     pub fn add_typeimpl_include(&mut self, inc: String) {
-        self.typeimpl_includes.insert(CppCommentedString { data: inc, comment: None });
+        self.typeimpl_includes.insert(CppCommentedString {
+            data: inc,
+            comment: None,
+        });
     }
     pub fn add_include_comment(&mut self, inc: String, comment: String) {
         self.typedef_includes.insert(CppCommentedString {
             data: "#include \"".to_owned() + &inc + "\"",
-            comment: Some(comment)
+            comment: Some(comment),
         });
     }
     pub fn add_include_ctx(&mut self, inc: &CppContext, comment: String) {
-        self.add_include_comment(inc.get_include_path().to_str().unwrap().to_string(), comment)
+        self.add_include_comment(
+            inc.get_include_path().to_str().unwrap().to_string(),
+            comment,
+        )
     }
     pub fn need_wrapper(&mut self) {
         self.add_include("beatsaber-hook/shared/utils/base-wrapper-type.hpp".to_string());
@@ -100,68 +117,131 @@ impl CppContext {
             panic!("Could not find type: {ty:?} in context: {self:?}!");
         }
     }
-    pub fn cpp_name(&mut self, ctx_collection: &mut CppContextCollection, metadata: &Metadata, config: &GenerationConfig, typ: &Type) -> String {
+    pub fn cpp_name(
+        &mut self,
+        ctx_collection: &mut CppContextCollection,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        typ: &Type,
+    ) -> String {
         match typ.ty {
             TypeEnum::Object => {
                 self.need_wrapper();
                 "::bs_hook::Il2CppWrapperType".to_string()
-            },
+            }
             TypeEnum::Class => {
                 // In this case, just inherit the type
                 // But we have to:
                 // - Determine where to include it from
-                let to_incl = ctx_collection.make_from(metadata, config, typ.data);
+                let to_incl = ctx_collection.make_from(metadata, config, typ.data, false);
                 // - Include it
                 self.add_include_ctx(to_incl, "Including parent context".to_string());
                 to_incl.get_cpp_type_name(typ)
             }
             TypeEnum::Valuetype => "/* UNKNOWN VALUE TYPE! */".to_string(),
-            _ => "/* UNKNOWN TYPE! */".to_string()
+            TypeEnum::Void => "void".to_string(),
+            TypeEnum::Boolean => "boolean".to_string(),
+            TypeEnum::Char => "char16_t".to_string(),
+            TypeEnum::String => "::StringW".to_string(),
+            // TODO: Void and the other primitives
+            _ => format!("/* UNKNOWN TYPE! {:?} */", typ.ty),
         }
     }
-    fn make(metadata: &Metadata, config: &GenerationConfig, ctx_collection: &mut CppContextCollection, tdi: TypeDefinitionIndex) -> CppContext {
-        let t = metadata.metadata.type_definitions.get(tdi as usize).unwrap();
+
+    fn should_make_rest(&self) -> bool {
+        return self.types.iter().any(|(_, t)| !t.made);
+    }
+
+    fn make_rest(
+        &mut self,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        ctx_collection: &mut CppContextCollection,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let mut new_types = self.types.clone();
+
+        for cpp_type in &mut new_types.values_mut() {
+            cpp_type.make_rest(metadata, config, ctx_collection, self, tdi)
+        }
+        self.types = new_types;
+    }
+
+    fn make(
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        tdi: TypeDefinitionIndex,
+    ) -> CppContext {
+        let t = metadata
+            .metadata
+            .type_definitions
+            .get(tdi as usize)
+            .unwrap();
         let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
         let name = metadata.metadata.get_str(t.name_index).unwrap();
 
         let ns_path = config.namespace_path(ns.to_string());
-        let path = ns_path + "/";
+        let path = if ns_path.is_empty() {
+            "GlobalNamespace/".to_string()
+        } else {
+            ns_path + "/"
+        };
         let mut x = CppContext {
-            typedef_path: PathBuf::from(path.clone() + "__" + &config.path_name(name.to_string()) + "_def.hpp"),
-            type_impl_path: PathBuf::from(path.clone() + "__" + &config.path_name(name.to_string()) + "_impl.hpp"),
-            fundamental_path: PathBuf::from(path + &config.path_name(name.to_string()) + ".hpp"),
+            typedef_path: config
+                    .header_path
+                    .join(path.clone() + "__" + &config.path_name(name.to_string()) + "_def.hpp"),
+            type_impl_path: config
+                    .header_path
+                    .join(path.clone() + "__" + &config.path_name(name.to_string()) + "_impl.hpp"),
+            fundamental_path: config
+                    .header_path
+                    .join(path + &config.path_name(name.to_string()) + ".hpp"),
             typedef_includes: HashSet::new(),
             typeimpl_includes: HashSet::new(),
             declarations: Vec::new(),
             types: HashMap::new(),
             included_contexts: Vec::new(),
         };
-        if let Some(cpptype) = CppType::make(metadata, config, ctx_collection, &mut x, tdi) {
+        if let Some(cpptype) = CppType::make(metadata, config, tdi) {
             x.types.insert(TypeTag::TypeDefinition(tdi), cpptype);
         } else {
             println!("Unable to create valid CppContext for type: {t:?}!");
         }
         x
     }
-    pub fn write(&self) -> Result<()> {
+    pub fn write(&self) -> color_eyre::Result<()> {
         // Write typedef file first
         if Path::exists(self.typedef_path.as_path()) {
-            remove_file(self.typedef_path.as_path()).unwrap();
+            remove_file(self.typedef_path.as_path())?;
         }
-        if !Path::is_dir(self.typedef_path.parent().context("parent is not a directory!").unwrap()) {
+        if !Path::is_dir(
+            self.typedef_path
+                .parent()
+                .context("parent is not a directory!")?,
+        ) {
             // Assume it's never a file
-            create_dir_all(self.typedef_path.parent().context("Failed to create all directories!").unwrap()).unwrap();
+            create_dir_all(
+                self.typedef_path
+                    .parent()
+                    .context("Failed to create all directories!")?,
+            )?;
         }
+
+        println!("Writing {:?}", self.typedef_path.as_path());
         let mut writer = CppWriter {
-            stream: File::create(self.typedef_path.as_path()).unwrap(),
+            stream: File::create(self.typedef_path.as_path())?,
             indent: 0,
         };
         // Write includes for typedef
-        self.typedef_includes.iter().for_each(|inc| inc.write(&mut writer));
-        self.declarations.iter().for_each(|dec| dec.write(&mut writer));
+        self.typedef_includes
+            .iter()
+            .for_each(|inc| inc.write(&mut writer).unwrap());
+        self.declarations
+            .iter()
+            .for_each(|dec| dec.write(&mut writer).unwrap());
         self.types.iter().for_each(|(k, v)| {
             writeln!(writer, "/* {:?} */", k).unwrap();
-            v.write(&mut writer);
+            v.write(&mut writer).unwrap();
         });
 
         // TODO: Write type impl and fundamental files here
@@ -170,20 +250,58 @@ impl CppContext {
 }
 
 impl CppContextCollection {
-    pub fn make_from(&mut self, metadata: &Metadata, config: &GenerationConfig, ty: TypeData) -> &mut CppContext {
+    pub fn make_from(
+        &mut self,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        ty: TypeData,
+        fill: bool,
+    ) -> &mut CppContext {
         let tag = TypeTag::from(ty);
         if self.all_contexts.contains_key(&tag) {
-            return self.all_contexts.get_mut(&tag).unwrap();
+            // TODO: Check if existing context is already filled
+            if !fill {
+                return self.all_contexts.get_mut(&tag).unwrap();
+            }
+
+            // Take ownership, modify and then replace
+            let mut res = self.all_contexts.remove(&tag).unwrap();
+
+            if let TypeData::TypeDefinitionIndex(tdi) = ty {
+                if fill {
+                    res.make_rest(metadata, config, self, tdi);
+                }
+            }
+
+            return self.all_contexts.entry(tag).or_insert(res);
         }
+
         let value = match ty {
-            TypeData::TypeDefinitionIndex(tdi) => CppContext::make(metadata, config, self, tdi),
+            TypeData::TypeDefinitionIndex(tdi) => {
+                let mut ret = CppContext::make(metadata, config, tdi);
+                if fill {
+                    ret.make_rest(metadata, config, self, tdi);
+                }
+
+                ret
+            }
             _ => panic!("Unsupported type: {ty:?}"),
         };
+
         self.all_contexts.entry(tag).or_insert(value)
     }
+
+    pub fn get_context(&self, type_tag: TypeTag) -> Option<&CppContext> {
+        self.all_contexts.get(&type_tag)
+    }
+
+    pub fn is_type_made(&self, tag: TypeTag) -> bool {
+        self.all_contexts.contains_key(&tag)
+    }
+
     pub fn new() -> CppContextCollection {
-        CppContextCollection{
-            all_contexts: HashMap::new()
+        CppContextCollection {
+            all_contexts: HashMap::new(),
         }
     }
     pub fn get(&self) -> &HashMap<TypeTag, CppContext> {

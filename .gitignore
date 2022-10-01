@@ -1,3 +1,5 @@
 /target
 global-metadata.dat
 libil2cpp.so
+codegen/
+codegen.zip

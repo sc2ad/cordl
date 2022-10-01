@@ -10,3 +10,4 @@ il2cpp_binary = { git = "https://github.com/StackDoubleFlow/brocolib.git" }
 clap = { version = "3.1.8", features = ["derive"] }
 anyhow = { version = "*" }
 indent_write = { version = "*" }
+color-eyre = "0.6"

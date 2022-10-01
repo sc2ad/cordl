@@ -1,9 +1,11 @@
-use std::fs;
+#![feature(entry_insert)]
+
+use std::{fs};
 use std::path::PathBuf;
 use generate::config::GenerationConfig;
 use generate::context::{CppContextCollection, TypeTag};
 use generate::metadata::Metadata;
-use il2cpp_metadata_raw;
+
 use il2cpp_binary::{Elf, TypeData};
 use clap::{Parser, Subcommand};
 mod generate;
@@ -30,7 +32,8 @@ enum Commands {
     
 }
 
-fn main() {
+fn main() -> color_eyre::Result<()> {
+    color_eyre::install()?;
     // let cli = Cli::parse();
     let cli = Cli {
         metadata: PathBuf::from("global-metadata.dat"),
@@ -47,8 +50,8 @@ fn main() {
     let (code_registration, metadata_registration) = il2cpp_binary::registrations(&elf, &il2cpp_metadata).unwrap();
 
     let config = GenerationConfig {
-        header_path: PathBuf::from("include"),
-        source_path: PathBuf::from("src")
+        header_path: PathBuf::from("./codegen/include"),
+        source_path: PathBuf::from("./codegen/src")
     };
 
     let metadata = Metadata {
@@ -60,7 +63,7 @@ fn main() {
 
     // First, make all the contexts
     for tdi in 0..metadata.metadata.type_definitions.len() {
-        cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi.try_into().unwrap()));
+        cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi.try_into().unwrap()), true);
     }
     // for t in &metadata.type_definitions {
     //     // Handle the generation for a single type
@@ -68,4 +71,6 @@ fn main() {
     //     write_type(&metadata, &config, &t, &dest);
     // }
     cpp_context_collection.get()[&TypeTag::TypeDefinition(123)].write().unwrap();
+
+    Ok(())
 }
