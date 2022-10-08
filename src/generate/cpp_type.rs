@@ -29,6 +29,15 @@ impl CppType {
     pub fn namespace(&self) -> &String {
         &self.namespace
     }
+
+    pub fn namespace_fixed(&self) -> &str {
+        if self.namespace.is_empty() {
+            "GlobalNamespace"
+        } else {
+            &self.namespace
+        }
+    }
+
     pub fn name(&self) -> &String {
         &self.name
     }
@@ -103,7 +112,7 @@ impl CppType {
     //     return true;
     // }
 
-    pub fn make_rest(
+    pub fn fill(
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
@@ -231,12 +240,13 @@ impl CppType {
                     .unwrap();
 
                 // Need to include this type
-                let cpp_type_name = ctx.cpp_name(ctx_collection, metadata, config, f_type);
+                let cpp_type_name = ctx.field_cpp_name(ctx_collection, metadata, config, f_type, *f_offset);
 
-                self.declarations.push(Arc::new(CppCommentedString{
-                    data: "".to_string(), // TODO
-                    comment: Some(format!("Field: {i}, name: {f_name}, Type Name: {cpp_type_name}, Offset: {f_offset}"))
-                }));
+                self.declarations.push(
+                     Arc::new(CppCommentedString{
+                                    data: format!("{} {};", cpp_type_name, f_name), // TODO
+                                    comment: Some(format!("Field: {i}, name: {f_name}, Type Name: {cpp_type_name}, Offset: {f_offset}"))
+                                }));
             }
         }
     }
@@ -351,15 +361,16 @@ impl Writable for CppType {
         writeln!(
             writer,
             "// Forward declaring type: {}::{}",
-            self.namespace(),
+            self.namespace_fixed(),
             self.name()
         )?;
-        writeln!(writer, "namespace {} {{", self.namespace())?;
+        writeln!(writer, "namespace {} {{", self.namespace_fixed())?;
         writer.indent();
         if let Some(template) = &self.template_line {
             template.write(writer)?;
         }
         writeln!(writer, "struct {};", self.name())?;
+
         // Write type definition
         if let Some(template) = &self.template_line {
             template.write(writer).unwrap();
