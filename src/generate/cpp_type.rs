@@ -240,12 +240,13 @@ impl CppType {
                     .unwrap();
 
                 // Need to include this type
-                let cpp_type_name = ctx.field_cpp_name(ctx_collection, metadata, config, f_type, *f_offset);
+                let cpp_type_name =
+                    ctx.field_cpp_name(ctx_collection, metadata, config, f_type, *f_offset);
 
                 self.declarations.push(
                      Arc::new(CppCommentedString{
                                     data: format!("{} {};", cpp_type_name, f_name), // TODO
-                                    comment: Some(format!("Field: {i}, name: {f_name}, Type Name: {cpp_type_name}, Offset: {f_offset}"))
+                                    comment: Some(format!("Field: {i}, name: {f_name}, Type Name: {cpp_type_name}, Offset: 0x{f_offset:x}"))
                                 }));
             }
         }
