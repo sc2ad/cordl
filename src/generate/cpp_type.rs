@@ -19,9 +19,11 @@ pub struct CppType {
     pub namespace: String,
     pub name: String,
     declarations: Vec<Arc<CppCommentedString>>,
+
     pub needs_wrapper: bool,
     pub forward_declares: Vec<Type>,
     pub required_includes: Vec<PathBuf>,
+
     pub inherit: Vec<String>,
     pub template_line: Option<CppCommentedString>,
     pub generic_args: Vec<String>,
@@ -333,26 +335,8 @@ impl CppType {
             .get(t.parent_index as usize)
         {
             // We have a parent, lets do something with it
-            match parent_type.ty {
-                TypeEnum::Object => {
-                    self.needs_wrapper = true;
-                    self.inherit
-                        .push("::bs_hook::Il2CppWrapperType".to_string());
-                }
-                TypeEnum::Class => {
-                    // In this case, just inherit the type
-                    // But we have to:
-                    // - Determine where to include it from
-                    let parent_ctx =
-                        ctx_collection.make_from(metadata, config, parent_type.data, true);
-                    // - Inherit it
-                    self.inherit.push(parent_ctx.get_cpp_type_name(parent_type));
-                    self.required_includes
-                        .push(parent_ctx.get_include_path().to_path_buf());
-                }
-                TypeEnum::Valuetype => (),
-                _ => (),
-            }
+            let inherit_type = self.cpp_name(ctx_collection, metadata, config, parent_type, true);
+            self.inherit.push(inherit_type);
         } else {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
         }
@@ -437,7 +421,7 @@ impl Writable for CppType {
         // Type definition plus inherit lines
         writeln!(
             writer,
-            "struct {} : {} {{",
+            "struct {} : public {} {{",
             self.name(),
             self.inherit.join(", ")
         )?;
