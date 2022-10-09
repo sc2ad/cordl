@@ -154,31 +154,22 @@ impl CppContext {
         } else {
             ns_path + "/"
         };
-
-        const header_path: &str = "./codegen/include";
-
         let mut x = CppContext {
-            typedef_path: format!(
-                "{}/{}__{}_def.hpp",
-                header_path,
+            typedef_path: config.header_path.join(format!(
+                "{}__{}_def.hpp",
                 path,
                 &config.path_name(name.to_string())
-            )
-            .into(),
-            type_impl_path: format!(
-                "{}/{}__{}_impl.hpp",
-                header_path,
+            )),
+            type_impl_path: config.header_path.join(format!(
+                "{}__{}_impl.hpp",
                 path,
                 &config.path_name(name.to_string())
-            )
-            .into(),
-            fundamental_path: format!(
-                "{}/{}{}.hpp",
-                header_path,
+            )),
+            fundamental_path: config.header_path.join(format!(
+                "{}{}.hpp",
                 path,
                 &config.path_name(name.to_string())
-            )
-            .into(),
+            )),
             typedef_includes: Default::default(),
             typeimpl_includes: Default::default(),
             typedef_declarations: Default::default(),
