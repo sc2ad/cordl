@@ -1,4 +1,5 @@
 #![feature(entry_insert)]
+#![feature(let_chains)]
 
 use std::{fs};
 use std::path::PathBuf;

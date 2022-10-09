@@ -1,7 +1,7 @@
 use std::{io::Write, path::PathBuf, sync::Arc};
 
 use color_eyre::eyre::Context;
-use il2cpp_binary::{Type, TypeEnum};
+use il2cpp_binary::{Type, TypeData, TypeEnum};
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
 use super::{
@@ -16,12 +16,12 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct CppType {
     prefix_comments: Vec<String>,
-    pub namespace: String,
-    pub name: String,
+    namespace: String,
+    name: String,
     declarations: Vec<Arc<CppCommentedString>>,
 
     pub needs_wrapper: bool,
-    pub forward_declares: Vec<Type>,
+    pub forward_declares: Vec<u32>,
     pub required_includes: Vec<PathBuf>,
 
     pub inherit: Vec<String>,
@@ -133,7 +133,7 @@ impl CppType {
             cpp_name, offset, !readonly
         )
     }
-    
+
     pub fn cpp_name(
         &mut self,
         ctx_collection: &mut CppContextCollection,
@@ -305,7 +305,9 @@ impl CppType {
                                     comment: Some(format!("Field: {i}, name: {f_name}, Type Name: {cpp_type_name}, Offset: 0x{f_offset:x}"))
                                 }));
 
-                self.forward_declares.push(*f_type);
+                if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
+                    self.forward_declares.push(f_tdi);
+                }
             }
         }
     }

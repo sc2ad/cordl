@@ -45,9 +45,8 @@ pub struct CppContext {
     typeimpl_includes: HashSet<CppCommentedString>,
 
     // IDK, for typedef
-    typedef_declarations: Vec<CppCommentedString>,
-
-    typedef_forward_declares: HashSet<TypeTag>,
+    // Map of Namespace -> declared structs?
+    typedef_declarations: HashMap<String, Vec<CppCommentedString>>,
 
     typedef_path: PathBuf,
     type_impl_path: PathBuf,
@@ -111,8 +110,14 @@ impl CppContext {
             comment,
         )
     }
-    pub fn add_forward_declare(&mut self, ty: TypeTag) {
-        self.typedef_forward_declares.insert(ty);
+    pub fn add_forward_declare(&mut self, namespace: String, name: &str) {
+        self.typedef_declarations
+            .entry(namespace)
+            .or_default()
+            .push(CppCommentedString {
+                data: format!("struct {};", name),
+                comment: None,
+            });
     }
     pub fn need_wrapper(&mut self) {
         self.add_include("beatsaber-hook/shared/utils/base-wrapper-type.hpp".to_string());
@@ -175,7 +180,6 @@ impl CppContext {
             typedef_declarations: Default::default(),
             typedef_types: Default::default(),
             included_contexts: Default::default(),
-            typedef_forward_declares: Default::default(),
         };
         if let Some(cpptype) = CppType::make(metadata, config, tdi) {
             x.typedef_types
@@ -223,9 +227,15 @@ impl CppContext {
         self.typedef_includes
             .iter()
             .for_each(|inc| inc.write(&mut typedef_writer).unwrap());
-        self.typedef_declarations
-            .iter()
-            .for_each(|dec| dec.write(&mut typedef_writer).unwrap());
+
+        // forward declares
+        for (namespace, strings) in &self.typedef_declarations {
+            writeln!(typedef_writer, "namespace {} {{", namespace)?;
+            strings
+                .iter()
+                .for_each(|s| s.write(&mut typedef_writer).unwrap());
+            writeln!(typedef_writer, "}} // namespace {}", namespace)?;
+        }
         self.typedef_types.iter().for_each(|(k, v)| {
             writeln!(typedef_writer, "/* {:?} */", k).unwrap();
             v.write(&mut typedef_writer).unwrap();
@@ -261,9 +271,21 @@ impl CppContext {
                     )
                 }
 
-                for fd_declare in &cpp_type.forward_declares {
+                for fd_tdi in &cpp_type.forward_declares {
                     // - Include it
-                    self.add_forward_declare(TypeTag::from(fd_declare.data));
+                    let fd_type_opt = ctx_collection.get_cpp_type(
+                        metadata,
+                        config,
+                        TypeData::TypeDefinitionIndex(*fd_tdi),
+                        false,
+                    );
+
+                    if let Some(fd_type) = fd_type_opt {
+                        self.add_forward_declare(
+                            fd_type.namespace_fixed().to_owned(),
+                            fd_type.name(),
+                        );
+                    }
                 }
 
                 self.typedef_types.entry(tag).insert_entry(cpp_type);
@@ -314,6 +336,18 @@ impl CppContextCollection {
         };
 
         self.all_contexts.entry(tag).or_insert(value)
+    }
+
+    pub fn get_cpp_type(
+        &mut self,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        ty: TypeData,
+        fill: bool,
+    ) -> std::option::Option<&mut CppType> {
+        let context = self.make_from(metadata, config, ty, fill);
+
+        context.typedef_types.get_mut(&TypeTag::from(ty))
     }
 
     pub fn get_context(&self, type_tag: TypeTag) -> Option<&CppContext> {
