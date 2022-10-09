@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     fs::{create_dir_all, remove_file, File},
     io::Write,
     path::{Path, PathBuf},
@@ -184,29 +184,7 @@ impl CppContext {
             println!("Unable to create valid CppContext for type: {t:?}!");
         }
 
-        x.setup_context();
-
         x
-    }
-
-    fn setup_context(&mut self) {
-        if self.typedef_types.iter().any(|(_, t)| t.needs_wrapper) {
-            self.need_wrapper();
-        }
-
-        for (_tag, cpp_type) in self.typedef_types.clone() {
-            for include in cpp_type.required_includes {
-                self.add_include_comment(
-                    include.to_str().unwrap().to_string(),
-                    "Including parent context".to_string(),
-                )
-            }
-
-            for fd_declare in cpp_type.forward_declares {
-                // - Include it
-                self.add_forward_declare(TypeTag::from(fd_declare.data));
-            }
-        }
     }
 
     pub fn write(&self) -> color_eyre::Result<()> {
@@ -266,10 +244,29 @@ impl CppContext {
     ) {
         let tag = TypeTag::from(ty);
         if let TypeData::TypeDefinitionIndex(tdi) = ty {
-            let cpp_type = self.typedef_types.get_mut(&tag);
+            let cpp_type_entry = self.typedef_types.entry(tag);
 
-            if let Some(cpp_type) = cpp_type {
+            if let Entry::Occupied(occupied) = cpp_type_entry {
+                let mut cpp_type = occupied.remove();
                 cpp_type.fill(metadata, config, ctx_collection, tdi);
+
+                if cpp_type.needs_wrapper {
+                    self.need_wrapper();
+                }
+
+                for include in &cpp_type.required_includes {
+                    self.add_include_comment(
+                        include.to_str().unwrap().to_string(),
+                        "Including parent context".to_string(),
+                    )
+                }
+
+                for fd_declare in &cpp_type.forward_declares {
+                    // - Include it
+                    self.add_forward_declare(TypeTag::from(fd_declare.data));
+                }
+
+                self.typedef_types.entry(tag).insert_entry(cpp_type);
             }
         }
     }
