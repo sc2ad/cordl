@@ -6,7 +6,7 @@ use std::{
 };
 
 use color_eyre::eyre::ContextCompat;
-use il2cpp_binary::{Type, TypeData, TypeEnum};
+use il2cpp_binary::{Type, TypeData};
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
 use super::{
@@ -83,10 +83,6 @@ impl TypeTag {
     }
 }
 
-pub struct CppContextCollection {
-    all_contexts: HashMap<TypeTag, CppContext>,
-}
-
 impl CppContext {
     pub fn get_include_path(&self) -> &PathBuf {
         &self.typedef_path
@@ -115,7 +111,7 @@ impl CppContext {
             comment,
         )
     }
-    pub fn add_forward_declare(&mut self, _inc: &CppContext, ty: TypeTag, _comment: String) {
+    pub fn add_forward_declare(&mut self, ty: TypeTag) {
         self.typedef_forward_declares.insert(ty);
     }
     pub fn need_wrapper(&mut self) {
@@ -136,66 +132,6 @@ impl CppContext {
             }
         } else {
             panic!("Could not find type: {ty:?} in context: {self:?}!");
-        }
-    }
-    pub fn field_cpp_name(
-        &mut self,
-        ctx_collection: &mut CppContextCollection,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        typ: &Type,
-        offset: u32,
-    ) -> String {
-        match typ.ty {
-            TypeEnum::Class => {
-                // In this case, just inherit the type
-                // But we have to:
-                // - Determine where to include it from
-                let to_incl = ctx_collection.make_from(metadata, config, typ.data, false);
-                // - Include it
-                self.add_forward_declare(
-                    to_incl,
-                    TypeTag::from(typ.data),
-                    "Including parent context".to_string(),
-                );
-                let type_name = to_incl.get_cpp_type_name(typ);
-                let readonly = false;
-                format!(
-                    "::bs_hook::InstanceField<{}, 0x{:x},{}>",
-                    type_name, offset, !readonly
-                )
-            }
-            _ => self.cpp_name(ctx_collection, metadata, config, typ),
-        }
-    }
-    pub fn cpp_name(
-        &mut self,
-        ctx_collection: &mut CppContextCollection,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        typ: &Type,
-    ) -> String {
-        match typ.ty {
-            TypeEnum::Object => {
-                self.need_wrapper();
-                "::bs_hook::Il2CppWrapperType".to_string()
-            }
-            TypeEnum::Class => {
-                // In this case, just inherit the type
-                // But we have to:
-                // - Determine where to include it from
-                let to_incl = ctx_collection.make_from(metadata, config, typ.data, false);
-                // - Include it
-                self.add_include_ctx(to_incl, "Including parent context".to_string());
-                to_incl.get_cpp_type_name(typ)
-            }
-            TypeEnum::Valuetype => "/* UNKNOWN VALUE TYPE! */".to_string(),
-            TypeEnum::Void => "void".to_string(),
-            TypeEnum::Boolean => "boolean".to_string(),
-            TypeEnum::Char => "char16_t".to_string(),
-            TypeEnum::String => "::StringW".to_string(),
-            // TODO: Void and the other primitives
-            _ => format!("/* UNKNOWN TYPE! {:?} */", typ.ty),
         }
     }
 
@@ -221,12 +157,12 @@ impl CppContext {
         let mut x = CppContext {
             typedef_path: config.header_path.join(format!(
                 "{}__{}_def.hpp",
-                path.clone(),
+                path,
                 &config.path_name(name.to_string())
             )),
             type_impl_path: config.header_path.join(format!(
                 "{}__{}_impl.hpp",
-                path.clone(),
+                path,
                 &config.path_name(name.to_string())
             )),
             fundamental_path: config.header_path.join(format!(
@@ -247,8 +183,32 @@ impl CppContext {
         } else {
             println!("Unable to create valid CppContext for type: {t:?}!");
         }
+
+        x.setup_context();
+
         x
     }
+
+    fn setup_context(&mut self) {
+        if self.typedef_types.iter().any(|(_, t)| t.needs_wrapper) {
+            self.need_wrapper();
+        }
+
+        for (_tag, cpp_type) in self.typedef_types.clone() {
+            for include in cpp_type.required_includes {
+                self.add_include_comment(
+                    include.to_str().unwrap().to_string(),
+                    "Including parent context".to_string(),
+                )
+            }
+
+            for fd_declare in cpp_type.forward_declares {
+                // - Include it
+                self.add_forward_declare(TypeTag::from(fd_declare.data));
+            }
+        }
+    }
+
     pub fn write(&self) -> color_eyre::Result<()> {
         // Write typedef file first
         if Path::exists(self.typedef_path.as_path()) {
@@ -296,29 +256,30 @@ impl CppContext {
         // TODO: Write type impl and fundamental files here
         Ok(())
     }
-}
 
-impl CppContextCollection {
     fn fill_type(
         &mut self,
-        context: &mut CppContext,
         metadata: &Metadata,
         config: &GenerationConfig,
+        ctx_collection: &mut CppContextCollection,
         ty: TypeData,
     ) {
         let tag = TypeTag::from(ty);
         if let TypeData::TypeDefinitionIndex(tdi) = ty {
-            let cpp_type_opt = context.typedef_types.remove(&tag);
+            let cpp_type = self.typedef_types.get_mut(&tag);
 
-            if let Some(mut cpp_type) = cpp_type_opt {
-                if !cpp_type.made {
-                    cpp_type.fill(metadata, config, self, context, tdi);
-                }
-                context.typedef_types.insert(tag, cpp_type);
+            if let Some(cpp_type) = cpp_type {
+                cpp_type.fill(metadata, config, ctx_collection, tdi);
             }
         }
     }
+}
 
+pub struct CppContextCollection {
+    all_contexts: HashMap<TypeTag, CppContext>,
+}
+
+impl CppContextCollection {
     pub fn make_from(
         &mut self,
         metadata: &Metadata,
@@ -337,7 +298,7 @@ impl CppContextCollection {
             let mut res = self.all_contexts.remove(&tag).unwrap();
 
             if fill {
-                self.fill_type(&mut res, metadata, config, ty);
+                res.fill_type(metadata, config, self, ty);
             }
 
             return self.all_contexts.entry(tag).or_insert(res);
@@ -347,7 +308,7 @@ impl CppContextCollection {
             TypeData::TypeDefinitionIndex(tdi) => {
                 let mut ret = CppContext::make(metadata, config, tdi);
                 if fill {
-                    self.fill_type(&mut ret, metadata, config, ty);
+                    ret.fill_type(metadata, config, self, ty);
                 }
 
                 ret
