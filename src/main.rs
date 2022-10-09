@@ -50,8 +50,8 @@ fn main() -> color_eyre::Result<()> {
     let (code_registration, metadata_registration) = il2cpp_binary::registrations(&elf, &il2cpp_metadata).unwrap();
 
     let config = GenerationConfig {
-        header_path: PathBuf::from("./codegen/include"),
-        source_path: PathBuf::from("./codegen/src")
+        header_path: PathBuf::from("include"),
+        source_path: PathBuf::from("src")
     };
 
     let metadata = Metadata {
