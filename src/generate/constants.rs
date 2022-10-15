@@ -3,11 +3,17 @@ use il2cpp_metadata_raw::Il2CppTypeDefinition;
 
 pub trait TypeExtentions {
     fn is_static(&self) -> bool;
+    fn is_const(&self) -> bool;
 }
 
 impl TypeExtentions for Type {
     fn is_static(&self) -> bool {
         (self.attrs & 0x0010) != 0
+    }
+
+    // FIELD_ATTRIBUTE_LITERAL
+    fn is_const(&self) -> bool {
+        (self.attrs & 0x0040) != 0
     }
 }
 

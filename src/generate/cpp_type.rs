@@ -70,20 +70,17 @@ impl CppType {
         typ: &Type,
         offset: u32,
         instance: bool,
+        readonly: bool,
     ) -> String {
         let cpp_name = self.cpp_name(ctx_collection, metadata, config, typ, false);
 
-        let readonly = false;
         if instance {
             format!(
                 "::bs_hook::InstanceField<{}, 0x{:x},{}>",
                 cpp_name, offset, !readonly
             )
         } else {
-            format!(
-                "::bs_hook::StaticField<{}, 0x{:x},{}>",
-                cpp_name, offset, !readonly
-            )
+            format!("::bs_hook::StaticField<{}, {}, {}>", cpp_name, !readonly, "TODO:")
         }
     }
 
@@ -268,13 +265,14 @@ impl CppType {
                     config,
                     f_type,
                     *f_offset,
-                    f_type.is_static(),
+                    !f_type.is_static() | f_type.is_const(),
+                    f_type.is_const(),
                 );
 
                 self.declarations.push(Arc::new(CppCommentedString {
                     data: format!(
                         "{} {cpp_type_name} {f_name};",
-                        if f_type.is_static() { "static" } else { "" }
+                        if f_type.is_static() { "static inline" } else { "" }
                     ), // TODO
                     comment: Some(format!(
                         "Field: {i}, name: {f_name}, Type Name: {f_type:?}, Offset: 0x{f_offset:x}"
