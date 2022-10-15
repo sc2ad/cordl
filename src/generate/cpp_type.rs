@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf, sync::Arc};
+use std::{collections::HashSet, io::Write, path::PathBuf, sync::Arc};
 
 use color_eyre::eyre::Context;
 use il2cpp_binary::{Type, TypeData, TypeEnum};
@@ -6,6 +6,7 @@ use il2cpp_metadata_raw::TypeDefinitionIndex;
 
 use super::{
     config::GenerationConfig,
+    constants::{TypeDefinitionExtensions, TypeExtentions},
     context::{CppCommentedString, CppContextCollection},
     metadata::Metadata,
     writer::Writable,
@@ -20,6 +21,7 @@ pub struct CppType {
     name: String,
     declarations: Vec<Arc<CppCommentedString>>,
 
+    pub value_type: bool,
     pub needs_wrapper: bool,
     pub forward_declares: HashSet<u32>,
     pub required_includes: Vec<PathBuf>,
@@ -124,14 +126,22 @@ impl CppType {
         config: &GenerationConfig,
         typ: &Type,
         offset: u32,
+        instance: bool,
     ) -> String {
         let cpp_name = self.cpp_name(ctx_collection, metadata, config, typ, false);
 
         let readonly = false;
-        format!(
-            "::bs_hook::InstanceField<{}, 0x{:x},{}>",
-            cpp_name, offset, !readonly
-        )
+        if instance {
+            format!(
+                "::bs_hook::InstanceField<{}, 0x{:x},{}>",
+                cpp_name, offset, !readonly
+            )
+        } else {
+            format!(
+                "::bs_hook::StaticField<{}, 0x{:x},{}>",
+                cpp_name, offset, !readonly
+            )
+        }
     }
 
     pub fn cpp_name(
@@ -160,7 +170,7 @@ impl CppType {
                 }
                 to_incl.get_cpp_type_name(typ)
             }
-            TypeEnum::Valuetype => "/* UNKNOWN VALUE TYPE! */".to_string(),
+            TypeEnum::Valuetype => "/* UNKNOWN VALUE TYPE */".to_string(),
             TypeEnum::Void => "void".to_string(),
             TypeEnum::Boolean => "boolean".to_string(),
             TypeEnum::Char => "char16_t".to_string(),
@@ -296,14 +306,21 @@ impl CppType {
                     .unwrap();
 
                 // Need to include this type
-                let cpp_type_name =
-                    self.field_cpp_name(ctx_collection, metadata, config, f_type, *f_offset);
+                let cpp_type_name = self.field_cpp_name(
+                    ctx_collection,
+                    metadata,
+                    config,
+                    f_type,
+                    *f_offset,
+                    f_type.is_static(),
+                );
 
-                self.declarations.push(
-                     Arc::new(CppCommentedString{
-                                    data: format!("{} {};", cpp_type_name, f_name), // TODO
-                                    comment: Some(format!("Field: {i}, name: {f_name}, Type Name: {cpp_type_name}, Offset: 0x{f_offset:x}"))
-                                }));
+                self.declarations.push(Arc::new(CppCommentedString {
+                    data: format!("{} {};", cpp_type_name, f_name), // TODO
+                    comment: Some(format!(
+                        "Field: {i}, name: {f_name}, Type Name: {f_type:?}, Offset: 0x{f_offset:x}"
+                    )),
+                }));
 
                 // forward declare only if field type is not the same type as the holder
                 if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
@@ -376,6 +393,7 @@ impl CppType {
             needs_wrapper: Default::default(),
             forward_declares: Default::default(),
             required_includes: Default::default(),
+            value_type: t.is_value_type(),
         };
 
         if t.parent_index == u32::MAX {
@@ -421,6 +439,7 @@ impl Writable for CppType {
         if let Some(template) = &self.template_line {
             template.write(writer).unwrap();
         }
+        writeln!(writer, "// Is value type: {}", self.value_type)?;
         // Type definition plus inherit lines
         writeln!(
             writer,
