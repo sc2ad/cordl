@@ -80,7 +80,10 @@ impl CppType {
                 cpp_name, offset, !readonly
             )
         } else {
-            format!("::bs_hook::StaticField<{}, {}, {}>", cpp_name, !readonly, "TODO:")
+            format!(
+                "::bs_hook::StaticField<{}, {}, {}>",
+                cpp_name, !readonly, "TODO:"
+            )
         }
     }
 
@@ -111,6 +114,16 @@ impl CppType {
                 let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
                 to_incl_ty.self_cpp_type_name()
             }
+            TypeEnum::I | TypeEnum::I4 => "int32_t".to_string(),
+            TypeEnum::I1 => "int8_t".to_string(),
+            TypeEnum::I2 => "int16_t".to_string(),
+            TypeEnum::I8 => "int64_t".to_string(),
+
+            TypeEnum::U | TypeEnum::U4 => "uint32_t".to_string(),
+            TypeEnum::U1 => "uint8_t".to_string(),
+            TypeEnum::U2 => "uint16_t".to_string(),
+            TypeEnum::U8 => "uint64_t".to_string(),
+
             TypeEnum::Void => "void".to_string(),
             TypeEnum::Boolean => "boolean".to_string(),
             TypeEnum::Char => "char16_t".to_string(),
@@ -265,14 +278,18 @@ impl CppType {
                     config,
                     f_type,
                     *f_offset,
-                    !f_type.is_static() | f_type.is_const(),
+                    !f_type.is_static() && !f_type.is_const(),
                     f_type.is_const(),
                 );
 
                 self.declarations.push(Arc::new(CppCommentedString {
                     data: format!(
                         "{} {cpp_type_name} {f_name};",
-                        if f_type.is_static() { "static inline" } else { "" }
+                        if f_type.is_static() {
+                            "static inline"
+                        } else {
+                            ""
+                        }
                     ), // TODO
                     comment: Some(format!(
                         "Field: {i}, name: {f_name}, Type Name: {f_type:?}, Offset: 0x{f_offset:x}"
