@@ -13,10 +13,15 @@ impl TypeExtentions for Type {
 
 pub trait TypeDefinitionExtensions {
     fn is_value_type(&self) -> bool;
+    fn is_enum_type(&self) -> bool;
 }
 
 impl TypeDefinitionExtensions for Il2CppTypeDefinition {
     fn is_value_type(&self) -> bool {
         self.bitfield & 1 != 0
+    }
+
+    fn is_enum_type(&self) -> bool { 
+        self.bitfield & 2 != 0
     }
 }

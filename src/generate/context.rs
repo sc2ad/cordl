@@ -83,6 +83,13 @@ impl TypeTag {
 }
 
 impl CppContext {
+    pub fn get_cpp_type_mut(&mut self, t: TypeTag) -> Option<&mut CppType> {
+        self.typedef_types.get_mut(&t)
+    }
+    pub fn get_cpp_type(&mut self, t: TypeTag) -> Option<&CppType> {
+        self.typedef_types.get(&t)
+    }
+
     pub fn get_include_path(&self) -> &PathBuf {
         &self.typedef_path
     }
@@ -121,23 +128,6 @@ impl CppContext {
     }
     pub fn need_wrapper(&mut self) {
         self.add_include("beatsaber-hook/shared/utils/base-wrapper-type.hpp".to_string());
-    }
-    pub fn get_cpp_type_name(&self, ty: &Type) -> String {
-        let tag = TypeTag::from(ty.data);
-        if let Some(result) = self.typedef_types.get(&tag) {
-            // We found a valid type that we have defined for this idx!
-            // TODO: We should convert it here.
-            // Ex, if it is a generic, convert it to a template specialization
-            // If it is a normal type, handle it accordingly, etc.
-            match tag {
-                TypeTag::TypeDefinition(_) => {
-                    format!("{}::{}", result.namespace_fixed(), result.name())
-                }
-                _ => panic!("Unsupported type conversion for type: {tag:?}!"),
-            }
-        } else {
-            panic!("Could not find type: {ty:?} in context: {self:?}!");
-        }
     }
 
     fn make(
@@ -308,7 +298,6 @@ impl CppContextCollection {
     ) -> &mut CppContext {
         let tag = TypeTag::from(ty);
         if self.all_contexts.contains_key(&tag) {
-            // TODO: Check if existing context is already filled
             if !fill {
                 return self.all_contexts.get_mut(&tag).unwrap();
             }
@@ -320,7 +309,7 @@ impl CppContextCollection {
                 res.fill_type(metadata, config, self, ty);
             }
 
-            return self.all_contexts.entry(tag).or_insert(res);
+            return self.all_contexts.entry(tag).insert_entry(res).into_mut();
         }
 
         let value = match ty {

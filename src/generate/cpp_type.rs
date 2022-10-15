@@ -7,7 +7,7 @@ use il2cpp_metadata_raw::TypeDefinitionIndex;
 use super::{
     config::GenerationConfig,
     constants::{TypeDefinitionExtensions, TypeExtentions},
-    context::{CppCommentedString, CppContextCollection},
+    context::{CppCommentedString, CppContextCollection, TypeTag},
     metadata::Metadata,
     writer::Writable,
 };
@@ -16,6 +16,7 @@ use super::{
 // A C# type will be TURNED INTO this
 #[derive(Debug, Clone)]
 pub struct CppType {
+    ty: TypeTag,
     prefix_comments: Vec<String>,
     namespace: String,
     name: String,
@@ -61,64 +62,6 @@ impl CppType {
             .unwrap()
     }
 
-    // pub fn can_make(
-    //     &self,
-    //     metadata: &Metadata,
-    //     ctx_collection: &CppContextCollection,
-    //     tdi: TypeDefinitionIndex,
-    // ) -> bool {
-    //     if self.made {
-    //         return true;
-    //     }
-
-    //     let t = self.get_type_definition(metadata, tdi);
-
-    //     if let Some(parent_type) = metadata
-    //         .metadata_registration
-    //         .types
-    //         .get(t.parent_index as usize)
-    //     {
-    //         // We have a parent, lets do something with it
-    //         match parent_type.ty {
-    //             TypeEnum::Class => {
-    //                 if !ctx_collection.is_type_made(TypeTag::from(parent_type.data)) {
-    //                     return false;
-    //                 }
-    //             }
-    //             _ => (),
-    //         }
-    //     }
-
-    //     // Then, for each field, write it out
-    //     for i in 0..t.field_count {
-    //         let field = metadata
-    //             .metadata
-    //             .fields
-    //             .get((t.field_start + i as u32) as usize)
-    //             .unwrap();
-    //         let f_name = metadata.metadata.get_str(field.name_index).unwrap();
-    //         let f_offset = metadata
-    //             .metadata_registration
-    //             .field_offsets
-    //             .get(tdi as usize)
-    //             .unwrap()
-    //             .get(i as usize)
-    //             .unwrap();
-    //         let f_type = metadata
-    //             .metadata_registration
-    //             .types
-    //             .get(field.type_index as usize)
-    //             .unwrap();
-
-    //         if !ctx_collection.is_type_made(TypeTag::from(f_type.data)) {
-    //             return false;
-    //         }
-    //     }
-
-    //     self.made = true;
-    //     return true;
-    // }
-
     pub fn field_cpp_name(
         &mut self,
         ctx_collection: &mut CppContextCollection,
@@ -157,26 +100,39 @@ impl CppType {
                 self.needs_wrapper = true;
                 "::bs_hook::Il2CppWrapperType".to_string()
             }
-            TypeEnum::Class => {
+            TypeEnum::Valuetype | TypeEnum::Class => {
                 // In this case, just inherit the type
                 // But we have to:
                 // - Determine where to include it from
                 let to_incl = ctx_collection.make_from(metadata, config, typ.data, false);
-                // - Include it
 
+                // - Include it
                 if include_ref {
                     self.required_includes
                         .push(to_incl.get_include_path().to_path_buf());
                 }
-                to_incl.get_cpp_type_name(typ)
+                let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
+                to_incl_ty.self_cpp_type_name()
             }
-            TypeEnum::Valuetype => "/* UNKNOWN VALUE TYPE */".to_string(),
             TypeEnum::Void => "void".to_string(),
             TypeEnum::Boolean => "boolean".to_string(),
             TypeEnum::Char => "char16_t".to_string(),
             TypeEnum::String => "::StringW".to_string(),
             // TODO: Void and the other primitives
             _ => format!("/* UNKNOWN TYPE! {:?} */", typ.ty),
+        }
+    }
+
+    pub fn self_cpp_type_name(&self) -> String {
+        // We found a valid type that we have defined for this idx!
+        // TODO: We should convert it here.
+        // Ex, if it is a generic, convert it to a template specialization
+        // If it is a normal type, handle it accordingly, etc.
+        match self.ty {
+            TypeTag::TypeDefinition(_) => {
+                format!("{}::{}", self.namespace_fixed(), self.name())
+            }
+            _ => panic!("Unsupported type conversion for type: {:?}!", self.ty),
         }
     }
 
@@ -316,7 +272,10 @@ impl CppType {
                 );
 
                 self.declarations.push(Arc::new(CppCommentedString {
-                    data: format!("{} {};", cpp_type_name, f_name), // TODO
+                    data: format!(
+                        "{} {cpp_type_name} {f_name};",
+                        if f_type.is_static() { "static" } else { "" }
+                    ), // TODO
                     comment: Some(format!(
                         "Field: {i}, name: {f_name}, Type Name: {f_type:?}, Offset: 0x{f_offset:x}"
                     )),
@@ -394,6 +353,7 @@ impl CppType {
             forward_declares: Default::default(),
             required_includes: Default::default(),
             value_type: t.is_value_type(),
+            ty: TypeTag::TypeDefinition(tdi),
         };
 
         if t.parent_index == u32::MAX {
