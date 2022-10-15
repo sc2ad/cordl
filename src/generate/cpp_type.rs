@@ -21,7 +21,7 @@ pub struct CppType {
     declarations: Vec<Arc<CppCommentedString>>,
 
     pub needs_wrapper: bool,
-    pub forward_declares: Vec<u32>,
+    pub forward_declares: HashSet<u32>,
     pub required_includes: Vec<PathBuf>,
 
     pub inherit: Vec<String>,
@@ -305,8 +305,9 @@ impl CppType {
                                     comment: Some(format!("Field: {i}, name: {f_name}, Type Name: {cpp_type_name}, Offset: 0x{f_offset:x}"))
                                 }));
 
+                // forward declare only if field type is not the same type as the holder
                 if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
-                    self.forward_declares.push(f_tdi);
+                    self.forward_declares.insert(f_tdi);
                 }
             }
         }
