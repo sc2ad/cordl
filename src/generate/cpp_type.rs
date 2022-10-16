@@ -62,18 +62,7 @@ impl CppType {
             .unwrap()
     }
 
-    pub fn field_cpp_name(
-        &mut self,
-        ctx_collection: &mut CppContextCollection,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        typ: &Type,
-        offset: u32,
-        instance: bool,
-        readonly: bool,
-    ) -> String {
-        let cpp_name = self.cpp_name(ctx_collection, metadata, config, typ, false);
-
+    pub fn field_cpp_name(&self, cpp_name: String, offset: u32, instance: bool, readonly: bool) -> String {
         if instance {
             format!(
                 "::bs_hook::InstanceField<{}, 0x{:x},{}>",
@@ -82,7 +71,7 @@ impl CppType {
         } else {
             format!(
                 "::bs_hook::StaticField<{}, {}, {}>",
-                cpp_name, !readonly, "TODO:"
+                cpp_name, !readonly, self.classof_call()
             )
         }
     }
@@ -144,6 +133,13 @@ impl CppType {
             }
             _ => panic!("Unsupported type conversion for type: {:?}!", self.ty),
         }
+    }
+
+    pub fn classof_call(&self) -> String {
+        format!(
+            "&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get",
+            self.self_cpp_type_name()
+        )
     }
 
     pub fn fill(
@@ -271,12 +267,11 @@ impl CppType {
                     .get(field.type_index as usize)
                     .unwrap();
 
+                let cpp_name = self.cpp_name(ctx_collection, metadata, config, f_type, false);
+
                 // Need to include this type
-                let cpp_type_name = self.field_cpp_name(
-                    ctx_collection,
-                    metadata,
-                    config,
-                    f_type,
+                let field_cpp_name = self.field_cpp_name(
+                    cpp_name,
                     *f_offset,
                     !f_type.is_static() && !f_type.is_const(),
                     f_type.is_const(),
@@ -284,7 +279,7 @@ impl CppType {
 
                 self.declarations.push(Arc::new(CppCommentedString {
                     data: format!(
-                        "{} {cpp_type_name} {f_name};",
+                        "{} {field_cpp_name} {f_name};",
                         if f_type.is_static() {
                             "static inline"
                         } else {
