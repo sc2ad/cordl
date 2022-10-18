@@ -8,7 +8,7 @@ use super::{
     config::GenerationConfig,
     constants::{TypeDefinitionExtensions, TypeExtentions},
     context::{CppCommentedString, CppContextCollection, TypeTag},
-    members::{CppMember, CppMethod, CppField},
+    members::{CppField, CppMember, CppMethod},
     metadata::Metadata,
     writer::Writable,
 };
@@ -70,28 +70,6 @@ impl CppType {
             .type_definitions
             .get(tdi as usize)
             .unwrap()
-    }
-
-    pub fn field_cpp_name(
-        &self,
-        cpp_name: String,
-        offset: u32,
-        instance: bool,
-        readonly: bool,
-    ) -> String {
-        if instance {
-            format!(
-                "::bs_hook::InstanceField<{}, 0x{:x},{}>",
-                cpp_name, offset, !readonly
-            )
-        } else {
-            format!(
-                "::bs_hook::StaticField<{}, {}, {}>",
-                cpp_name,
-                !readonly,
-                self.classof_call()
-            )
-        }
     }
 
     pub fn cpp_name(
@@ -310,19 +288,13 @@ impl CppType {
                 let cpp_name = self.cpp_name(ctx_collection, metadata, config, f_type, false);
 
                 // Need to include this type
-                let field_cpp_name = self.field_cpp_name(
-                    cpp_name,
-                    *f_offset,
-                    !f_type.is_static() && !f_type.is_const(),
-                    f_type.is_const(),
-                );
-
                 self.declarations.push(CppMember::Field(CppField {
                     name: f_name.to_owned(),
-                    ty: field_cpp_name,
+                    ty: cpp_name,
                     offset: *f_offset,
                     instance: !f_type.is_static() && !f_type.is_const(),
                     readonly: f_type.is_const(),
+                    classof_call: self.classof_call(),
                 }));
 
                 // forward declare only if field type is not the same type as the holder

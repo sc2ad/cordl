@@ -1,4 +1,5 @@
 use super::{context::CppCommentedString, writer::Writable};
+use std::io::Write;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CppMember {
@@ -15,6 +16,7 @@ pub struct CppField {
     pub offset: u32,
     pub instance: bool,
     pub readonly: bool,
+    pub classof_call: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -34,8 +36,15 @@ pub struct CppProperty {
 }
 
 impl CppField {
-    pub fn make() -> CppField{
-        CppField { name: todo!(), ty: todo!(), offset: todo!(), instance: todo!(), readonly: todo!() }
+    pub fn make() -> CppField {
+        CppField {
+            name: todo!(),
+            ty: todo!(),
+            offset: todo!(),
+            instance: todo!(),
+            readonly: todo!(),
+            classof_call: todo!(),
+        }
     }
 }
 
@@ -65,33 +74,40 @@ impl CppProperty {
 
 impl Writable for CppField {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        CppCommentedString {
-                    data: format!(
-                        "{} {} {};",
-                        if !self.instance {
-                            "static inline"
-                        } else {
-                            ""
-                        },
-                        self.ty, self.name,
-                    ), // TODO
-                    comment: Some(format!(
-                        "Field: name: {}, Type Name: {}, Offset: 0x{:x}"
-                    , self.name, self.ty, self.offset)),
-                }.write(writer)?;
+        writeln!(
+            writer,
+            "// Field: name: {}, Type Name: {}, Offset: 0x{:x}",
+            self.name, self.ty, self.offset
+        )?;
+        if !self.instance {
+            writeln!(writer, "static inline ")?;
+        }
+
+        if self.instance {
+            writeln!(
+                writer,
+                "::bs_hook::InstanceField<{}, 0x{:x},{}>",
+                self.ty, self.offset, !self.readonly
+            )?;
+        } else {
+            writeln!(
+                writer,
+                "::bs_hook::StaticField<{}, {},{}>",
+                self.ty, !self.readonly, self.classof_call
+            )?;
+        }
+        writeln!(writer, "{} {}", self.ty, self.name)?;
         Ok(())
     }
 }
 impl Writable for CppMethod {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        CppCommentedString {
-            data: "".to_string(), // TODO
-            comment: Some(format!(
-                "Method: name: {}, Return Type Name: {} Parameters: {:?}",
-                self.name, self.return_type, self.parameters
-            )),
-        }
-        .write(writer)?;
+        writeln!(
+            writer,
+            "// Method: name: {}, Return Type Name: {} Parameters: {:?}",
+            self.name, self.return_type, self.parameters
+        )?;
+
         Ok(())
     }
 }
