@@ -6,7 +6,7 @@ use std::{
 };
 
 use color_eyre::eyre::ContextCompat;
-use il2cpp_binary::{Type, TypeData};
+use il2cpp_binary::{TypeData};
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
 use super::{

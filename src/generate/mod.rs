@@ -4,3 +4,4 @@ pub mod writer;
 pub mod context;
 pub mod metadata;
 pub mod constants;
+pub mod members;

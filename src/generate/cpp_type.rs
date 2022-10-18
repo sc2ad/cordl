@@ -1,4 +1,4 @@
-use std::{collections::HashSet, io::Write, path::PathBuf, sync::Arc};
+use std::{collections::HashSet, io::Write, path::PathBuf};
 
 use color_eyre::eyre::Context;
 use il2cpp_binary::{Type, TypeData, TypeEnum};
@@ -8,6 +8,7 @@ use super::{
     config::GenerationConfig,
     constants::{TypeDefinitionExtensions, TypeExtentions},
     context::{CppCommentedString, CppContextCollection, TypeTag},
+    members::{CppMember, CppMethod, CppField},
     metadata::Metadata,
     writer::Writable,
 };
@@ -31,7 +32,7 @@ pub struct CppType {
     prefix_comments: Vec<String>,
     namespace: String,
     name: String,
-    declarations: Vec<Arc<CppCommentedString>>,
+    declarations: Vec<CppMember>,
 
     pub value_type: bool,
     pub requirements: CppTypeRequirements,
@@ -208,10 +209,11 @@ impl CppType {
         // Then, handle fields
         if t.method_count > 0 {
             // Write comment for methods
-            self.declarations.push(Arc::new(CppCommentedString {
-                data: "".to_string(),
-                comment: Some("Methods".to_string()),
-            }));
+            self.declarations
+                .push(CppMember::Comment(CppCommentedString {
+                    data: "".to_string(),
+                    comment: Some("Methods".to_string()),
+                }));
             // Then, for each field, write it out
             for i in 0..t.method_count {
                 // TODO: Get method size
@@ -257,11 +259,11 @@ impl CppType {
                     .map(|p| self.cpp_name(ctx_collection, metadata, config, p, false))
                     .collect();
 
-                self.declarations.push(Arc::new(CppCommentedString {
-                    data: "".to_string(), // TODO
-                    comment: Some(format!(
-                        "Method: {i}, name: {m_name}, Return Type Name: {cpp_type_name}, Index: {m_index} Parameters: {param_names:?}"
-                    )),
+                self.declarations.push(CppMember::Method(CppMethod {
+                    name: m_name.to_owned(),
+                    return_type: cpp_type_name,
+                    parameters: param_names,
+                    instance: true,
                 }));
             }
         }
@@ -279,10 +281,11 @@ impl CppType {
         // Then, handle fields
         if t.field_count > 0 {
             // Write comment for fields
-            self.declarations.push(Arc::new(CppCommentedString {
-                data: "".to_string(),
-                comment: Some("Fields".to_string()),
-            }));
+            self.declarations
+                .push(CppMember::Comment(CppCommentedString {
+                    data: "".to_string(),
+                    comment: Some("Fields".to_string()),
+                }));
             // Then, for each field, write it out
             for i in 0..t.field_count {
                 let field = metadata
@@ -314,18 +317,12 @@ impl CppType {
                     f_type.is_const(),
                 );
 
-                self.declarations.push(Arc::new(CppCommentedString {
-                    data: format!(
-                        "{} {field_cpp_name} {f_name};",
-                        if f_type.is_static() {
-                            "static inline"
-                        } else {
-                            ""
-                        }
-                    ), // TODO
-                    comment: Some(format!(
-                        "Field: {i}, name: {f_name}, Type Name: {f_type:?}, Offset: 0x{f_offset:x}"
-                    )),
+                self.declarations.push(CppMember::Field(CppField {
+                    name: f_name.to_owned(),
+                    ty: field_cpp_name,
+                    offset: *f_offset,
+                    instance: !f_type.is_static() && !f_type.is_const(),
+                    readonly: f_type.is_const(),
                 }));
 
                 // forward declare only if field type is not the same type as the holder
