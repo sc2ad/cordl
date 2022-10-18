@@ -250,18 +250,18 @@ impl CppContext {
                 let mut cpp_type = occupied.remove();
                 cpp_type.fill(metadata, config, ctx_collection, tdi);
 
-                if cpp_type.needs_wrapper {
+                if cpp_type.requirements.needs_wrapper {
                     self.need_wrapper();
                 }
 
-                for include in &cpp_type.required_includes {
+                for include in &cpp_type.requirements.required_includes {
                     self.add_include_comment(
                         include.to_str().unwrap().to_string(),
                         "Including parent context".to_string(),
                     )
                 }
 
-                for fd_tdi in &cpp_type.forward_declares {
+                for fd_tdi in &cpp_type.requirements.forward_declare_tids {
                     // - Include it
                     let fd_type_opt = ctx_collection.get_cpp_type(
                         metadata,

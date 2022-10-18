@@ -12,6 +12,17 @@ use super::{
     writer::Writable,
 };
 
+#[derive(Debug, Clone, Default)]
+pub struct CppTypeRequirements {
+    pub needs_wrapper: bool,
+    pub needs_int_include: bool,
+    pub needs_stringw_include: bool,
+
+    pub forward_declare_tids: HashSet<u32>,
+
+    pub required_includes: Vec<PathBuf>,
+}
+
 // Represents all of the information necessary for a C++ TYPE!
 // A C# type will be TURNED INTO this
 #[derive(Debug, Clone)]
@@ -23,9 +34,7 @@ pub struct CppType {
     declarations: Vec<Arc<CppCommentedString>>,
 
     pub value_type: bool,
-    pub needs_wrapper: bool,
-    pub forward_declares: HashSet<u32>,
-    pub required_includes: Vec<PathBuf>,
+    pub requirements: CppTypeRequirements,
 
     pub inherit: Vec<String>,
     pub template_line: Option<CppCommentedString>,
@@ -62,7 +71,13 @@ impl CppType {
             .unwrap()
     }
 
-    pub fn field_cpp_name(&self, cpp_name: String, offset: u32, instance: bool, readonly: bool) -> String {
+    pub fn field_cpp_name(
+        &self,
+        cpp_name: String,
+        offset: u32,
+        instance: bool,
+        readonly: bool,
+    ) -> String {
         if instance {
             format!(
                 "::bs_hook::InstanceField<{}, 0x{:x},{}>",
@@ -71,7 +86,9 @@ impl CppType {
         } else {
             format!(
                 "::bs_hook::StaticField<{}, {}, {}>",
-                cpp_name, !readonly, self.classof_call()
+                cpp_name,
+                !readonly,
+                self.classof_call()
             )
         }
     }
@@ -85,8 +102,24 @@ impl CppType {
         include_ref: bool,
     ) -> String {
         match typ.ty {
+            TypeEnum::I1
+            | TypeEnum::U1
+            | TypeEnum::I2
+            | TypeEnum::U2
+            | TypeEnum::I4
+            | TypeEnum::U4
+            | TypeEnum::I8
+            | TypeEnum::U8
+            | TypeEnum::I
+            | TypeEnum::U => {
+                self.requirements.needs_int_include = true;
+            }
+            _ => (),
+        };
+
+        match typ.ty {
             TypeEnum::Object => {
-                self.needs_wrapper = true;
+                self.requirements.needs_wrapper = true;
                 "::bs_hook::Il2CppWrapperType".to_string()
             }
             TypeEnum::Valuetype | TypeEnum::Class => {
@@ -97,7 +130,8 @@ impl CppType {
 
                 // - Include it
                 if include_ref {
-                    self.required_includes
+                    self.requirements
+                        .required_includes
                         .push(to_incl.get_include_path().to_path_buf());
                 }
                 let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
@@ -114,9 +148,12 @@ impl CppType {
             TypeEnum::U8 => "uint64_t".to_string(),
 
             TypeEnum::Void => "void".to_string(),
-            TypeEnum::Boolean => "boolean".to_string(),
+            TypeEnum::Boolean => "bool".to_string(),
             TypeEnum::Char => "char16_t".to_string(),
-            TypeEnum::String => "::StringW".to_string(),
+            TypeEnum::String => {
+                self.requirements.needs_stringw_include = true;
+                "::StringW".to_string()
+            }
             // TODO: Void and the other primitives
             _ => format!("/* UNKNOWN TYPE! {:?} */", typ.ty),
         }
@@ -293,7 +330,7 @@ impl CppType {
 
                 // forward declare only if field type is not the same type as the holder
                 if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
-                    self.forward_declares.insert(f_tdi);
+                    self.requirements.forward_declare_tids.insert(f_tdi);
                 }
             }
         }
@@ -359,9 +396,7 @@ impl CppType {
             template_line: None,
             generic_args: Default::default(),
             made: false,
-            needs_wrapper: Default::default(),
-            forward_declares: Default::default(),
-            required_includes: Default::default(),
+            requirements: Default::default(),
             value_type: t.is_value_type(),
             ty: TypeTag::TypeDefinition(tdi),
         };
