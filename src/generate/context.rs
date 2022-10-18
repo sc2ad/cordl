@@ -6,7 +6,7 @@ use std::{
 };
 
 use color_eyre::eyre::ContextCompat;
-use il2cpp_binary::{TypeData};
+use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
 use super::{
@@ -93,9 +93,15 @@ impl CppContext {
     pub fn get_include_path(&self) -> &PathBuf {
         &self.typedef_path
     }
-    pub fn add_include(&mut self, inc: String) {
+    pub fn add_include(&mut self, inc: &str) {
         self.typedef_includes.insert(CppCommentedString {
-            data: "#include \"".to_owned() + &inc + "\"",
+            data: format!("#include \"{}\"", &inc),
+            comment: None,
+        });
+    }
+    pub fn add_system_include(&mut self, inc: &str) {
+        self.typedef_includes.insert(CppCommentedString {
+            data: format!("#include <{}>", &inc),
             comment: None,
         });
     }
@@ -127,7 +133,13 @@ impl CppContext {
             });
     }
     pub fn need_wrapper(&mut self) {
-        self.add_include("beatsaber-hook/shared/utils/base-wrapper-type.hpp".to_string());
+        self.add_include("beatsaber-hook/shared/utils/base-wrapper-type.hpp");
+    }
+    pub fn needs_int_include(&mut self) {
+        self.add_system_include("cstdint");
+    }
+    pub fn needs_stringw_include(&mut self) {
+        self.add_include("beatsaber-hook/shared/utils/typedefs-string.hpp");
     }
 
     fn make(
@@ -252,6 +264,14 @@ impl CppContext {
 
                 if cpp_type.requirements.needs_wrapper {
                     self.need_wrapper();
+                }
+
+                if cpp_type.requirements.needs_int_include {
+                    self.needs_int_include();
+                }
+
+                if cpp_type.requirements.needs_stringw_include {
+                    self.needs_stringw_include();
                 }
 
                 for include in &cpp_type.requirements.required_includes {
