@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use color_eyre::eyre::ContextCompat;
+use color_eyre::{eyre::ContextCompat, Result};
 use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
@@ -262,43 +262,50 @@ impl CppContext {
                 let mut cpp_type = occupied.remove();
                 cpp_type.fill(metadata, config, ctx_collection, tdi);
 
-                if cpp_type.requirements.needs_wrapper {
-                    self.need_wrapper();
-                }
-
-                if cpp_type.requirements.needs_int_include {
-                    self.needs_int_include();
-                }
-
-                if cpp_type.requirements.needs_stringw_include {
-                    self.needs_stringw_include();
-                }
-
-                for include in &cpp_type.requirements.required_includes {
-                    self.add_include_comment(
-                        include.to_str().unwrap().to_string(),
-                        "Including parent context".to_string(),
-                    )
-                }
-
-                for fd_tdi in &cpp_type.requirements.forward_declare_tids {
-                    // - Include it
-                    let fd_type_opt = ctx_collection.get_cpp_type(
-                        metadata,
-                        config,
-                        TypeData::TypeDefinitionIndex(*fd_tdi),
-                        false,
-                    );
-
-                    if let Some(fd_type) = fd_type_opt {
-                        self.add_forward_declare(
-                            fd_type.namespace_fixed().to_owned(),
-                            fd_type.name(),
-                        );
-                    }
-                }
+                self.handle_requirements(&cpp_type, metadata, config, ctx_collection);
 
                 self.typedef_types.entry(tag).insert_entry(cpp_type);
+            }
+        }
+    }
+
+    fn handle_requirements(
+        &mut self,
+        cpp_type: &CppType,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        ctx_collection: &mut CppContextCollection,
+    ) {
+        if cpp_type.requirements.needs_wrapper {
+            self.need_wrapper();
+        }
+
+        if cpp_type.requirements.needs_int_include {
+            self.needs_int_include();
+        }
+
+        if cpp_type.requirements.needs_stringw_include {
+            self.needs_stringw_include();
+        }
+
+        for include in &cpp_type.requirements.required_includes {
+            self.add_include_comment(
+                include.to_str().unwrap().to_string(),
+                "Including parent context".to_string(),
+            )
+        }
+
+        for fd_tdi in &cpp_type.requirements.forward_declare_tids {
+            // - Include it
+            let fd_type_opt = ctx_collection.get_cpp_type(
+                metadata,
+                config,
+                TypeData::TypeDefinitionIndex(*fd_tdi),
+                false,
+            );
+
+            if let Some(fd_type) = fd_type_opt {
+                self.add_forward_declare(fd_type.namespace_fixed().to_owned(), fd_type.name());
             }
         }
     }
