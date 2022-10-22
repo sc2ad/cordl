@@ -19,7 +19,7 @@ pub struct CppTypeRequirements {
     pub needs_int_include: bool,
     pub needs_stringw_include: bool,
 
-    pub forward_declare_tids: HashSet<u32>,
+    pub forward_declare_tids: HashSet<TypeTag>,
 
     // Only value types or classes
     pub required_includes: Vec<TypeData>,
@@ -290,6 +290,8 @@ impl CppType {
                     .get(field.type_index as usize)
                     .unwrap();
 
+                let f_type_data = TypeTag::from(f_type.data);
+
                 let cpp_name = self.cpp_name(ctx_collection, metadata, config, f_type, false);
 
                 // Need to include this type
@@ -304,8 +306,10 @@ impl CppType {
 
                 // forward declare only if field type is not the same type as the holder
                 if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
-                    self.requirements.forward_declare_tids.insert(f_tdi);
-                }
+                    self.requirements.forward_declare_tids.insert(TypeTag::TypeDefinition(f_tdi));
+                } /*else if f_type_data != self.ty {
+                    self.requirements.forward_declare_tids.insert(f_type_data);
+                }*/
             }
         }
     }

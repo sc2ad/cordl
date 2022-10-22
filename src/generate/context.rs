@@ -70,14 +70,26 @@ pub enum TypeTag {
     Array,
 }
 
-impl TypeTag {
-    pub fn from(ty: TypeData) -> TypeTag {
+impl From<TypeData> for TypeTag {
+    fn from(ty: TypeData) -> TypeTag {
         match ty {
             TypeData::TypeDefinitionIndex(tdi) => TypeTag::TypeDefinition(tdi),
             TypeData::TypeIndex(ti) => TypeTag::Type(ti),
             TypeData::GenericClassIndex(gci) => TypeTag::GenericClass(gci),
             TypeData::GenericParameterIndex(gpi) => TypeTag::GenericParameter(gpi),
             TypeData::ArrayType => TypeTag::Array,
+        }
+    }
+}
+
+impl From<TypeTag> for TypeData {
+    fn from(ty: TypeTag) -> TypeData {
+        match ty {
+            TypeTag::TypeDefinition(tdi) => TypeData::TypeDefinitionIndex(tdi),
+            TypeTag::Type(ti) => TypeData::TypeIndex(ti),
+            TypeTag::GenericClass(gci) => TypeData::GenericClassIndex(gci),
+            TypeTag::GenericParameter(gpi) => TypeData::GenericParameterIndex(gpi),
+            TypeTag::Array => TypeData::ArrayType,
         }
     }
 }
@@ -257,10 +269,9 @@ impl CppContext {
         metadata: &Metadata,
         config: &GenerationConfig,
         ctx_collection: &mut CppContextCollection,
-        ty: TypeData,
+        tag: TypeTag,
     ) {
-        let tag = TypeTag::from(ty);
-        if let TypeData::TypeDefinitionIndex(tdi) = ty {
+        if let TypeTag::TypeDefinition(tdi) = tag {
             let cpp_type_entry = self.typedef_types.entry(tag);
 
             if let Entry::Occupied(occupied) = cpp_type_entry {
@@ -301,12 +312,7 @@ impl CppContext {
 
         for fd_tdi in &cpp_type.requirements.forward_declare_tids {
             // - Include it
-            let fd_type_opt = ctx_collection.get_cpp_type(
-                metadata,
-                config,
-                TypeData::TypeDefinitionIndex(*fd_tdi),
-                false,
-            );
+            let fd_type_opt = ctx_collection.get_cpp_type(metadata, config, *fd_tdi, false);
 
             if let Some(fd_type) = fd_type_opt {
                 self.add_forward_declare(fd_type.namespace_fixed().to_owned(), fd_type.name());
@@ -324,10 +330,10 @@ impl CppContextCollection {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        ty: TypeData,
+        ty: impl Into<TypeTag>,
         fill: bool,
     ) -> &mut CppContext {
-        let tag = TypeTag::from(ty);
+        let tag = ty.into();
         if self.all_contexts.contains_key(&tag) {
             if !fill {
                 return self.all_contexts.get_mut(&tag).unwrap();
@@ -337,22 +343,22 @@ impl CppContextCollection {
             let mut res = self.all_contexts.remove(&tag).unwrap();
 
             if fill {
-                res.fill_type(metadata, config, self, ty);
+                res.fill_type(metadata, config, self, tag);
             }
 
             return self.all_contexts.entry(tag).insert_entry(res).into_mut();
         }
 
-        let value = match ty {
-            TypeData::TypeDefinitionIndex(tdi) => {
+        let value = match tag {
+            TypeTag::TypeDefinition(tdi) => {
                 let mut ret = CppContext::make(metadata, config, tdi);
                 if fill {
-                    ret.fill_type(metadata, config, self, ty);
+                    ret.fill_type(metadata, config, self, tag);
                 }
 
                 ret
             }
-            _ => panic!("Unsupported type: {ty:?}"),
+            _ => panic!("Unsupported type: {tag:?}"),
         };
 
         self.all_contexts.entry(tag).or_insert(value)
@@ -362,12 +368,13 @@ impl CppContextCollection {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        ty: TypeData,
+        ty: impl Into<TypeTag>,
         fill: bool,
     ) -> std::option::Option<&mut CppType> {
-        let context = self.make_from(metadata, config, ty, fill);
+        let tag = ty.into();
+        let context = self.make_from(metadata, config, tag, fill);
 
-        context.typedef_types.get_mut(&TypeTag::from(ty))
+        context.typedef_types.get_mut(&tag)
     }
 
     pub fn get_context(&self, type_tag: TypeTag) -> Option<&CppContext> {
