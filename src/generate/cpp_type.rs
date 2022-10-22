@@ -21,7 +21,8 @@ pub struct CppTypeRequirements {
 
     pub forward_declare_tids: HashSet<u32>,
 
-    pub required_includes: Vec<PathBuf>,
+    // Only value types or classes
+    pub required_includes: Vec<TypeData>,
 }
 
 // Represents all of the information necessary for a C++ TYPE!
@@ -111,9 +112,7 @@ impl CppType {
 
                 // - Include it
                 if include_ref {
-                    self.requirements
-                        .required_includes
-                        .push(to_incl.get_include_path().to_path_buf());
+                    self.requirements.required_includes.push(typ.data);
                 }
                 let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
                 to_incl_ty.self_cpp_type_name()

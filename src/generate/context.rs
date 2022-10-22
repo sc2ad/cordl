@@ -119,7 +119,12 @@ impl CppContext {
     }
     pub fn add_include_ctx(&mut self, inc: &CppContext, comment: String) {
         self.add_include_comment(
-            inc.get_include_path().to_str().unwrap().to_string(),
+            inc.get_include_path()
+                .strip_prefix("./")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string(),
             comment,
         )
     }
@@ -288,11 +293,10 @@ impl CppContext {
             self.needs_stringw_include();
         }
 
-        for include in &cpp_type.requirements.required_includes {
-            self.add_include_comment(
-                include.to_str().unwrap().to_string(),
-                "Including parent context".to_string(),
-            )
+        for include_type in &cpp_type.requirements.required_includes {
+            let context = ctx_collection.make_from(metadata, config, *include_type, false);
+
+            self.add_include_ctx(context, "Including required context".to_string());
         }
 
         for fd_tdi in &cpp_type.requirements.forward_declare_tids {
