@@ -18,6 +18,7 @@ pub struct CppTypeRequirements {
     pub needs_wrapper: bool,
     pub needs_int_include: bool,
     pub needs_stringw_include: bool,
+    pub needs_arrayw_include: bool,
 
     pub forward_declare_tids: HashSet<TypeTag>,
 
@@ -116,6 +117,17 @@ impl CppType {
                 }
                 let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
                 to_incl_ty.self_cpp_type_name()
+            },
+            TypeEnum::Szarray => {
+                // In this case, just inherit the type
+                // But we have to:
+                // - Determine where to include it from
+                self.requirements.needs_arrayw_include = true;
+            
+                // let to_incl = ctx_collection.make_from(metadata, config, typ.data, false);
+                // let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
+                // format!("::ArrayW<{}>", self.cpp_name(ctx_collection, metadata, config, typ.data, include_ref))
+                format!("::ArrayW<{}>", "TODO:")
             }
             TypeEnum::I1 => "int8_t".to_string(),
             TypeEnum::I2 => "int16_t".to_string(),

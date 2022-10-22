@@ -158,6 +158,9 @@ impl CppContext {
     pub fn needs_stringw_include(&mut self) {
         self.add_include("beatsaber-hook/shared/utils/typedefs-string.hpp");
     }
+    pub fn needs_arrayw_include(&mut self) {
+        self.add_include("beatsaber-hook/shared/utils/typedefs-array.hpp");
+    }
 
     fn make(
         metadata: &Metadata,
@@ -302,6 +305,9 @@ impl CppContext {
 
         if cpp_type.requirements.needs_stringw_include {
             self.needs_stringw_include();
+        }
+        if cpp_type.requirements.needs_arrayw_include {
+            self.needs_arrayw_include();
         }
 
         for include_type in &cpp_type.requirements.required_includes {
