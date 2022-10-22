@@ -90,7 +90,9 @@ impl CppType {
             | TypeEnum::I8
             | TypeEnum::U8
             | TypeEnum::I
-            | TypeEnum::U => {
+            | TypeEnum::U
+            | TypeEnum::R4
+            | TypeEnum::R8 => {
                 self.requirements.needs_int_include = true;
             }
             _ => (),
@@ -116,15 +118,19 @@ impl CppType {
                 let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
                 to_incl_ty.self_cpp_type_name()
             }
-            TypeEnum::I | TypeEnum::I4 => "int32_t".to_string(),
             TypeEnum::I1 => "int8_t".to_string(),
             TypeEnum::I2 => "int16_t".to_string(),
+            TypeEnum::I | TypeEnum::I4 => "int32_t".to_string(),
             TypeEnum::I8 => "int64_t".to_string(),
-
-            TypeEnum::U | TypeEnum::U4 => "uint32_t".to_string(),
             TypeEnum::U1 => "uint8_t".to_string(),
             TypeEnum::U2 => "uint16_t".to_string(),
+            TypeEnum::U | TypeEnum::U4 => "uint32_t".to_string(),
             TypeEnum::U8 => "uint64_t".to_string(),
+
+            // https://learn.microsoft.com/en-us/nimbusml/concepts/types
+            // https://en.cppreference.com/w/cpp/types/floating-point
+            TypeEnum::R4 => "float32_t".to_string(),
+            TypeEnum::R8 => "float64_t".to_string(),
 
             TypeEnum::Void => "void".to_string(),
             TypeEnum::Boolean => "bool".to_string(),
