@@ -79,24 +79,20 @@ impl Writable for CppField {
             "// Field: name: {}, Type Name: {}, Offset: 0x{:x}",
             self.name, self.ty, self.offset
         )?;
-        if !self.instance {
-            writeln!(writer, "static inline ")?;
-        }
 
         if self.instance {
             writeln!(
                 writer,
-                "::bs_hook::InstanceField<{}, 0x{:x},{}>",
-                self.ty, self.offset, !self.readonly
+                "::bs_hook::InstanceField<{}, 0x{:x},{}> {};",
+                self.ty, self.offset, !self.readonly, self.name
             )?;
         } else {
             writeln!(
                 writer,
-                "::bs_hook::StaticField<{}, {},{}>",
-                self.ty, !self.readonly, self.classof_call
+                "static inline ::bs_hook::StaticField<{}, {},{}> {};",
+                self.ty, !self.readonly, self.classof_call, self.name
             )?;
         }
-        writeln!(writer, "{} {}", self.ty, self.name)?;
         Ok(())
     }
 }
