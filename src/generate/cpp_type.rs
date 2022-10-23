@@ -23,7 +23,7 @@ pub struct CppTypeRequirements {
     pub forward_declare_tids: HashSet<TypeTag>,
 
     // Only value types or classes
-    pub required_includes: Vec<TypeData>,
+    pub required_includes: Vec<TypeTag>,
 }
 
 // Represents all of the information necessary for a C++ TYPE!
@@ -82,7 +82,26 @@ impl CppType {
         typ: &Type,
         include_ref: bool,
     ) -> String {
-        match typ.ty {
+        self.basic_cpp_name(
+            ctx_collection,
+            metadata,
+            config,
+            typ.ty,
+            Some(TypeTag::from(typ.data)),
+            include_ref,
+        )
+    }
+
+    pub fn basic_cpp_name(
+        &mut self,
+        ctx_collection: &mut CppContextCollection,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        typ: TypeEnum,
+        data: Option<TypeTag>,
+        include_ref: bool,
+    ) -> String {
+        match typ {
             TypeEnum::I1
             | TypeEnum::U1
             | TypeEnum::I2
@@ -100,7 +119,7 @@ impl CppType {
             _ => (),
         };
 
-        match typ.ty {
+        match typ {
             TypeEnum::Object => {
                 self.requirements.needs_wrapper = true;
                 "::bs_hook::Il2CppWrapperType".to_string()
@@ -109,25 +128,37 @@ impl CppType {
                 // In this case, just inherit the type
                 // But we have to:
                 // - Determine where to include it from
-                let to_incl = ctx_collection.make_from(metadata, config, typ.data, false);
+                let to_incl = ctx_collection.make_from(metadata, config, data.unwrap(), false);
 
                 // - Include it
                 if include_ref {
-                    self.requirements.required_includes.push(typ.data);
+                    self.requirements.required_includes.push(data.unwrap());
                 }
-                let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
+                let to_incl_ty = to_incl.get_cpp_type(data.unwrap()).unwrap();
                 to_incl_ty.self_cpp_type_name()
-            },
+            }
             TypeEnum::Szarray => {
                 // In this case, just inherit the type
                 // But we have to:
                 // - Determine where to include it from
                 self.requirements.needs_arrayw_include = true;
-            
+
                 // let to_incl = ctx_collection.make_from(metadata, config, typ.data, false);
                 // let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
-                // format!("::ArrayW<{}>", self.cpp_name(ctx_collection, metadata, config, typ.data, include_ref))
-                format!("::ArrayW<{}>", "TODO:")
+                let generic_type = match data.unwrap() {
+                    TypeTag::TypeDefinition(e) | TypeTag::GenericParameter(e) => {
+                        metadata.metadata_registration.types.get(e as usize)
+                    }
+                    TypeTag::GenericClass(e) | TypeTag::Type(e) => {
+                        metadata.metadata_registration.types.get(e)
+                    }
+                    _ => panic!("Unknown type data for array!"),
+                }
+                .unwrap();
+                format!(
+                    "::ArrayW<{}>",
+                    self.cpp_name(ctx_collection, metadata, config, generic_type, false)
+                )
             }
             TypeEnum::I1 => "int8_t".to_string(),
             TypeEnum::I2 => "int16_t".to_string(),
@@ -151,7 +182,7 @@ impl CppType {
                 "::StringW".to_string()
             }
             // TODO: Void and the other primitives
-            _ => format!("/* UNKNOWN TYPE! {:?} */", typ.ty),
+            _ => format!("/* UNKNOWN TYPE! {:?} */", typ),
         }
     }
 
@@ -320,8 +351,8 @@ impl CppType {
                 if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
                     self.requirements.forward_declare_tids.insert(TypeTag::TypeDefinition(f_tdi));
                 } /*else if f_type_data != self.ty {
-                    self.requirements.forward_declare_tids.insert(f_type_data);
-                }*/
+                      self.requirements.forward_declare_tids.insert(f_type_data);
+                  }*/
             }
         }
     }
