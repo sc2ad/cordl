@@ -62,6 +62,9 @@ pub struct CppProperty {
     pub ty: String,
     pub setter: bool,
     pub getter: bool,
+    pub abstr: bool,
+    pub instance: bool,
+    pub classof_call: String,
 }
 
 impl CppField {
@@ -97,6 +100,9 @@ impl CppProperty {
             ty: todo!(),
             setter: todo!(),
             getter: todo!(),
+            abstr: todo!(),
+            instance: todo!(),
+            classof_call: todo!(),
         }
     }
 }
@@ -140,6 +146,25 @@ impl Writable for CppMethod {
 }
 impl Writable for CppProperty {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        writeln!(
+            writer,
+            "// Property: name: {}, Type Name: {}, setter {} getter {} abstract {}",
+            self.name, self.ty, self.setter, self.getter, self.abstr
+        )?;
+
+        if self.instance {
+            writeln!(
+                writer,
+                "::bs_hook::InstanceProperty<{},\"{}\",{},{}> {};",
+                self.name, self.ty, self.getter, self.setter, self.name
+            )?;
+        } else {
+            writeln!(
+                writer,
+                "static inline ::bs_hook::StaticProperty<{},\"{}\",{},{}, {}> {};",
+                self.name, self.ty, self.getter, self.setter, self.classof_call, self.name
+            )?;
+        }
         Ok(())
     }
 }

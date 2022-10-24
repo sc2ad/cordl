@@ -7,8 +7,8 @@ use il2cpp_metadata_raw::TypeDefinitionIndex;
 use super::{
     config::GenerationConfig,
     constants::{TypeDefinitionExtensions, TypeExtentions},
-    context::{CppCommentedString, CppContextCollection, TypeTag},
-    members::{CppField, CppMember, CppMethod, CppParam},
+    context::{self, CppCommentedString, CppContextCollection, TypeTag},
+    members::{CppField, CppMember, CppMethod, CppProperty, CppParam},
     metadata::Metadata,
     writer::Writable,
 };
@@ -221,6 +221,7 @@ impl CppType {
 
         self.make_methods(metadata, config, ctx_collection, tdi);
         self.make_fields(metadata, config, ctx_collection, tdi);
+        self.make_properties(metadata, config, ctx_collection, tdi);
         self.make_parents(metadata, config, ctx_collection, tdi);
         self.made = true;
     }
@@ -437,6 +438,70 @@ impl CppType {
         }
 
         Some(cpptype)
+    }
+
+    fn make_properties(
+        &mut self,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        ctx_collection: &mut CppContextCollection,
+        tdi: u32,
+    ) {
+        let t = self.get_type_definition(metadata, tdi);
+
+        // Then, handle fields
+        if t.property_count > 0 {
+            // Write comment for fields
+            self.declarations
+                .push(CppMember::Comment(CppCommentedString {
+                    data: "".to_string(),
+                    comment: Some("Properties".to_string()),
+                }));
+            // Then, for each field, write it out
+            for i in 0..t.property_count {
+                let prop = metadata
+                    .metadata
+                    .properties
+                    .get((t.property_start + i as u32) as usize)
+                    .unwrap();
+                let p_name = metadata.metadata.get_str(prop.name_index).unwrap();
+                let p_setter = metadata
+                    .metadata
+                    .methods
+                    .get(prop.set as usize);
+                    
+                let p_getter = metadata
+                    .metadata
+                    .methods
+                    .get(prop.get as usize);
+
+                let p_type = metadata
+                    .metadata_registration
+                    .types
+                    .get(p_getter.or(p_setter).unwrap().return_type as usize)
+                    .unwrap();
+
+                let cpp_name = self.cpp_name(ctx_collection, metadata, config, p_type, false);
+
+                // Need to include this type
+                self.declarations.push(CppMember::Property(CppProperty {
+                    name: p_name.to_owned(),
+                    ty: cpp_name,
+                    classof_call: self.classof_call(),
+                    setter: p_setter.is_some(),
+                    getter: p_getter.is_some(),
+                    abstr: p_type.is_abstract_method(),
+                    instance: !p_type.is_static_method(),
+                }));
+
+                // forward declare only if field type is not the same type as the holder
+                if let TypeData::TypeDefinitionIndex(f_tdi) = p_type.data && f_tdi != tdi {
+                    self.requirements.forward_declare_tids.insert(TypeTag::TypeDefinition(f_tdi));
+                } /*else if f_type_data != self.ty {
+                      self.requirements.forward_declare_tids.insert(f_type_data);
+                  }*/
+            }
+        }
     }
 }
 
