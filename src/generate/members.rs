@@ -152,6 +152,11 @@ impl Writable for CppProperty {
             self.name, self.ty, self.setter, self.getter, self.abstr
         )?;
 
+        // TODO:
+        if self.abstr {
+            return Ok(());
+        }
+
         if self.instance {
             writeln!(
                 writer,
