@@ -27,7 +27,7 @@ impl TypeExtentions for Type {
     fn is_byref(&self) -> bool {
         self.byref
     fn is_public_method(&self) -> bool {
-        (self.attrs & 0x0006) != 0
+        (self.attrs & 7) == 6
     }
 
     fn is_virtual_method(&self) -> bool {
