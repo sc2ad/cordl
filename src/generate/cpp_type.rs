@@ -1,34 +1,63 @@
-use std::{io::Write, sync::Arc};
+use std::{collections::HashSet, io::Write, path::PathBuf};
 
 use color_eyre::eyre::Context;
-use il2cpp_binary::{Type, TypeEnum};
+use il2cpp_binary::{Type, TypeData, TypeEnum};
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
 use super::{
     config::GenerationConfig,
-    context::{CppCommentedString, CppContext, CppContextCollection},
+    constants::{TypeDefinitionExtensions, TypeExtentions},
+    context::{CppCommentedString, CppContextCollection, TypeTag},
+    members::{CppField, CppMember, CppMethod},
     metadata::Metadata,
     writer::Writable,
 };
+
+#[derive(Debug, Clone, Default)]
+pub struct CppTypeRequirements {
+    pub needs_wrapper: bool,
+    pub needs_int_include: bool,
+    pub needs_stringw_include: bool,
+    pub needs_arrayw_include: bool,
+
+    pub forward_declare_tids: HashSet<TypeTag>,
+
+    // Only value types or classes
+    pub required_includes: Vec<TypeTag>,
+}
 
 // Represents all of the information necessary for a C++ TYPE!
 // A C# type will be TURNED INTO this
 #[derive(Debug, Clone)]
 pub struct CppType {
+    ty: TypeTag,
     prefix_comments: Vec<String>,
     namespace: String,
     name: String,
-    declarations: Vec<Arc<dyn Writable>>,
-    inherit: Vec<String>,
-    template_line: Option<CppCommentedString>,
-    generic_args: Vec<String>,
-    pub made: bool, // We want to handle metadata generation for stuff too, maybe that goes in the context?
+    declarations: Vec<CppMember>,
+
+    pub value_type: bool,
+    pub requirements: CppTypeRequirements,
+
+    pub inherit: Vec<String>,
+    pub template_line: Option<CppCommentedString>,
+    pub generic_args: Vec<String>,
+    made: bool, // We want to handle metadata generation for stuff too, maybe that goes in the context?
 }
 
 impl CppType {
     pub fn namespace(&self) -> &String {
         &self.namespace
     }
+
+    pub fn namespace_fixed(&self) -> &str {
+        if self.namespace.is_empty() {
+            "GlobalNamespace"
+        } else {
+            &self.namespace
+        }
+    }
+
     pub fn name(&self) -> &String {
         &self.name
     }
@@ -45,79 +74,152 @@ impl CppType {
             .unwrap()
     }
 
-    // pub fn can_make(
-    //     &self,
-    //     metadata: &Metadata,
-    //     ctx_collection: &CppContextCollection,
-    //     tdi: TypeDefinitionIndex,
-    // ) -> bool {
-    //     if self.made {
-    //         return true;
-    //     }
+    pub fn cpp_name(
+        &mut self,
+        ctx_collection: &mut CppContextCollection,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        typ: &Type,
+        include_ref: bool,
+    ) -> String {
+        self.basic_cpp_name(
+            ctx_collection,
+            metadata,
+            config,
+            typ.ty,
+            Some(TypeTag::from(typ.data)),
+            include_ref,
+        )
+    }
 
-    //     let t = self.get_type_definition(metadata, tdi);
+    pub fn basic_cpp_name(
+        &mut self,
+        ctx_collection: &mut CppContextCollection,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        typ: TypeEnum,
+        data: Option<TypeTag>,
+        include_ref: bool,
+    ) -> String {
+        match typ {
+            TypeEnum::I1
+            | TypeEnum::U1
+            | TypeEnum::I2
+            | TypeEnum::U2
+            | TypeEnum::I4
+            | TypeEnum::U4
+            | TypeEnum::I8
+            | TypeEnum::U8
+            | TypeEnum::I
+            | TypeEnum::U
+            | TypeEnum::R4
+            | TypeEnum::R8 => {
+                self.requirements.needs_int_include = true;
+            }
+            _ => (),
+        };
 
-    //     if let Some(parent_type) = metadata
-    //         .metadata_registration
-    //         .types
-    //         .get(t.parent_index as usize)
-    //     {
-    //         // We have a parent, lets do something with it
-    //         match parent_type.ty {
-    //             TypeEnum::Class => {
-    //                 if !ctx_collection.is_type_made(TypeTag::from(parent_type.data)) {
-    //                     return false;
-    //                 }
-    //             }
-    //             _ => (),
-    //         }
-    //     }
+        match typ {
+            TypeEnum::Object => {
+                self.requirements.needs_wrapper = true;
+                "::bs_hook::Il2CppWrapperType".to_string()
+            }
+            TypeEnum::Valuetype | TypeEnum::Class => {
+                // In this case, just inherit the type
+                // But we have to:
+                // - Determine where to include it from
+                let to_incl = ctx_collection.make_from(metadata, config, data.unwrap(), false);
 
-    //     // Then, for each field, write it out
-    //     for i in 0..t.field_count {
-    //         let field = metadata
-    //             .metadata
-    //             .fields
-    //             .get((t.field_start + i as u32) as usize)
-    //             .unwrap();
-    //         let f_name = metadata.metadata.get_str(field.name_index).unwrap();
-    //         let f_offset = metadata
-    //             .metadata_registration
-    //             .field_offsets
-    //             .get(tdi as usize)
-    //             .unwrap()
-    //             .get(i as usize)
-    //             .unwrap();
-    //         let f_type = metadata
-    //             .metadata_registration
-    //             .types
-    //             .get(field.type_index as usize)
-    //             .unwrap();
+                // - Include it
+                if include_ref {
+                    self.requirements.required_includes.push(data.unwrap());
+                }
+                let to_incl_ty = to_incl.get_cpp_type(data.unwrap()).unwrap();
+                to_incl_ty.self_cpp_type_name()
+            }
+            TypeEnum::Szarray => {
+                // In this case, just inherit the type
+                // But we have to:
+                // - Determine where to include it from
+                self.requirements.needs_arrayw_include = true;
 
-    //         if !ctx_collection.is_type_made(TypeTag::from(f_type.data)) {
-    //             return false;
-    //         }
-    //     }
+                // let to_incl = ctx_collection.make_from(metadata, config, typ.data, false);
+                // let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
+                let generic_type = match data.unwrap() {
+                    TypeTag::TypeDefinition(e) | TypeTag::GenericParameter(e) => {
+                        metadata.metadata_registration.types.get(e as usize)
+                    }
+                    TypeTag::GenericClass(e) | TypeTag::Type(e) => {
+                        metadata.metadata_registration.types.get(e)
+                    }
+                    _ => panic!("Unknown type data for array!"),
+                }
+                .unwrap();
+                format!(
+                    "::ArrayW<{}>",
+                    self.cpp_name(ctx_collection, metadata, config, generic_type, false)
+                )
+            }
+            TypeEnum::I1 => "int8_t".to_string(),
+            TypeEnum::I2 => "int16_t".to_string(),
+            TypeEnum::I | TypeEnum::I4 => "int32_t".to_string(),
+            TypeEnum::I8 => "int64_t".to_string(),
+            TypeEnum::U1 => "uint8_t".to_string(),
+            TypeEnum::U2 => "uint16_t".to_string(),
+            TypeEnum::U | TypeEnum::U4 => "uint32_t".to_string(),
+            TypeEnum::U8 => "uint64_t".to_string(),
 
-    //     self.made = true;
-    //     return true;
-    // }
+            // https://learn.microsoft.com/en-us/nimbusml/concepts/types
+            // https://en.cppreference.com/w/cpp/types/floating-point
+            TypeEnum::R4 => "float32_t".to_string(),
+            TypeEnum::R8 => "float64_t".to_string(),
 
-    pub fn make_rest(
+            TypeEnum::Void => "void".to_string(),
+            TypeEnum::Boolean => "bool".to_string(),
+            TypeEnum::Char => "char16_t".to_string(),
+            TypeEnum::String => {
+                self.requirements.needs_stringw_include = true;
+                "::StringW".to_string()
+            }
+            // TODO: Void and the other primitives
+            _ => format!("/* UNKNOWN TYPE! {:?} */", typ),
+        }
+    }
+
+    pub fn self_cpp_type_name(&self) -> String {
+        // We found a valid type that we have defined for this idx!
+        // TODO: We should convert it here.
+        // Ex, if it is a generic, convert it to a template specialization
+        // If it is a normal type, handle it accordingly, etc.
+        match self.ty {
+            TypeTag::TypeDefinition(_) => {
+                format!("{}::{}", self.namespace_fixed(), self.name())
+            }
+            _ => panic!("Unsupported type conversion for type: {:?}!", self.ty),
+        }
+    }
+
+    pub fn classof_call(&self) -> String {
+        format!(
+            "&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get",
+            self.self_cpp_type_name()
+        )
+    }
+
+    pub fn fill(
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
         ctx_collection: &mut CppContextCollection,
-        ctx: &mut CppContext,
         tdi: TypeDefinitionIndex,
     ) {
         if self.made {
             return;
         }
 
-        self.make_methods(metadata, config, ctx_collection, ctx, tdi);
-        self.make_fields(metadata, config, ctx_collection, ctx, tdi);
-        self.make_parents(metadata, config, ctx_collection, ctx, tdi);
+        self.make_methods(metadata, config, ctx_collection, tdi);
+        self.make_fields(metadata, config, ctx_collection, tdi);
+        self.make_parents(metadata, config, ctx_collection, tdi);
         self.made = true;
     }
 
@@ -126,18 +228,18 @@ impl CppType {
         metadata: &Metadata,
         config: &GenerationConfig,
         ctx_collection: &mut CppContextCollection,
-        ctx: &mut CppContext,
         tdi: TypeDefinitionIndex,
     ) {
         let t = self.get_type_definition(metadata, tdi);
 
         // Then, handle fields
         if t.method_count > 0 {
-            // Write comment for fields
-            self.declarations.push(Arc::new(CppCommentedString {
-                data: "".to_string(),
-                comment: Some("Methods".to_string()),
-            }));
+            // Write comment for methods
+            self.declarations
+                .push(CppMember::Comment(CppCommentedString {
+                    data: "".to_string(),
+                    comment: Some("Methods".to_string()),
+                }));
             // Then, for each field, write it out
             for i in 0..t.method_count {
                 // TODO: Get method size
@@ -176,17 +278,18 @@ impl CppType {
                 }
 
                 // Need to include this type
-                let cpp_type_name = ctx.cpp_name(ctx_collection, metadata, config, m_ret_type);
+                let cpp_type_name =
+                    self.cpp_name(ctx_collection, metadata, config, m_ret_type, false);
                 let param_names: Vec<String> = m_params
                     .iter()
-                    .map(|p| ctx.cpp_name(ctx_collection, metadata, config, p))
+                    .map(|p| self.cpp_name(ctx_collection, metadata, config, p, false))
                     .collect();
 
-                self.declarations.push(Arc::new(CppCommentedString {
-                    data: "".to_string(), // TODO
-                    comment: Some(format!(
-                        "Method: {i}, name: {m_name}, Return Type Name: {cpp_type_name}, Index: {m_index} Parameters: {param_names:?}"
-                    )),
+                self.declarations.push(CppMember::Method(CppMethod {
+                    name: m_name.to_owned(),
+                    return_type: cpp_type_name,
+                    parameters: param_names,
+                    instance: true,
                 }));
             }
         }
@@ -197,7 +300,6 @@ impl CppType {
         metadata: &Metadata,
         config: &GenerationConfig,
         ctx_collection: &mut CppContextCollection,
-        ctx: &mut CppContext,
         tdi: TypeDefinitionIndex,
     ) {
         let t = self.get_type_definition(metadata, tdi);
@@ -205,10 +307,11 @@ impl CppType {
         // Then, handle fields
         if t.field_count > 0 {
             // Write comment for fields
-            self.declarations.push(Arc::new(CppCommentedString {
-                data: "".to_string(),
-                comment: Some("Fields".to_string()),
-            }));
+            self.declarations
+                .push(CppMember::Comment(CppCommentedString {
+                    data: "".to_string(),
+                    comment: Some("Fields".to_string()),
+                }));
             // Then, for each field, write it out
             for i in 0..t.field_count {
                 let field = metadata
@@ -230,13 +333,26 @@ impl CppType {
                     .get(field.type_index as usize)
                     .unwrap();
 
-                // Need to include this type
-                let cpp_type_name = ctx.cpp_name(ctx_collection, metadata, config, f_type);
+                let f_type_data = TypeTag::from(f_type.data);
 
-                self.declarations.push(Arc::new(CppCommentedString{
-                    data: "".to_string(), // TODO
-                    comment: Some(format!("Field: {i}, name: {f_name}, Type Name: {cpp_type_name}, Offset: {f_offset}"))
+                let cpp_name = self.cpp_name(ctx_collection, metadata, config, f_type, false);
+
+                // Need to include this type
+                self.declarations.push(CppMember::Field(CppField {
+                    name: f_name.to_owned(),
+                    ty: cpp_name,
+                    offset: *f_offset,
+                    instance: !f_type.is_static() && !f_type.is_const(),
+                    readonly: f_type.is_const(),
+                    classof_call: self.classof_call(),
                 }));
+
+                // forward declare only if field type is not the same type as the holder
+                if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
+                    self.requirements.forward_declare_tids.insert(TypeTag::TypeDefinition(f_tdi));
+                } /*else if f_type_data != self.ty {
+                      self.requirements.forward_declare_tids.insert(f_type_data);
+                  }*/
             }
         }
     }
@@ -246,7 +362,6 @@ impl CppType {
         metadata: &Metadata,
         config: &GenerationConfig,
         ctx_collection: &mut CppContextCollection,
-        ctx: &mut CppContext,
         tdi: TypeDefinitionIndex,
     ) {
         let t = metadata
@@ -267,26 +382,8 @@ impl CppType {
             .get(t.parent_index as usize)
         {
             // We have a parent, lets do something with it
-            match parent_type.ty {
-                TypeEnum::Object => {
-                    ctx.need_wrapper();
-                    self.inherit
-                        .push("::bs_hook::Il2CppWrapperType".to_string());
-                }
-                TypeEnum::Class => {
-                    // In this case, just inherit the type
-                    // But we have to:
-                    // - Determine where to include it from
-                    let parent_ctx =
-                        ctx_collection.make_from(metadata, config, parent_type.data, true);
-                    // - Include it
-                    ctx.add_include_ctx(parent_ctx, "Including parent context".to_string());
-                    // - Inherit it
-                    self.inherit.push(parent_ctx.get_cpp_type_name(parent_type));
-                }
-                TypeEnum::Valuetype => (),
-                _ => (),
-            }
+            let inherit_type = self.cpp_name(ctx_collection, metadata, config, parent_type, true);
+            self.inherit.push(inherit_type);
         } else {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
         }
@@ -315,11 +412,14 @@ impl CppType {
             prefix_comments: vec![format!("Type: {ns}::{name}")],
             namespace: config.namespace_cpp(ns.to_string()),
             name: config.name_cpp(name.to_string()),
-            declarations: Vec::new(),
-            inherit: Vec::new(),
+            declarations: Default::default(),
+            inherit: Default::default(),
             template_line: None,
-            generic_args: Vec::new(),
+            generic_args: Default::default(),
             made: false,
+            requirements: Default::default(),
+            value_type: t.is_value_type(),
+            ty: TypeTag::TypeDefinition(tdi),
         };
 
         if t.parent_index == u32::MAX {
@@ -351,23 +451,25 @@ impl Writable for CppType {
         writeln!(
             writer,
             "// Forward declaring type: {}::{}",
-            self.namespace(),
+            self.namespace_fixed(),
             self.name()
         )?;
-        writeln!(writer, "namespace {} {{", self.namespace())?;
+        writeln!(writer, "namespace {} {{", self.namespace_fixed())?;
         writer.indent();
         if let Some(template) = &self.template_line {
             template.write(writer)?;
         }
         writeln!(writer, "struct {};", self.name())?;
+
         // Write type definition
         if let Some(template) = &self.template_line {
             template.write(writer).unwrap();
         }
+        writeln!(writer, "// Is value type: {}", self.value_type)?;
         // Type definition plus inherit lines
         writeln!(
             writer,
-            "struct {} : {} {{",
+            "struct {} : public {} {{",
             self.name(),
             self.inherit.join(", ")
         )?;

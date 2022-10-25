@@ -1,4 +1,5 @@
 #![feature(entry_insert)]
+#![feature(let_chains)]
 
 use std::{fs};
 use std::path::PathBuf;
@@ -71,6 +72,13 @@ fn main() -> color_eyre::Result<()> {
     //     write_type(&metadata, &config, &t, &dest);
     // }
     cpp_context_collection.get()[&TypeTag::TypeDefinition(123)].write().unwrap();
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(342)].write().unwrap();
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(512)].write().unwrap();
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(1024)].write().unwrap();
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(600)].write().unwrap();
+    // for (_, context) in cpp_context_collection.get() {
+    //     context.write().unwrap();
+    // }
 
     Ok(())
 }
