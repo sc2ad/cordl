@@ -6,9 +6,9 @@ use il2cpp_metadata_raw::{Il2CppMethodDefinition, TypeDefinitionIndex};
 
 use super::{
     config::GenerationConfig,
-    constants::{TypeDefinitionExtensions, TypeExtentions},
+    constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions},
     context::{self, CppCommentedString, CppContextCollection, TypeTag},
-    members::{CppField, CppMember, CppMethod, CppMethodData, CppProperty, CppParam},
+    members::{CppField, CppMember, CppMethod, CppMethodData, CppParam, CppProperty},
     metadata::Metadata,
     writer::Writable,
 };
@@ -274,9 +274,17 @@ impl CppType {
 
                     // TODO: We need DECLARATIONS in the def, DEFINITIONS in the impl
                     m_params.push(CppParam {
-                        name: metadata.metadata.get_str(param.name_index as u32).unwrap().to_string(),
+                        name: metadata
+                            .metadata
+                            .get_str(param.name_index as u32)
+                            .unwrap()
+                            .to_string(),
                         ty: self.cpp_name(ctx_collection, metadata, config, param_type, false),
-                        modifiers: if param_type.is_byref() {String::from("byref")} else {String::from("")}
+                        modifiers: if param_type.is_byref() {
+                            String::from("byref")
+                        } else {
+                            String::from("")
+                        },
                     });
                 }
 
@@ -499,8 +507,8 @@ impl CppType {
                     classof_call: self.classof_call(),
                     setter: p_setter.map(|_| method_map(prop.set)),
                     getter: p_getter.map(|_| method_map(prop.get)),
-                    abstr: p_type.is_abstract_method(),
-                    instance: !p_type.is_static_method(),
+                    abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
+                    instance: !p_getter.or(p_setter).unwrap().is_static_method(),
                 }));
 
                 // forward declare only if field type is not the same type as the holder

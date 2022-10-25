@@ -17,12 +17,6 @@ pub struct CppMethodData {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CppMethodData {
-    estimated_size: usize,
-    addrs: u64,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppField {
     pub name: String,
     pub ty: String,
