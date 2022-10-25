@@ -7,6 +7,7 @@ pub enum CppMember {
     Method(CppMethod),
     Property(CppProperty),
     Comment(CppCommentedString),
+    // TODO: Or a nested type
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -20,11 +21,39 @@ pub struct CppField {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CppParam {
+    pub name: String,
+    pub ty: String,
+    // TODO: Use bitflags to indicate these attributes
+    // May hold:
+    // const
+    // May hold one of:
+    // *
+    // &
+    // &&
+    pub modifiers: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethod {
     pub name: String,
     pub return_type: String,
-    pub parameters: Vec<String>, // todo: CPP Parameters
+    pub parameters: Vec<CppParam>,
     pub(crate) instance: bool,
+    // TODO: Use bitflags to indicate these attributes
+    // Holds unique of:
+    // const
+    // override
+    // noexcept
+    pub suffix_modifiers: String,
+    // Holds unique of:
+    // constexpr
+    // static
+    // inline
+    // explicit(...)
+    // virtual
+    pub prefix_modifiers: String,
+    // TODO: Add all descriptions missing for the method
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -55,6 +84,8 @@ impl CppMethod {
             return_type: todo!(),
             parameters: todo!(),
             instance: todo!(),
+            suffix_modifiers: todo!(),
+            prefix_modifiers: todo!(),
         }
     }
 }

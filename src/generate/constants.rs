@@ -4,6 +4,7 @@ use il2cpp_metadata_raw::Il2CppTypeDefinition;
 pub trait TypeExtentions {
     fn is_static(&self) -> bool;
     fn is_const(&self) -> bool;
+    fn is_byref(&self) -> bool;
 }
 
 impl TypeExtentions for Type {
@@ -14,6 +15,10 @@ impl TypeExtentions for Type {
     // FIELD_ATTRIBUTE_LITERAL
     fn is_const(&self) -> bool {
         (self.attrs & 0x0040) != 0
+    }
+
+    fn is_byref(&self) -> bool {
+        self.byref
     }
 }
 

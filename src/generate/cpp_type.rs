@@ -8,7 +8,7 @@ use super::{
     config::GenerationConfig,
     constants::{TypeDefinitionExtensions, TypeExtentions},
     context::{CppCommentedString, CppContextCollection, TypeTag},
-    members::{CppField, CppMember, CppMethod},
+    members::{CppField, CppMember, CppMethod, CppParam},
     metadata::Metadata,
     writer::Writable,
 };
@@ -162,12 +162,14 @@ impl CppType {
             }
             TypeEnum::I1 => "int8_t".to_string(),
             TypeEnum::I2 => "int16_t".to_string(),
-            TypeEnum::I | TypeEnum::I4 => "int32_t".to_string(),
-            TypeEnum::I8 => "int64_t".to_string(),
+            TypeEnum::I4 => "int32_t".to_string(),
+            // TODO: We assume 64 bit
+            TypeEnum::I | TypeEnum::I8 => "int64_t".to_string(),
             TypeEnum::U1 => "uint8_t".to_string(),
             TypeEnum::U2 => "uint16_t".to_string(),
-            TypeEnum::U | TypeEnum::U4 => "uint32_t".to_string(),
-            TypeEnum::U8 => "uint64_t".to_string(),
+            TypeEnum::U4 => "uint32_t".to_string(),
+            // TODO: We assume 64 bit
+            TypeEnum::U | TypeEnum::U8 => "uint64_t".to_string(),
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point
@@ -232,7 +234,7 @@ impl CppType {
     ) {
         let t = self.get_type_definition(metadata, tdi);
 
-        // Then, handle fields
+        // Then, handle methods
         if t.method_count > 0 {
             // Write comment for methods
             self.declarations
@@ -240,7 +242,7 @@ impl CppType {
                     data: "".to_string(),
                     comment: Some("Methods".to_string()),
                 }));
-            // Then, for each field, write it out
+            // Then, for each method, write it out
             for i in 0..t.method_count {
                 // TODO: Get method size
                 let method = metadata
@@ -249,18 +251,12 @@ impl CppType {
                     .get((t.method_start + i as u32) as usize)
                     .unwrap();
                 let m_name = metadata.metadata.get_str(method.name_index).unwrap();
-                let m_index = metadata
-                    .metadata_registration
-                    .method_specs
-                    .get(tdi as usize)
-                    .unwrap()
-                    .method_definition_index;
                 let m_ret_type = metadata
                     .metadata_registration
                     .types
                     .get(method.return_type as usize)
                     .unwrap();
-                let mut m_params: Vec<&Type> = vec![];
+                let mut m_params: Vec<CppParam> = vec![];
 
                 for p in 0..method.parameter_count {
                     let param = metadata
@@ -274,22 +270,26 @@ impl CppType {
                         .types
                         .get(param.type_index as usize)
                         .unwrap();
-                    m_params.push(param_type);
+
+                    // TODO: We need DECLARATIONS in the def, DEFINITIONS in the impl
+                    m_params.push(CppParam {
+                        name: metadata.metadata.get_str(param.name_index as u32).unwrap().to_string(),
+                        ty: self.cpp_name(ctx_collection, metadata, config, param_type, false),
+                        modifiers: if param_type.is_byref() {String::from("byref")} else {String::from("")}
+                    });
                 }
 
                 // Need to include this type
                 let cpp_type_name =
                     self.cpp_name(ctx_collection, metadata, config, m_ret_type, false);
-                let param_names: Vec<String> = m_params
-                    .iter()
-                    .map(|p| self.cpp_name(ctx_collection, metadata, config, p, false))
-                    .collect();
 
                 self.declarations.push(CppMember::Method(CppMethod {
                     name: m_name.to_owned(),
                     return_type: cpp_type_name,
-                    parameters: param_names,
+                    parameters: m_params,
                     instance: true,
+                    prefix_modifiers: Default::default(),
+                    suffix_modifiers: Default::default()
                 }));
             }
         }
