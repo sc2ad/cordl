@@ -1,14 +1,14 @@
-use std::{collections::HashSet, io::Write, path::PathBuf};
+use std::{collections::HashSet, io::Write, path::PathBuf, ptr};
 
 use color_eyre::eyre::Context;
 use il2cpp_binary::{Type, TypeData, TypeEnum};
-use il2cpp_metadata_raw::TypeDefinitionIndex;
+use il2cpp_metadata_raw::{Il2CppMethodDefinition, TypeDefinitionIndex};
 
 use super::{
     config::GenerationConfig,
     constants::{TypeDefinitionExtensions, TypeExtentions},
     context::{self, CppCommentedString, CppContextCollection, TypeTag},
-    members::{CppField, CppMember, CppMethod, CppProperty, CppParam},
+    members::{CppField, CppMember, CppMethod, CppMethodData, CppProperty, CppParam},
     metadata::Metadata,
     writer::Writable,
 };
@@ -290,7 +290,17 @@ impl CppType {
                     parameters: m_params,
                     instance: true,
                     prefix_modifiers: Default::default(),
-                    suffix_modifiers: Default::default()
+                    suffix_modifiers: Default::default(),
+                    method_data: CppMethodData {
+                        addrs: *metadata
+                            .methods_address_sorted
+                            .get(&((t.method_start + i as u32) as usize))
+                            .unwrap(),
+                        estimated_size: *metadata
+                            .methods_size_map
+                            .get(&((t.method_start + i as u32) as usize))
+                            .unwrap(),
+                    },
                 }));
             }
         }
@@ -465,15 +475,9 @@ impl CppType {
                     .get((t.property_start + i as u32) as usize)
                     .unwrap();
                 let p_name = metadata.metadata.get_str(prop.name_index).unwrap();
-                let p_setter = metadata
-                    .metadata
-                    .methods
-                    .get(prop.set as usize);
-                    
-                let p_getter = metadata
-                    .metadata
-                    .methods
-                    .get(prop.get as usize);
+                let p_setter = metadata.metadata.methods.get(prop.set as usize);
+
+                let p_getter = metadata.metadata.methods.get(prop.get as usize);
 
                 let p_type = metadata
                     .metadata_registration
@@ -483,13 +487,18 @@ impl CppType {
 
                 let cpp_name = self.cpp_name(ctx_collection, metadata, config, p_type, false);
 
+                let method_map = |p: u32| CppMethodData {
+                    estimated_size: *metadata.methods_size_map.get(&(p as usize)).unwrap(),
+                    addrs: *metadata.methods_address_sorted.get(&(p as usize)).unwrap(),
+                };
+
                 // Need to include this type
                 self.declarations.push(CppMember::Property(CppProperty {
                     name: p_name.to_owned(),
                     ty: cpp_name,
                     classof_call: self.classof_call(),
-                    setter: p_setter.is_some(),
-                    getter: p_getter.is_some(),
+                    setter: p_setter.map(|_| method_map(prop.set)),
+                    getter: p_getter.map(|_| method_map(prop.get)),
                     abstr: p_type.is_abstract_method(),
                     instance: !p_type.is_static_method(),
                 }));
