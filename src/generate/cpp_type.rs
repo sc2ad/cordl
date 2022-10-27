@@ -35,6 +35,7 @@ pub struct CppType {
     namespace: String,
     name: String,
     declarations: Vec<CppMember>,
+    implementations: Vec<CppMember>,
 
     pub value_type: bool,
     pub requirements: CppTypeRequirements,
@@ -439,6 +440,7 @@ impl CppType {
             requirements: Default::default(),
             value_type: t.is_value_type(),
             ty: TypeTag::TypeDefinition(tdi),
+            implementations: Default::default(),
         };
 
         if t.parent_index == u32::MAX {
@@ -467,9 +469,9 @@ impl CppType {
     ) {
         let t = self.get_type_definition(metadata, tdi);
 
-        // Then, handle fields
+        // Then, handle properties
         if t.property_count > 0 {
-            // Write comment for fields
+            // Write comment for properties
             self.declarations
                 .push(CppMember::Comment(CppCommentedString {
                     data: "".to_string(),
@@ -520,6 +522,15 @@ impl CppType {
             }
         }
     }
+
+    pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        // Write all declarations within the type here
+        self.implementations.iter().for_each(|d| {
+            d.write(writer).unwrap();
+        });
+
+        Ok(())
+    }
 }
 
 impl Writable for CppType {
@@ -565,7 +576,7 @@ impl Writable for CppType {
         writeln!(writer, "}};")?;
         // Namespace complete
         writer.dedent();
-        writeln!(writer, "}}")?;
+        writeln!(writer, "}} // namespace {}", self.namespace_fixed())?;
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
         Ok(())
     }

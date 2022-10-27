@@ -261,6 +261,7 @@ impl CppContext {
         self.typedef_types.iter().for_each(|(k, v)| {
             writeln!(typedef_writer, "/* {:?} */", k).unwrap();
             v.write(&mut typedef_writer).unwrap();
+            v.write_impl(&mut _typeimpl_writer).unwrap();
         });
 
         // TODO: Write type impl and fundamental files here
