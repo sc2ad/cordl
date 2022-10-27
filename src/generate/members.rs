@@ -6,7 +6,6 @@ pub enum CppMember {
     Field(CppField),
     Method(CppMethod),
     Property(CppProperty),
-    LegacyPropertyImpl(CppLegacyPropertyImpl),
     Comment(CppCommentedString),
     // TODO: Or a nested type
 }
@@ -73,18 +72,7 @@ pub struct CppProperty {
     pub abstr: bool,
     pub instance: bool,
     pub classof_call: String,
-    pub generate_legacy: bool
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CppLegacyPropertyImpl {
-    pub name: String,
-    pub ty: String,
-    pub setter: Option<CppMethodData>,
-    pub getter: Option<CppMethodData>,
-    pub abstr: bool,
-    pub instance: bool,
-    pub classof_call: String,
+    pub generate_legacy: bool,
 }
 
 impl CppField {
@@ -209,14 +197,41 @@ impl Writable for CppProperty {
                 self.name
             )?;
         }
+
+        if self.generate_legacy {
+            if self.setter.is_some() {
+                // setter
+                if !self.instance {
+                    write!(writer, "static ")?;
+                }
+                writeln!(writer, "void set_{}({} val) {{", self.name, self.ty)?;
+                writeln!(
+                    writer,
+                    "::il2cpp_utils::SetPropertyValue({}, {}, val)",
+                    if self.instance { "this" } else { "nullptr" },
+                    self.name
+                )?;
+                writeln!(writer, "}}")?;
+            }
+
+            if self.getter.is_some() {
+                // getter
+                if !self.instance {
+                    write!(writer, "static ")?;
+                }
+                writeln!(writer, "{} get_{}() {{", self.ty, self.name)?;
+                writeln!(
+                    writer,
+                    "::il2cpp_utils::GetPropertyValue<{}>({}, {})",
+                    self.ty,
+                    if self.instance { "this" } else { "nullptr" },
+                    self.name
+                )?;
+                writeln!(writer, "}}")?;
+            }
+        }
+
         Ok(())
-    }
-}
-
-
-impl Writable for CppLegacyPropertyImpl {
-    fn write(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
-        todo!()
     }
 }
 
@@ -227,7 +242,6 @@ impl Writable for CppMember {
             CppMember::Method(m) => m.write(writer),
             CppMember::Property(p) => p.write(writer),
             CppMember::Comment(c) => c.write(writer),
-            CppMember::LegacyPropertyImpl(i) => i.write(writer),
         }
     }
 }
