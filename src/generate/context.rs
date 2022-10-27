@@ -236,7 +236,7 @@ impl CppContext {
             stream: File::create(self.typedef_path.as_path())?,
             indent: 0,
         };
-        let _typeimpl_writer = CppWriter {
+        let mut _typeimpl_writer = CppWriter {
             stream: File::create(self.type_impl_path.as_path())?,
             indent: 0,
         };

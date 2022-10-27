@@ -293,6 +293,10 @@ impl CppType {
                 let cpp_type_name =
                     self.cpp_name(ctx_collection, metadata, config, m_ret_type, false);
 
+                let method_calc = metadata
+                    .method_calculations
+                    .get(&(t.method_start + i as u32))
+                    .unwrap();
                 self.declarations.push(CppMember::Method(CppMethod {
                     name: m_name.to_owned(),
                     return_type: cpp_type_name,
@@ -301,14 +305,8 @@ impl CppType {
                     prefix_modifiers: Default::default(),
                     suffix_modifiers: Default::default(),
                     method_data: CppMethodData {
-                        addrs: *metadata
-                            .methods_address_sorted
-                            .get(&((t.method_start + i as u32) as usize))
-                            .unwrap(),
-                        estimated_size: *metadata
-                            .methods_size_map
-                            .get(&((t.method_start + i as u32) as usize))
-                            .unwrap(),
+                        addrs: method_calc.addrs,
+                        estimated_size: method_calc.estimated_size,
                     },
                 }));
             }
@@ -497,9 +495,12 @@ impl CppType {
 
                 let cpp_name = self.cpp_name(ctx_collection, metadata, config, p_type, false);
 
-                let method_map = |p: u32| CppMethodData {
-                    estimated_size: *metadata.methods_size_map.get(&(p as usize)).unwrap(),
-                    addrs: *metadata.methods_address_sorted.get(&(p as usize)).unwrap(),
+                let method_map = |p: u32| {
+                    let method_calc = metadata.method_calculations.get(&p).unwrap();
+                    CppMethodData {
+                        estimated_size: method_calc.estimated_size,
+                        addrs: method_calc.addrs,
+                    }
                 };
 
                 // Need to include this type

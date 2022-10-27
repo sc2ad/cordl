@@ -53,45 +53,11 @@ fn main() -> color_eyre::Result<()> {
         source_path: PathBuf::from("./codegen/src"),
     };
 
-    let codegen_module = code_registration
-        .code_gen_modules
-        .iter()
-        .find(|e| e.name == il2cpp_metadata.images)
-        .unwrap();
-
-    let mut methods_address_sorted: Vec<(&Il2CppMethodDefinition, u64)> = il2cpp_metadata
-        .methods
-        .iter()
-        .map(|e| {
-            (
-                e,
-                *codegen_module
-                    .method_pointers
-                    .get((e.token & 0xFFFFFF) as usize)
-                    .unwrap_or(&0),
-            )
-        })
-        .collect();
-    methods_address_sorted.sort_by(|(_, a), (_, b)| a.cmp(b));
-
     let metadata = Metadata {
         metadata: &il2cpp_metadata,
         code_registration: &code_registration,
         metadata_registration: &metadata_registration,
-        methods_address_sorted: methods_address_sorted
-            .iter()
-            .enumerate()
-            .map(|(i, (_, m))| (i, *m))
-            .collect(),
-        methods_size_map: methods_address_sorted
-            .iter()
-            .enumerate()
-            .map_while(|(i, a)| {
-                methods_address_sorted
-                    .get(i + 1)
-                    .map(|b| (i, (b.1 - a.1) as usize))
-            })
-            .collect(),
+        method_calculations: Default::default(),
     };
     let mut cpp_context_collection = CppContextCollection::new();
 

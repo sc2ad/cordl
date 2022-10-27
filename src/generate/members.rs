@@ -12,8 +12,8 @@ pub enum CppMember {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethodData {
-    estimated_size: usize,
-    addrs: u64,
+    pub estimated_size: usize,
+    pub addrs: u64,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
