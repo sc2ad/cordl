@@ -524,7 +524,7 @@ impl CppType {
         }
     }
 
-    pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+    pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
         // Write all declarations within the type here
         self.implementations.iter().for_each(|d| {
             d.write(writer).unwrap();
@@ -535,7 +535,7 @@ impl CppType {
 }
 
 impl Writable for CppType {
-    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
         self.prefix_comments.iter().for_each(|pc| {
             writeln!(writer, "// {pc}")
                 .context("Prefix comment")

@@ -118,7 +118,7 @@ impl CppProperty {
 // Writing
 
 impl Writable for CppField {
-    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
         writeln!(
             writer,
             "// Field: name: {}, Type Name: {}, Offset: 0x{:x}",
@@ -142,7 +142,7 @@ impl Writable for CppField {
     }
 }
 impl Writable for CppMethod {
-    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
         writeln!(
             writer,
             "// Method: name: {}, Return Type Name: {} Parameters: {:?} Addr {:x} Size {:x}",
@@ -157,7 +157,7 @@ impl Writable for CppMethod {
     }
 }
 impl Writable for CppProperty {
-    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
         writeln!(
             writer,
             "// Property: name: {}, Type Name: {}, setter {} getter {} abstract {}",
@@ -200,7 +200,7 @@ impl Writable for CppProperty {
 }
 
 impl Writable for CppMember {
-    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
         match self {
             CppMember::Field(f) => f.write(writer),
             CppMember::Method(m) => m.write(writer),
