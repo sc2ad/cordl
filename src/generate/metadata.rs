@@ -24,7 +24,7 @@ impl<'a> Metadata<'a> {
             .code_gen_modules
             .iter()
             .flat_map(|m| &m.method_pointers)
-            .map(|m| *m)
+            .copied()
             .collect();
         method_addresses_sorted.sort();
 
@@ -43,7 +43,8 @@ impl<'a> Metadata<'a> {
                 )
             })
             .flat_map(|(cgm, img)| {
-                let mut method_calculations: HashMap<MethodIndex, MethodCalculations> = HashMap::new();
+                let mut method_calculations: HashMap<MethodIndex, MethodCalculations> =
+                    HashMap::new();
                 for i in 0..img.exported_type_count {
                     let ty = self
                         .metadata

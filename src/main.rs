@@ -53,12 +53,13 @@ fn main() -> color_eyre::Result<()> {
         source_path: PathBuf::from("./codegen/src"),
     };
 
-    let metadata = Metadata {
+    let mut metadata = Metadata {
         metadata: &il2cpp_metadata,
         code_registration: &code_registration,
         metadata_registration: &metadata_registration,
         method_calculations: Default::default(),
     };
+    metadata.parse();
     let mut cpp_context_collection = CppContextCollection::new();
 
     // First, make all the contexts
