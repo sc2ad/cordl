@@ -8,7 +8,9 @@ use super::{
     config::GenerationConfig,
     constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions},
     context::{self, CppCommentedString, CppContextCollection, TypeTag},
-    members::{CppField, CppMember, CppMethod, CppMethodData, CppParam, CppProperty},
+    members::{
+        CppField, CppLegacyPropertyImpl, CppMember, CppMethod, CppMethodData, CppParam, CppProperty,
+    },
     metadata::Metadata,
     writer::Writable,
 };
@@ -506,13 +508,24 @@ impl CppType {
                 // Need to include this type
                 self.declarations.push(CppMember::Property(CppProperty {
                     name: p_name.to_owned(),
-                    ty: cpp_name,
+                    ty: cpp_name.clone(),
                     classof_call: self.classof_call(),
                     setter: p_setter.map(|_| method_map(prop.set)),
                     getter: p_getter.map(|_| method_map(prop.get)),
                     abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
                     instance: !p_getter.or(p_setter).unwrap().is_static_method(),
+                    generate_legacy: true,
                 }));
+                self.implementations
+                    .push(CppMember::LegacyPropertyImpl(CppLegacyPropertyImpl {
+                        name: p_name.to_owned(),
+                        ty: cpp_name,
+                        classof_call: self.classof_call(),
+                        setter: p_setter.map(|_| method_map(prop.set)),
+                        getter: p_getter.map(|_| method_map(prop.get)),
+                        abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
+                        instance: !p_getter.or(p_setter).unwrap().is_static_method(),
+                    }));
 
                 // forward declare only if field type is not the same type as the holder
                 if let TypeData::TypeDefinitionIndex(f_tdi) = p_type.data && f_tdi != tdi {

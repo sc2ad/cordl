@@ -6,6 +6,7 @@ pub enum CppMember {
     Field(CppField),
     Method(CppMethod),
     Property(CppProperty),
+    LegacyPropertyImpl(CppLegacyPropertyImpl),
     Comment(CppCommentedString),
     // TODO: Or a nested type
 }
@@ -72,6 +73,18 @@ pub struct CppProperty {
     pub abstr: bool,
     pub instance: bool,
     pub classof_call: String,
+    pub generate_legacy: bool
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CppLegacyPropertyImpl {
+    pub name: String,
+    pub ty: String,
+    pub setter: Option<CppMethodData>,
+    pub getter: Option<CppMethodData>,
+    pub abstr: bool,
+    pub instance: bool,
+    pub classof_call: String,
 }
 
 impl CppField {
@@ -111,6 +124,7 @@ impl CppProperty {
             abstr: todo!(),
             instance: todo!(),
             classof_call: todo!(),
+            generate_legacy: todo!(),
         }
     }
 }
@@ -199,6 +213,13 @@ impl Writable for CppProperty {
     }
 }
 
+
+impl Writable for CppLegacyPropertyImpl {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
+        todo!()
+    }
+}
+
 impl Writable for CppMember {
     fn write(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
         match self {
@@ -206,6 +227,7 @@ impl Writable for CppMember {
             CppMember::Method(m) => m.write(writer),
             CppMember::Property(p) => p.write(writer),
             CppMember::Comment(c) => c.write(writer),
+            CppMember::LegacyPropertyImpl(i) => i.write(writer),
         }
     }
 }
