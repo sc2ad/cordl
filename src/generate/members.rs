@@ -204,7 +204,7 @@ impl Writable for CppProperty {
                 if !self.instance {
                     write!(writer, "static ")?;
                 }
-                writeln!(writer, "void set_{}({} val) {{", self.name, self.ty)?;
+                writeln!(writer, "void set_{}({} const& val) {{", self.name, self.ty)?;
                 writeln!(
                     writer,
                     "::il2cpp_utils::SetPropertyValue({}, {}, val)",
