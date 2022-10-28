@@ -207,7 +207,7 @@ impl Writable for CppProperty {
                 writeln!(writer, "void set_{}({} const& val) {{", self.name, self.ty)?;
                 writeln!(
                     writer,
-                    "::il2cpp_utils::SetPropertyValue({}, {}, val)",
+                    "::il2cpp_utils::SetPropertyValue({}, {}, val);",
                     if self.instance { "this" } else { "nullptr" },
                     self.name
                 )?;
@@ -222,7 +222,7 @@ impl Writable for CppProperty {
                 writeln!(writer, "{} get_{}() {{", self.ty, self.name)?;
                 writeln!(
                     writer,
-                    "::il2cpp_utils::GetPropertyValue<{}>({}, {})",
+                    "return ::il2cpp_utils::GetPropertyValue<{}>({}, {});",
                     self.ty,
                     if self.instance { "this" } else { "nullptr" },
                     self.name
