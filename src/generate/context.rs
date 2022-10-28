@@ -5,7 +5,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Context;
+use color_eyre::{eyre::ContextCompat};
+use color_eyre::Result;
 use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
@@ -23,7 +24,7 @@ pub struct CppCommentedString {
 }
 
 impl Writable for CppCommentedString {
-    fn write(&self, writer: &mut CppWriter) -> anyhow::Result<()> {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
         if let Some(val) = &self.comment {
             writeln!(writer, "// {val}")?;
         }
@@ -213,7 +214,7 @@ impl CppContext {
         x
     }
 
-    pub fn write(&self) -> anyhow::Result<()> {
+    pub fn write(&self) -> color_eyre::Result<()> {
         // Write typedef file first
         if Path::exists(self.typedef_path.as_path()) {
             remove_file(self.typedef_path.as_path())?;
@@ -258,11 +259,15 @@ impl CppContext {
                 .try_for_each(|s| s.write(&mut typedef_writer))?;
             writeln!(typedef_writer, "}} // namespace {}", namespace)?;
         }
-        self.typedef_types.iter().for_each(|(k, v)| {
-            writeln!(typedef_writer, "/* {:?} */", k).unwrap();
-            v.write(&mut typedef_writer).unwrap();
-            v.write_impl(&mut _typeimpl_writer).unwrap();
-        });
+        self.typedef_types
+            .iter()
+            .try_for_each(|(k, v)| -> Result<()> {
+                writeln!(typedef_writer, "/* {:?} */", k)?;
+                v.write(&mut typedef_writer)?;
+                v.write_impl(&mut _typeimpl_writer)?;
+
+                Ok(())
+            })?;
 
         // TODO: Write type impl and fundamental files here
         Ok(())

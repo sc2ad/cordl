@@ -1,7 +1,7 @@
-use std::{collections::HashMap, ops::Index};
+use std::{collections::HashMap};
 
 use il2cpp_binary::{CodeRegistration, MetadataRegistration};
-use il2cpp_metadata_raw::{MethodIndex, TypeIndex};
+use il2cpp_metadata_raw::{MethodIndex};
 
 pub struct MethodCalculations {
     pub estimated_size: usize,
@@ -53,7 +53,7 @@ impl<'a> Metadata<'a> {
                         .unwrap();
 
                     for m in 0..ty.method_count {
-                        let method_index = (ty.method_start + m as u32);
+                        let method_index = ty.method_start + m as u32;
                         let method = self.metadata.methods.get(method_index as usize).unwrap();
 
                         let method_pointer_index = (method.token & 0xFFFFFF) as usize;

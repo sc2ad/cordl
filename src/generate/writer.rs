@@ -2,7 +2,7 @@ use std::{fs::File, io::Write};
 
 pub struct CppWriter {
     pub stream: File,
-    pub indent: u16
+    pub indent: u16,
 }
 
 impl CppWriter {
@@ -32,5 +32,5 @@ impl Write for CppWriter {
 }
 
 pub trait Writable: std::fmt::Debug {
-    fn write(&self, writer: &mut CppWriter) -> anyhow::Result<()>;
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()>;
 }

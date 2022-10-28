@@ -1,16 +1,14 @@
-use std::{collections::HashSet, io::Write, path::PathBuf, ptr};
+use std::{collections::HashSet, io::Write};
 
 use color_eyre::eyre::Context;
 use il2cpp_binary::{Type, TypeData, TypeEnum};
-use il2cpp_metadata_raw::{Il2CppMethodDefinition, TypeDefinitionIndex};
+use il2cpp_metadata_raw::{TypeDefinitionIndex};
 
 use super::{
     config::GenerationConfig,
     constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions},
-    context::{self, CppCommentedString, CppContextCollection, TypeTag},
-    members::{
-        CppField, CppMember, CppMethod, CppMethodData, CppParam, CppProperty,
-    },
+    context::{CppCommentedString, CppContextCollection, TypeTag},
+    members::{CppField, CppMember, CppMethod, CppMethodData, CppParam, CppProperty},
     metadata::Metadata,
     writer::Writable,
 };
@@ -353,7 +351,7 @@ impl CppType {
                     .get(field.type_index as usize)
                     .unwrap();
 
-                let f_type_data = TypeTag::from(f_type.data);
+                let _f_type_data = TypeTag::from(f_type.data);
 
                 let cpp_name = self.cpp_name(ctx_collection, metadata, config, f_type, false);
 
@@ -527,7 +525,7 @@ impl CppType {
         }
     }
 
-    pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
+    pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         // Write all declarations within the type here
         self.implementations.iter().for_each(|d| {
             d.write(writer).unwrap();
@@ -538,7 +536,7 @@ impl CppType {
 }
 
 impl Writable for CppType {
-    fn write(&self, writer: &mut super::writer::CppWriter) -> anyhow::Result<()> {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         self.prefix_comments.iter().for_each(|pc| {
             writeln!(writer, "// {pc}")
                 .context("Prefix comment")

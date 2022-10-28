@@ -4,7 +4,7 @@
 use generate::config::GenerationConfig;
 use generate::context::{CppContextCollection, TypeTag};
 use generate::metadata::Metadata;
-use il2cpp_metadata_raw::Il2CppMethodDefinition;
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -39,14 +39,14 @@ fn main() -> color_eyre::Result<()> {
         command: None,
     };
 
-    let metadata_data = fs::read(cli.metadata).unwrap();
-    let il2cpp_metadata = il2cpp_metadata_raw::deserialize(&metadata_data).unwrap();
+    let metadata_data = fs::read(cli.metadata)?;
+    let il2cpp_metadata = il2cpp_metadata_raw::deserialize(&metadata_data)?;
 
-    let elf_data = fs::read(cli.libil2cpp).unwrap();
-    let elf = Elf::parse(&elf_data).unwrap();
+    let elf_data = fs::read(cli.libil2cpp)?;
+    let elf = Elf::parse(&elf_data)?;
 
     let (code_registration, metadata_registration) =
-        il2cpp_binary::registrations(&elf, &il2cpp_metadata).unwrap();
+        il2cpp_binary::registrations(&elf, &il2cpp_metadata)?;
 
     let config = GenerationConfig {
         header_path: PathBuf::from("./codegen/include"),
@@ -67,7 +67,7 @@ fn main() -> color_eyre::Result<()> {
         cpp_context_collection.make_from(
             &metadata,
             &config,
-            TypeData::TypeDefinitionIndex(tdi.try_into().unwrap()),
+            TypeData::TypeDefinitionIndex(tdi.try_into()?),
             true,
         );
     }
@@ -78,19 +78,19 @@ fn main() -> color_eyre::Result<()> {
     // }
     cpp_context_collection.get()[&TypeTag::TypeDefinition(123)]
         .write()
-        .unwrap();
+        ?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(342)]
         .write()
-        .unwrap();
+        ?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(512)]
         .write()
-        .unwrap();
+        ?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(1024)]
         .write()
-        .unwrap();
+        ?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(600)]
         .write()
-        .unwrap();
+        ?;
     // for (_, context) in cpp_context_collection.get() {
     //     context.write().unwrap();
     // }
