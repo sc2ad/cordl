@@ -40,18 +40,23 @@ impl<'a> Metadata<'a> {
                         .unwrap();
                 let mut method_calculations: HashMap<MethodIndex, MethodCalculations> =
                     HashMap::new();
-                for i in 0..img.exported_type_count {
+                for i in 0..img.type_count {
                     let ty = self
                         .metadata
                         .type_definitions
-                        .get((img.exported_type_start + i) as usize)
+                        .get((img.type_start + i) as usize)
                         .unwrap();
+                    let ty_name = format!(
+                        "{}::{}",
+                        self.metadata.get_str(ty.namespace_index).unwrap(),
+                        self.metadata.get_str(ty.name_index).unwrap()
+                    );
 
                     for m in 0..ty.method_count {
                         let method_index = ty.method_start + m as u32;
                         let method = self.metadata.methods.get(method_index as usize).unwrap();
 
-                        let method_pointer_index = (method.token & 0xFFFFFF) as usize;
+                        let method_pointer_index = ((method.token & 0xFFFFFF) - 1) as usize;
                         let method_pointer =
                             *cgm.method_pointers.get(method_pointer_index).unwrap();
 

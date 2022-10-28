@@ -59,7 +59,9 @@ fn main() -> color_eyre::Result<()> {
         metadata_registration: &metadata_registration,
         method_calculations: Default::default(),
     };
+    println!("Parsing metadata methods");
     metadata.parse();
+    println!("Finished");
     let mut cpp_context_collection = CppContextCollection::new();
 
     // First, make all the contexts
@@ -89,6 +91,9 @@ fn main() -> color_eyre::Result<()> {
         .write()
         ?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(600)]
+        .write()
+        ?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(1000)]
         .write()
         ?;
     // for (_, context) in cpp_context_collection.get() {

@@ -136,8 +136,8 @@ impl Writable for CppField {
         } else {
             writeln!(
                 writer,
-                "static inline ::bs_hook::StaticField<{}, {},{}> {};",
-                self.ty, !self.readonly, self.classof_call, self.name
+                "static inline ::bs_hook::StaticField<{},\"{}\",{},{}> {};",
+                self.ty, self.name, !self.readonly, self.classof_call, self.name
             )?;
         }
         Ok(())
@@ -189,8 +189,8 @@ impl Writable for CppProperty {
             writeln!(
                 writer,
                 "static inline ::bs_hook::StaticProperty<{},\"{}\",{},{}, {}> {};",
-                self.name,
                 self.ty,
+                self.name,
                 self.getter.is_some(),
                 self.setter.is_some(),
                 self.classof_call,
