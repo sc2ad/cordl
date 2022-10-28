@@ -1,7 +1,7 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use il2cpp_binary::{CodeRegistration, MetadataRegistration};
-use il2cpp_metadata_raw::{MethodIndex};
+use il2cpp_metadata_raw::MethodIndex;
 
 pub struct MethodCalculations {
     pub estimated_size: usize,
@@ -32,17 +32,12 @@ impl<'a> Metadata<'a> {
             .code_registration
             .code_gen_modules
             .iter()
-            .map(|cgm| {
-                (
-                    cgm,
-                    self.metadata
+            .flat_map(|cgm| {
+                let img = self.metadata
                         .images
                         .iter()
                         .find(|i| cgm.name == self.metadata.get_str(i.name_index).unwrap())
-                        .unwrap(),
-                )
-            })
-            .flat_map(|(cgm, img)| {
+                        .unwrap();
                 let mut method_calculations: HashMap<MethodIndex, MethodCalculations> =
                     HashMap::new();
                 for i in 0..img.exported_type_count {
