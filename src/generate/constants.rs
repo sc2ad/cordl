@@ -1,5 +1,34 @@
 use il2cpp_binary::Type;
-use il2cpp_metadata_raw::Il2CppTypeDefinition;
+use il2cpp_metadata_raw::{Il2CppMethodDefinition, Il2CppTypeDefinition};
+
+pub trait MethodDefintionExtensions {
+    fn is_public_method(&self) -> bool;
+    fn is_abstract_method(&self) -> bool;
+    fn is_static_method(&self) -> bool;
+    fn is_virtual_method(&self) -> bool;
+}
+
+impl MethodDefintionExtensions for Il2CppMethodDefinition {
+    fn is_public_method(&self) -> bool {
+        (self.flags & 7) == 6
+    }
+
+    fn is_virtual_method(&self) -> bool {
+        (self.flags & 0x0040) != 0
+    }
+
+    fn is_static_method(&self) -> bool {
+        (self.flags & 0x0010) != 0
+    }
+
+    fn is_abstract_method(&self) -> bool {
+        (self.flags & 0x0400) != 0
+    }
+}
+
+pub trait ParameterDefinitionExtensions {
+    fn is_param_optional(&self) -> bool;
+}
 
 pub trait TypeExtentions {
     fn is_static(&self) -> bool;
@@ -32,7 +61,7 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
         self.bitfield & 1 != 0
     }
 
-    fn is_enum_type(&self) -> bool { 
+    fn is_enum_type(&self) -> bool {
         self.bitfield & 2 != 0
     }
 }

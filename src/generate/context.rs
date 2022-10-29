@@ -5,7 +5,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use color_eyre::{eyre::ContextCompat, Result};
+use color_eyre::eyre::ContextCompat;
+use color_eyre::Result;
 use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
@@ -235,33 +236,43 @@ impl CppContext {
         let mut typedef_writer = CppWriter {
             stream: File::create(self.typedef_path.as_path())?,
             indent: 0,
+            newline: true,
         };
-        let _typeimpl_writer = CppWriter {
+        let mut _typeimpl_writer = CppWriter {
             stream: File::create(self.type_impl_path.as_path())?,
             indent: 0,
+            newline: true,
         };
         let _fundamental_writer = CppWriter {
             stream: File::create(self.fundamental_path.as_path())?,
             indent: 0,
+            newline: true,
         };
 
         // Write includes for typedef
         self.typedef_includes
             .iter()
-            .for_each(|inc| inc.write(&mut typedef_writer).unwrap());
+            .try_for_each(|inc| inc.write(&mut typedef_writer))?;
 
         // forward declares
         for (namespace, strings) in &self.typedef_declarations {
             writeln!(typedef_writer, "namespace {} {{", namespace)?;
+            typedef_writer.indent();
             strings
                 .iter()
-                .for_each(|s| s.write(&mut typedef_writer).unwrap());
+                .try_for_each(|s| s.write(&mut typedef_writer))?;
+            typedef_writer.dedent();
             writeln!(typedef_writer, "}} // namespace {}", namespace)?;
         }
-        self.typedef_types.iter().for_each(|(k, v)| {
-            writeln!(typedef_writer, "/* {:?} */", k).unwrap();
-            v.write(&mut typedef_writer).unwrap();
-        });
+        self.typedef_types
+            .iter()
+            .try_for_each(|(k, v)| -> Result<()> {
+                writeln!(typedef_writer, "/* {:?} */", k)?;
+                v.write(&mut typedef_writer)?;
+                v.write_impl(&mut _typeimpl_writer)?;
+
+                Ok(())
+            })?;
 
         // TODO: Write type impl and fundamental files here
         Ok(())
