@@ -5,7 +5,7 @@ use generate::config::GenerationConfig;
 use generate::context::{CppContextCollection, TypeTag};
 use generate::metadata::Metadata;
 
-use std::fs;
+use std::{fs, time};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
@@ -59,9 +59,10 @@ fn main() -> color_eyre::Result<()> {
         metadata_registration: &metadata_registration,
         method_calculations: Default::default(),
     };
+    let t = time::Instant::now();
     println!("Parsing metadata methods");
     metadata.parse();
-    println!("Finished");
+    println!("Finished in {}ms", t.elapsed().as_millis());
     let mut cpp_context_collection = CppContextCollection::new();
 
     // First, make all the contexts

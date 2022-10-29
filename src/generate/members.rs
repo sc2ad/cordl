@@ -205,12 +205,14 @@ impl Writable for CppProperty {
                     write!(writer, "static ")?;
                 }
                 writeln!(writer, "void set_{}({} const& val) {{", self.name, self.ty)?;
+                writer.indent();
                 writeln!(
                     writer,
-                    "::il2cpp_utils::SetPropertyValue({}, {}, val);",
+                    "::il2cpp_utils::SetPropertyValue({}, \"{}\", val);",
                     if self.instance { "this" } else { "nullptr" },
                     self.name
                 )?;
+                writer.dedent();
                 writeln!(writer, "}}")?;
             }
 
@@ -220,13 +222,15 @@ impl Writable for CppProperty {
                     write!(writer, "static ")?;
                 }
                 writeln!(writer, "{} get_{}() {{", self.ty, self.name)?;
+                writer.indent();
                 writeln!(
                     writer,
-                    "return ::il2cpp_utils::GetPropertyValue<{}>({}, {});",
+                    "return ::il2cpp_utils::GetPropertyValue<{}>({}, \"{}\");",
                     self.ty,
                     if self.instance { "this" } else { "nullptr" },
                     self.name
                 )?;
+                writer.dedent();
                 writeln!(writer, "}}")?;
             }
         }

@@ -46,11 +46,6 @@ impl<'a> Metadata<'a> {
                         .type_definitions
                         .get((img.type_start + i) as usize)
                         .unwrap();
-                    let ty_name = format!(
-                        "{}::{}",
-                        self.metadata.get_str(ty.namespace_index).unwrap(),
-                        self.metadata.get_str(ty.name_index).unwrap()
-                    );
 
                     for m in 0..ty.method_count {
                         let method_index = ty.method_start + m as u32;
@@ -69,17 +64,7 @@ impl<'a> Metadata<'a> {
                             .get(sorted_address_num + 1)
                             .unwrap_or(&0);
 
-                        // let next_method_pointer = self
-                        //     .metadata
-                        //     .methods
-                        //     .get(method_index + 1)
-                        //     .map(|n| {
-                        //         cgm.method_pointers
-                        //             .get((n.token & 0xFFFFFF) as usize)
-                        //             .unwrap()
-                        //     })
-                        //     .map(|&n| *cgm.method_pointers.get(n as usize).unwrap())
-                        //     .unwrap_or(0);
+ 
                         method_calculations.insert(
                             method_index,
                             MethodCalculations {
