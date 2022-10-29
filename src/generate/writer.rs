@@ -21,9 +21,9 @@ impl CppWriter {
 impl Write for CppWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         // TODO: One day we will write indented
-        if self.indent > 0 && self.newline {
-            self.stream.write_all("\t".repeat(self.indent.into()).as_bytes())?;
-        }
+        // if self.indent > 0 && self.newline {
+        //     self.stream.write_all("\t".repeat(self.indent.into()).as_bytes())?;
+        // }
         self.newline = buf.ends_with(b"\n");
         self.stream.write(buf)
 
