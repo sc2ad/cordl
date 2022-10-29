@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use color_eyre::{eyre::ContextCompat};
+use color_eyre::eyre::ContextCompat;
 use color_eyre::Result;
 use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
@@ -257,9 +257,11 @@ impl CppContext {
         // forward declares
         for (namespace, strings) in &self.typedef_declarations {
             writeln!(typedef_writer, "namespace {} {{", namespace)?;
+            typedef_writer.indent();
             strings
                 .iter()
                 .try_for_each(|s| s.write(&mut typedef_writer))?;
+            typedef_writer.dedent();
             writeln!(typedef_writer, "}} // namespace {}", namespace)?;
         }
         self.typedef_types
