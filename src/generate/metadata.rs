@@ -19,6 +19,8 @@ pub struct Metadata<'a> {
 
 impl<'a> Metadata<'a> {
     pub fn parse(&mut self) {
+        // index -> address
+        // sorted by address
         let mut method_addresses_sorted: Vec<u64> = self
             .code_registration
             .code_gen_modules
@@ -27,17 +29,24 @@ impl<'a> Metadata<'a> {
             .copied()
             .collect();
         method_addresses_sorted.sort();
+        // address -> index in sorted list
+        let method_addresses_sorted_map: HashMap<u64, usize> = method_addresses_sorted
+            .iter()
+            .enumerate()
+            .map(|(index, m_ptr)| (*m_ptr, index))
+            .collect();
 
         self.method_calculations = self
             .code_registration
             .code_gen_modules
             .iter()
             .flat_map(|cgm| {
-                let img = self.metadata
-                        .images
-                        .iter()
-                        .find(|i| cgm.name == self.metadata.get_str(i.name_index).unwrap())
-                        .unwrap();
+                let img = self
+                    .metadata
+                    .images
+                    .iter()
+                    .find(|i| cgm.name == self.metadata.get_str(i.name_index).unwrap())
+                    .unwrap();
                 let mut method_calculations: HashMap<MethodIndex, MethodCalculations> =
                     HashMap::new();
                 for i in 0..img.type_count {
@@ -55,16 +64,14 @@ impl<'a> Metadata<'a> {
                         let method_pointer =
                             *cgm.method_pointers.get(method_pointer_index).unwrap();
 
-                        let sorted_address_num = method_addresses_sorted
-                            .iter()
-                            .position(|m| *m == method_pointer)
+                        let sorted_address_num = *method_addresses_sorted_map
+                            .get(&method_pointer)
                             .unwrap();
                         let next_method_pointer = *cgm
                             .method_pointers
                             .get(sorted_address_num + 1)
                             .unwrap_or(&0);
 
- 
                         method_calculations.insert(
                             method_index,
                             MethodCalculations {
