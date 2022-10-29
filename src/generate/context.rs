@@ -236,14 +236,17 @@ impl CppContext {
         let mut typedef_writer = CppWriter {
             stream: File::create(self.typedef_path.as_path())?,
             indent: 0,
+            newline: true,
         };
         let mut _typeimpl_writer = CppWriter {
             stream: File::create(self.type_impl_path.as_path())?,
             indent: 0,
+            newline: true,
         };
         let _fundamental_writer = CppWriter {
             stream: File::create(self.fundamental_path.as_path())?,
             indent: 0,
+            newline: true,
         };
 
         // Write includes for typedef
