@@ -72,7 +72,6 @@ pub struct CppProperty {
     pub abstr: bool,
     pub instance: bool,
     pub classof_call: String,
-    pub generate_legacy: bool,
 }
 
 impl CppField {
@@ -112,7 +111,6 @@ impl CppProperty {
             abstr: todo!(),
             instance: todo!(),
             classof_call: todo!(),
-            generate_legacy: todo!(),
         }
     }
 }
@@ -196,43 +194,6 @@ impl Writable for CppProperty {
                 self.classof_call,
                 self.name
             )?;
-        }
-
-        if self.generate_legacy {
-            if self.setter.is_some() {
-                // setter
-                if !self.instance {
-                    write!(writer, "static ")?;
-                }
-                writeln!(writer, "void set_{}({} const& val) {{", self.name, self.ty)?;
-                writer.indent();
-                writeln!(
-                    writer,
-                    "::il2cpp_utils::SetPropertyValue({}, \"{}\", val);",
-                    if self.instance { "this" } else { "nullptr" },
-                    self.name
-                )?;
-                writer.dedent();
-                writeln!(writer, "}}")?;
-            }
-
-            if self.getter.is_some() {
-                // getter
-                if !self.instance {
-                    write!(writer, "static ")?;
-                }
-                writeln!(writer, "{} get_{}() {{", self.ty, self.name)?;
-                writer.indent();
-                writeln!(
-                    writer,
-                    "return ::il2cpp_utils::GetPropertyValue<{}>({}, \"{}\");",
-                    self.ty,
-                    if self.instance { "this" } else { "nullptr" },
-                    self.name
-                )?;
-                writer.dedent();
-                writeln!(writer, "}}")?;
-            }
         }
 
         Ok(())

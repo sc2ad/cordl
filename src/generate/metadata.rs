@@ -19,7 +19,7 @@ pub struct Metadata<'a> {
 
 impl<'a> Metadata<'a> {
     pub fn parse(&mut self) {
-        // index -> address
+        // method index -> address
         // sorted by address
         let mut method_addresses_sorted: Vec<u64> = self
             .code_registration
@@ -29,7 +29,7 @@ impl<'a> Metadata<'a> {
             .copied()
             .collect();
         method_addresses_sorted.sort();
-        // address -> index in sorted list
+        // address -> method index in sorted list
         let method_addresses_sorted_map: HashMap<u64, usize> = method_addresses_sorted
             .iter()
             .enumerate()

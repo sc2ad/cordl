@@ -512,7 +512,6 @@ impl CppType {
                     getter: p_getter.map(|_| method_map(prop.get)),
                     abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
                     instance: !p_getter.or(p_setter).unwrap().is_static_method(),
-                    generate_legacy: true,
                 }));
 
                 // forward declare only if field type is not the same type as the holder
