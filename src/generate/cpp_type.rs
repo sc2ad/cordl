@@ -2,13 +2,15 @@ use std::{collections::HashSet, io::Write};
 
 use color_eyre::eyre::Context;
 use il2cpp_binary::{Type, TypeData, TypeEnum};
-use il2cpp_metadata_raw::{TypeDefinitionIndex};
+use il2cpp_metadata_raw::TypeDefinitionIndex;
 
 use super::{
     config::GenerationConfig,
     constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions},
     context::{CppCommentedString, CppContextCollection, TypeTag},
-    members::{CppField, CppMember, CppMethod, CppMethodData, CppParam, CppProperty},
+    members::{
+        CppField, CppMember, CppMethod, CppMethodData, CppMethodSizeStruct, CppParam, CppProperty,
+    },
     metadata::Metadata,
     writer::Writable,
 };
@@ -297,6 +299,18 @@ impl CppType {
                     .method_calculations
                     .get(&(t.method_start + i as u32))
                     .unwrap();
+
+                self.declarations
+                    .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
+                        name: m_name.to_owned(),
+                        instance: true,
+                        method_data: CppMethodData {
+                            addrs: method_calc.addrs,
+                            estimated_size: method_calc.estimated_size,
+                        },
+                        ty: self.self_cpp_type_name(),
+                        params: m_params.clone(),
+                    }));
                 self.declarations.push(CppMember::Method(CppMethod {
                     name: m_name.to_owned(),
                     return_type: cpp_type_name,

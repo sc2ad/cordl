@@ -7,7 +7,7 @@ pub enum CppMember {
     Method(CppMethod),
     Property(CppProperty),
     Comment(CppCommentedString),
-    // TODO: Or a nested type
+    MethodSizeStruct(CppMethodSizeStruct), // TODO: Or a nested type
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -16,6 +16,14 @@ pub struct CppMethodData {
     pub addrs: u64,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CppMethodSizeStruct {
+    pub name: String,
+    pub ty: String,
+    pub instance: bool,
+    pub params: Vec<CppParam>,
+    pub method_data: CppMethodData,
+}
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppField {
     pub name: String,
@@ -200,6 +208,33 @@ impl Writable for CppProperty {
     }
 }
 
+impl Writable for CppMethodSizeStruct {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        writeln!(
+            writer,
+            "//  Writing Method size for method: {}.{}",
+            self.ty, self.name
+        )?;
+        let params_format = self
+            .params
+            .iter()
+            .map(|p| format!("{} {}", p.ty, p.name))
+            .collect::<Vec<_>>()
+            .join(",");
+        writeln!(
+            writer,
+            "template<>
+struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<void ({}::*)({})>(&{}::{})> {{
+  constexpr static const usize get() {{
+    return 0x{:x};
+  }}
+}};",
+            self.ty, params_format, self.ty, self.name, self.method_data.estimated_size
+        )?;
+        Ok(())
+    }
+}
+
 impl Writable for CppMember {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         match self {
@@ -207,6 +242,7 @@ impl Writable for CppMember {
             CppMember::Method(m) => m.write(writer),
             CppMember::Property(p) => p.write(writer),
             CppMember::Comment(c) => c.write(writer),
+            CppMember::MethodSizeStruct(s) => s.write(writer),
         }
     }
 }

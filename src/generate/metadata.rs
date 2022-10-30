@@ -64,13 +64,12 @@ impl<'a> Metadata<'a> {
                         let method_pointer =
                             *cgm.method_pointers.get(method_pointer_index).unwrap();
 
-                        let sorted_address_num = *method_addresses_sorted_map
-                            .get(&method_pointer)
-                            .unwrap();
-                        let next_method_pointer = *cgm
-                            .method_pointers
-                            .get(sorted_address_num + 1)
-                            .unwrap_or(&0);
+                        let sorted_address_index =
+                            *method_addresses_sorted_map.get(&method_pointer).unwrap();
+                        let next_method_pointer = method_addresses_sorted
+                            .get(sorted_address_index + 1)
+                            .cloned()
+                            .unwrap_or(0);
 
                         method_calculations.insert(
                             method_index,
