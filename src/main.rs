@@ -67,11 +67,11 @@ fn main() -> color_eyre::Result<()> {
 
     // First, make all the contexts
     for tdi in 0..metadata.metadata.type_definitions.len() {
-        cpp_context_collection.make_from(
+        cpp_context_collection.fill(
             &metadata,
             &config,
             TypeData::TypeDefinitionIndex(tdi.try_into()?),
-            true,
+            
         );
     }
     // for t in &metadata.type_definitions {

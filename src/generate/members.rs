@@ -1,5 +1,134 @@
-use super::{context::CppCommentedString, writer::Writable};
-use std::io::Write;
+use super::{
+    context::CppContext,
+    writer::{CppWriter, Writable}, cpp_type::CppType,
+};
+use std::{io::Write, path::PathBuf};
+
+#[derive(Debug, Eq, Hash, PartialEq, Clone, Default)]
+pub struct CppTemplate {
+    pub names: Vec<String>,
+}
+
+impl Writable for CppTemplate {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if !self.names.is_empty() {
+            writeln!(
+                writer,
+                "template<{}>",
+                self.names
+                    .iter()
+                    .map(|s| format!("typename {}", s))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Eq, Hash, PartialEq, Clone)]
+pub struct CppForwardDeclare {
+    // TODO: Make this group lots into a single namespace
+    is_struct: bool,
+    namespace: Option<String>,
+    name: String,
+    templates: CppTemplate, // names of template arguments, T, TArgs etc.
+}
+
+impl CppForwardDeclare {
+    pub fn from_cpp_type(cpp_type: &CppType) -> Self {
+        
+        Self{
+            is_struct: cpp_type.is_struct,
+            namespace: Some(cpp_type.namespace_fixed().to_string()),
+            name: cpp_type.name().clone(),
+            templates: cpp_type.generic_args.clone(),
+        }
+    }
+}
+
+impl Writable for CppForwardDeclare {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if let Some(namespace) = &self.namespace {
+            writeln!(writer, "namespace {} {{", namespace)?;
+        }
+
+        self.templates.write(writer)?;
+
+        writeln!(
+            writer,
+            "{} {};",
+            match self.is_struct {
+                true => "struct",
+                false => "class",
+            },
+            self.name
+        )?;
+
+        if self.is_struct {
+            writeln!(writer, "}}")?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Eq, Hash, PartialEq, Clone)]
+pub struct CppCommentedString {
+    pub data: String,
+    pub comment: Option<String>,
+}
+
+impl Writable for CppCommentedString {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if let Some(val) = &self.comment {
+            writeln!(writer, "// {val}")?;
+        }
+        writeln!(writer, "{}", self.data)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct CppInclude {
+    include: PathBuf,
+    system: bool,
+}
+
+impl CppInclude {
+    pub fn new_context(context: &CppContext) -> Self {
+        Self {
+            include: context.fundamental_path.clone(),
+            system: false,
+        }
+    }
+
+    pub fn new_system(str: PathBuf) -> Self {
+        Self {
+            include: str,
+            system: true,
+        }
+    }
+
+    pub fn new(str: PathBuf) -> Self {
+        Self {
+            include: str,
+            system: false,
+        }
+    }
+}
+
+impl Writable for CppInclude {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if self.system {
+            writeln!(writer, "#include <{:?}>", self.include)?;
+        } else {
+            writeln!(writer, "#include \"{:?}\"", self.include)?;
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CppMember {
@@ -232,7 +361,12 @@ struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<void ({}::*
     return 0x{:x};
   }}
 }};",
-            self.ty, params_format, self.ty, self.name, self.method_data.estimated_size, self.method_data.addrs
+            self.ty,
+            params_format,
+            self.ty,
+            self.name,
+            self.method_data.estimated_size,
+            self.method_data.addrs
         )?;
         Ok(())
     }
