@@ -1,7 +1,5 @@
 use std::{
-    collections::{
-        HashMap, HashSet,
-    },
+    collections::{HashMap, HashSet},
     fs::{create_dir_all, remove_file, File},
     path::{Path, PathBuf},
 };
@@ -11,6 +9,8 @@ use color_eyre::eyre::ContextCompat;
 use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 use itertools::Itertools;
+
+use crate::generate::members::CppInclude;
 
 use super::{
     config::GenerationConfig,
@@ -160,7 +160,7 @@ impl CppContext {
             indent: 0,
             newline: true,
         };
-        let _fundamental_writer = CppWriter {
+        let mut fundamental_writer = CppWriter {
             stream: File::create(self.fundamental_path.as_path())?,
             indent: 0,
             newline: true,
@@ -182,10 +182,15 @@ impl CppContext {
             // .into_iter()
             .try_for_each(|i| i.write(&mut typedef_writer))?;
 
+        CppInclude::new(self.type_impl_path.to_path_buf()).write(&mut typeimpl_writer)?;
+
         for t in self.typedef_types.values() {
             t.write_def(&mut typedef_writer)?;
             t.write_impl(&mut typeimpl_writer)?;
         }
+
+        CppInclude::new(self.typedef_path.to_path_buf()).write(&mut fundamental_writer)?;
+        CppInclude::new(self.type_impl_path.to_path_buf()).write(&mut fundamental_writer)?;
 
         // TODO: Write type impl and fundamental files here
         Ok(())

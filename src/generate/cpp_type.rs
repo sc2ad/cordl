@@ -1,4 +1,4 @@
-use std::{collections::HashSet, io::Write};
+use std::{collections::HashSet, io::Write, path::Path};
 
 use color_eyre::eyre::Context;
 use il2cpp_binary::{Type, TypeData, TypeEnum};
@@ -358,7 +358,7 @@ fn make_methods(
                 .unwrap();
 
             cpp_type
-                .declarations
+                .implementations
                 .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
                     name: m_name.to_owned(),
                     instance: true,
