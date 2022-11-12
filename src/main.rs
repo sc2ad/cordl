@@ -5,8 +5,8 @@ use generate::config::GenerationConfig;
 use generate::context::{CppContextCollection, TypeTag};
 use generate::metadata::Metadata;
 
-use std::{fs, time};
 use std::path::PathBuf;
+use std::{fs, time};
 
 use clap::{Parser, Subcommand};
 use il2cpp_binary::{Elf, TypeData};
@@ -71,7 +71,6 @@ fn main() -> color_eyre::Result<()> {
             &metadata,
             &config,
             TypeData::TypeDefinitionIndex(tdi.try_into()?),
-            
         );
     }
     // for t in &metadata.type_definitions {
@@ -79,24 +78,12 @@ fn main() -> color_eyre::Result<()> {
     //     let dest = open_writer(&metadata, &config, &t);
     //     write_type(&metadata, &config, &t, &dest);
     // }
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(123)]
-        .write()
-        ?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(342)]
-        .write()
-        ?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(512)]
-        .write()
-        ?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(1024)]
-        .write()
-        ?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(600)]
-        .write()
-        ?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(1000)]
-        .write()
-        ?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(123)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(342)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(512)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(1024)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(600)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(1000)].write()?;
     // for (_, context) in cpp_context_collection.get() {
     //     context.write().unwrap();
     // }

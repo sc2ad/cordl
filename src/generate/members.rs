@@ -1,6 +1,7 @@
 use super::{
     context::CppContext,
-    writer::{CppWriter, Writable}, cpp_type::CppType,
+    cpp_type::CppType,
+    writer::{CppWriter, Writable},
 };
 use std::{io::Write, path::PathBuf};
 
@@ -30,16 +31,15 @@ impl Writable for CppTemplate {
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub struct CppForwardDeclare {
     // TODO: Make this group lots into a single namespace
-    is_struct: bool,
-    namespace: Option<String>,
-    name: String,
-    templates: CppTemplate, // names of template arguments, T, TArgs etc.
+    pub is_struct: bool,
+    pub namespace: Option<String>,
+    pub name: String,
+    pub templates: CppTemplate, // names of template arguments, T, TArgs etc.
 }
 
 impl CppForwardDeclare {
     pub fn from_cpp_type(cpp_type: &CppType) -> Self {
-        
-        Self{
+        Self {
             is_struct: cpp_type.is_struct,
             namespace: Some(cpp_type.namespace_fixed().to_string()),
             name: cpp_type.name().clone(),
@@ -133,7 +133,7 @@ impl Writable for CppInclude {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CppMember {
     Field(CppField),
-    Method(CppMethod),
+    MethodDecl(CppMethodDecl),
     Property(CppProperty),
     Comment(CppCommentedString),
     MethodSizeStruct(CppMethodSizeStruct), // TODO: Or a nested type
@@ -178,7 +178,7 @@ pub struct CppParam {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CppMethod {
+pub struct CppMethodDecl {
     pub name: String,
     pub return_type: String,
     pub parameters: Vec<CppParam>,
@@ -224,9 +224,9 @@ impl CppField {
     }
 }
 
-impl CppMethod {
-    pub fn make() -> CppMethod {
-        CppMethod {
+impl CppMethodDecl {
+    pub fn make() -> CppMethodDecl {
+        CppMethodDecl {
             name: todo!(),
             return_type: todo!(),
             parameters: todo!(),
@@ -278,7 +278,8 @@ impl Writable for CppField {
         Ok(())
     }
 }
-impl Writable for CppMethod {
+impl Writable for CppMethodDecl {
+    // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         writeln!(
             writer,
@@ -376,7 +377,7 @@ impl Writable for CppMember {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         match self {
             CppMember::Field(f) => f.write(writer),
-            CppMember::Method(m) => m.write(writer),
+            CppMember::MethodDecl(m) => m.write(writer),
             CppMember::Property(p) => p.write(writer),
             CppMember::Comment(c) => c.write(writer),
             CppMember::MethodSizeStruct(s) => s.write(writer),

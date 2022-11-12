@@ -1,19 +1,17 @@
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     fs::{create_dir_all, remove_file, File},
-    io::Write,
     path::{Path, PathBuf},
 };
 
 use color_eyre::eyre::ContextCompat;
-use color_eyre::Result;
+
 use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 
 use super::{
     config::GenerationConfig,
-    cpp_type::{self, CppType},
-    members::CppInclude,
+    cpp_type::{CppType},
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
@@ -30,9 +28,6 @@ pub struct CppContext {
 
     // Types to write, typedef
     typedef_types: HashMap<TypeTag, CppType>,
-
-    // IDK
-    includes: HashSet<CppInclude>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -116,7 +111,6 @@ impl CppContext {
                 &config.path_name(name.to_string())
             )),
             typedef_types: Default::default(),
-            includes: Default::default(),
         };
         if let Some(cpptype) = CppType::make(metadata, config, tdi) {
             x.typedef_types
@@ -164,7 +158,21 @@ impl CppContext {
         };
 
         // Write includes for typedef
-        for (_, t) in &self.typedef_types {
+        self.typedef_types
+            .values()
+            .flat_map(|t| &t.requirements.required_includes)
+            .try_for_each(|i| i.write(&mut typedef_writer))?;
+
+        // write forward declares
+self.typedef_types
+            .values()
+            .flat_map(|t| &t.requirements.forward_declares)
+            // .group_by(|d| d.namespace)
+            // .into_iter()
+            .try_for_each(|i| i.write(&mut typedef_writer))?;
+
+
+        for t in self.typedef_types.values() {
             t.write_def(&mut typedef_writer)?;
             t.write_impl(&mut typeimpl_writer)?;
         }

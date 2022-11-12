@@ -9,8 +9,8 @@ use super::{
     constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions},
     context::{CppContextCollection, TypeTag},
     members::{
-        CppCommentedString, CppField, CppForwardDeclare, CppInclude, CppMember, CppMethod,
-        CppMethodData, CppMethodSizeStruct, CppParam, CppProperty, CppTemplate,
+        CppCommentedString, CppField, CppForwardDeclare, CppInclude, CppMember, CppMethodData,
+        CppMethodDecl, CppMethodSizeStruct, CppParam, CppProperty, CppTemplate,
     },
     metadata::Metadata,
     writer::Writable,
@@ -98,28 +98,9 @@ impl CppType {
         metadata: &Metadata,
         config: &GenerationConfig,
         typ: &Type,
-        include_ref: bool,
+        add_include: bool,
     ) -> String {
-        self.basic_get_cpp_ty_name(
-            ctx_collection,
-            metadata,
-            config,
-            typ.ty,
-            Some(TypeTag::from(typ.data)),
-            include_ref,
-        )
-    }
-
-    pub fn basic_get_cpp_ty_name(
-        &mut self,
-        ctx_collection: &mut CppContextCollection,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        typ: TypeEnum,
-        data: Option<TypeTag>,
-        include_ref: bool,
-    ) -> String {
-        match typ {
+        match typ.ty {
             TypeEnum::I1
             | TypeEnum::U1
             | TypeEnum::I2
@@ -137,7 +118,7 @@ impl CppType {
             _ => (),
         };
 
-        match typ {
+        match typ.ty {
             TypeEnum::Object => {
                 self.requirements.need_wrapper();
                 "::bs_hook::Il2CppWrapperType".to_string()
@@ -146,15 +127,15 @@ impl CppType {
                 // In this case, just inherit the type
                 // But we have to:
                 // - Determine where to include it from
-                let to_incl = ctx_collection.make_from(metadata, config, data.unwrap());
+                let to_incl = ctx_collection.make_from(metadata, config, typ.data);
 
                 // - Include it
-                if include_ref {
+                if add_include {
                     self.requirements
                         .required_includes
-                        .insert(CppInclude::new_context(&to_incl));
+                        .insert(CppInclude::new_context(to_incl));
                 }
-                let to_incl_ty = to_incl.get_cpp_type(data.unwrap()).unwrap();
+                let to_incl_ty = to_incl.get_cpp_type(typ.data.into()).unwrap();
                 to_incl_ty.self_cpp_type_name()
             }
             TypeEnum::Szarray => {
@@ -165,7 +146,7 @@ impl CppType {
 
                 // let to_incl = ctx_collection.make_from(metadata, config, typ.data, false);
                 // let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
-                let generic_type = match data.unwrap() {
+                let generic_type = match typ.data.into() {
                     TypeTag::TypeDefinition(e) | TypeTag::GenericParameter(e) => {
                         metadata.metadata_registration.types.get(e as usize)
                     }
@@ -324,7 +305,7 @@ impl CppType {
                         ty: self.self_cpp_type_name(),
                         params: m_params.clone(),
                     }));
-                self.declarations.push(CppMember::Method(CppMethod {
+                self.declarations.push(CppMember::MethodDecl(CppMethodDecl {
                     name: m_name.to_owned(),
                     return_type: cpp_type_name,
                     parameters: m_params,
@@ -546,7 +527,7 @@ impl CppType {
                 if let TypeData::TypeDefinitionIndex(f_tdi) = p_type.data && f_tdi != tdi {
                     let cpp_type = ctx_collection.get_cpp_type(metadata, config, p_type.data).unwrap();
 
-                    self.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(&cpp_type));
+                    self.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(cpp_type));
                 } /*else if f_type_data != self.ty {
                       self.requirements.forward_declare_tids.insert(f_type_data);
                   }*/
