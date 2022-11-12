@@ -8,10 +8,11 @@ use color_eyre::eyre::ContextCompat;
 
 use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
+use itertools::Itertools;
 
 use super::{
     config::GenerationConfig,
-    cpp_type::{CppType},
+    cpp_type::{fill_from_il2cpp, CppType, make_cpp_type},
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
@@ -112,7 +113,7 @@ impl CppContext {
             )),
             typedef_types: Default::default(),
         };
-        if let Some(cpptype) = CppType::make(metadata, config, tdi) {
+        if let Some(cpptype) = make_cpp_type(metadata, config, tdi) {
             x.typedef_types
                 .insert(TypeTag::TypeDefinition(tdi), cpptype);
         } else {
@@ -161,16 +162,17 @@ impl CppContext {
         self.typedef_types
             .values()
             .flat_map(|t| &t.requirements.required_includes)
+            .unique()
             .try_for_each(|i| i.write(&mut typedef_writer))?;
 
         // write forward declares
-self.typedef_types
+        self.typedef_types
             .values()
             .flat_map(|t| &t.requirements.forward_declares)
+            .unique()
             // .group_by(|d| d.namespace)
             // .into_iter()
             .try_for_each(|i| i.write(&mut typedef_writer))?;
-
 
         for t in self.typedef_types.values() {
             t.write_def(&mut typedef_writer)?;
@@ -208,7 +210,7 @@ impl CppContextCollection {
             TypeTag::TypeDefinition(tdi) => tdi,
             _ => panic!("What {:?}", tag),
         };
-        cpp_type.fill(metadata, config, self, tdi);
+        fill_from_il2cpp(&mut cpp_type, metadata, config, self, tdi);
 
         self.all_contexts
             .get_mut(&tag)
@@ -245,10 +247,6 @@ impl CppContextCollection {
 
     pub fn get_context(&self, type_tag: TypeTag) -> Option<&CppContext> {
         self.all_contexts.get(&type_tag)
-    }
-
-    pub fn is_type_made(&self, tag: TypeTag) -> bool {
-        self.all_contexts.contains_key(&tag)
     }
 
     pub fn new() -> CppContextCollection {

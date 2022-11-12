@@ -31,13 +31,13 @@ pub struct CppType {
     prefix_comments: Vec<String>,
     namespace: String,
     name: String,
-    declarations: Vec<CppMember>,
-    implementations: Vec<CppMember>,
+    pub declarations: Vec<CppMember>,
+    pub implementations: Vec<CppMember>,
 
     pub is_struct: bool,
     pub requirements: CppTypeRequirements,
 
-    inherit: Vec<String>,
+    pub inherit: Vec<String>,
     pub generic_args: CppTemplate, // Names of templates e.g T, TKey etc.
 }
 
@@ -204,337 +204,6 @@ impl CppType {
         )
     }
 
-    pub fn fill(
-        &mut self,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
-        tdi: TypeDefinitionIndex,
-    ) {
-        self.make_methods(metadata, config, ctx_collection, tdi);
-        self.make_fields(metadata, config, ctx_collection, tdi);
-        self.make_properties(metadata, config, ctx_collection, tdi);
-        self.make_parents(metadata, config, ctx_collection, tdi);
-    }
-
-    fn make_methods(
-        &mut self,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
-        tdi: TypeDefinitionIndex,
-    ) {
-        let t = self.get_type_definition(metadata, tdi);
-
-        // Then, handle methods
-        if t.method_count > 0 {
-            // Write comment for methods
-            self.declarations
-                .push(CppMember::Comment(CppCommentedString {
-                    data: "".to_string(),
-                    comment: Some("Methods".to_string()),
-                }));
-            // Then, for each method, write it out
-            for i in 0..t.method_count {
-                // TODO: Get method size
-                let method = metadata
-                    .metadata
-                    .methods
-                    .get((t.method_start + i as u32) as usize)
-                    .unwrap();
-                let m_name = metadata.metadata.get_str(method.name_index).unwrap();
-                let m_ret_type = metadata
-                    .metadata_registration
-                    .types
-                    .get(method.return_type as usize)
-                    .unwrap();
-                let mut m_params: Vec<CppParam> = vec![];
-
-                for p in 0..method.parameter_count {
-                    let param = metadata
-                        .metadata
-                        .parameters
-                        .get((method.parameter_start + p as u32) as usize)
-                        .unwrap();
-
-                    let param_type = metadata
-                        .metadata_registration
-                        .types
-                        .get(param.type_index as usize)
-                        .unwrap();
-
-                    // TODO: We need DECLARATIONS in the def, DEFINITIONS in the impl
-                    m_params.push(CppParam {
-                        name: metadata
-                            .metadata
-                            .get_str(param.name_index as u32)
-                            .unwrap()
-                            .to_string(),
-                        ty: self.get_cpp_ty_name(
-                            ctx_collection,
-                            metadata,
-                            config,
-                            param_type,
-                            false,
-                        ),
-                        modifiers: if param_type.is_byref() {
-                            String::from("byref")
-                        } else {
-                            String::from("")
-                        },
-                    });
-                }
-
-                // Need to include this type
-                let cpp_type_name =
-                    self.get_cpp_ty_name(ctx_collection, metadata, config, m_ret_type, false);
-
-                let method_calc = metadata
-                    .method_calculations
-                    .get(&(t.method_start + i as u32))
-                    .unwrap();
-
-                self.declarations
-                    .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
-                        name: m_name.to_owned(),
-                        instance: true,
-                        method_data: CppMethodData {
-                            addrs: method_calc.addrs,
-                            estimated_size: method_calc.estimated_size,
-                        },
-                        ty: self.self_cpp_type_name(),
-                        params: m_params.clone(),
-                    }));
-                self.declarations.push(CppMember::MethodDecl(CppMethodDecl {
-                    name: m_name.to_owned(),
-                    return_type: cpp_type_name,
-                    parameters: m_params,
-                    instance: true,
-                    prefix_modifiers: Default::default(),
-                    suffix_modifiers: Default::default(),
-                    method_data: CppMethodData {
-                        addrs: method_calc.addrs,
-                        estimated_size: method_calc.estimated_size,
-                    },
-                }));
-            }
-        }
-    }
-
-    fn make_fields(
-        &mut self,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
-        tdi: TypeDefinitionIndex,
-    ) {
-        let t = self.get_type_definition(metadata, tdi);
-
-        // Then, handle fields
-        if t.field_count > 0 {
-            // Write comment for fields
-            self.declarations
-                .push(CppMember::Comment(CppCommentedString {
-                    data: "".to_string(),
-                    comment: Some("Fields".to_string()),
-                }));
-            // Then, for each field, write it out
-            for i in 0..t.field_count {
-                let field = metadata
-                    .metadata
-                    .fields
-                    .get((t.field_start + i as u32) as usize)
-                    .unwrap();
-                let f_name = metadata.metadata.get_str(field.name_index).unwrap();
-                let f_offset = metadata
-                    .metadata_registration
-                    .field_offsets
-                    .get(tdi as usize)
-                    .unwrap()
-                    .get(i as usize)
-                    .unwrap();
-                let f_type = metadata
-                    .metadata_registration
-                    .types
-                    .get(field.type_index as usize)
-                    .unwrap();
-
-                let _f_type_data = TypeTag::from(f_type.data);
-
-                let cpp_name =
-                    self.get_cpp_ty_name(ctx_collection, metadata, config, f_type, false);
-
-                // Need to include this type
-                self.declarations.push(CppMember::Field(CppField {
-                    name: f_name.to_owned(),
-                    ty: cpp_name,
-                    offset: *f_offset,
-                    instance: !f_type.is_static() && !f_type.is_const(),
-                    readonly: f_type.is_const(),
-                    classof_call: self.classof_call(),
-                }));
-
-                // forward declare only if field type is not the same type as the holder
-                if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
-                    let cpp_type = ctx_collection.get_cpp_type(metadata, config, f_type.data).unwrap();
-                    self.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(cpp_type));
-                } /*else if f_type_data != self.ty {
-                      self.requirements.forward_declare_tids.insert(f_type_data);
-                  }*/
-            }
-        }
-    }
-
-    fn make_parents(
-        &mut self,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
-        tdi: TypeDefinitionIndex,
-    ) {
-        let t = metadata
-            .metadata
-            .type_definitions
-            .get(tdi as usize)
-            .unwrap();
-        let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
-        let name = metadata.metadata.get_str(t.name_index).unwrap();
-
-        if t.parent_index == u32::MAX {
-            if t.flags & 0x00000020 == 0 {
-                println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
-            }
-        } else if let Some(parent_type) = metadata
-            .metadata_registration
-            .types
-            .get(t.parent_index as usize)
-        {
-            // We have a parent, lets do something with it
-            let inherit_type =
-                self.get_cpp_ty_name(ctx_collection, metadata, config, parent_type, true);
-            self.inherit.push(inherit_type);
-        } else {
-            panic!("NO PARENT! But valid index found: {}", t.parent_index);
-        }
-    }
-
-    pub fn make(
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        tdi: TypeDefinitionIndex,
-    ) -> Option<CppType> {
-        // let iface = metadata.interfaces.get(t.interfaces_start);
-        // Then, handle interfaces
-
-        // Then, handle methods
-        // - This includes constructors
-        // inherited methods will be inherited
-
-        let t = metadata
-            .metadata
-            .type_definitions
-            .get(tdi as usize)
-            .unwrap();
-        let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
-        let name = metadata.metadata.get_str(t.name_index).unwrap();
-        let cpptype = CppType {
-            prefix_comments: vec![format!("Type: {ns}::{name}")],
-            namespace: config.namespace_cpp(ns.to_string()),
-            name: config.name_cpp(name.to_string()),
-            declarations: Default::default(),
-            inherit: Default::default(),
-            generic_args: Default::default(),
-            requirements: Default::default(),
-            is_struct: t.is_value_type(),
-            implementations: Default::default(),
-        };
-
-        if t.parent_index == u32::MAX {
-            if t.flags & 0x00000020 == 0 {
-                println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
-                return None;
-            }
-        } else if metadata
-            .metadata_registration
-            .types
-            .get(t.parent_index as usize)
-            .is_none()
-        {
-            panic!("NO PARENT! But valid index found: {}", t.parent_index);
-        }
-
-        Some(cpptype)
-    }
-
-    fn make_properties(
-        &mut self,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
-        tdi: u32,
-    ) {
-        let t = self.get_type_definition(metadata, tdi);
-
-        // Then, handle properties
-        if t.property_count > 0 {
-            // Write comment for properties
-            self.declarations
-                .push(CppMember::Comment(CppCommentedString {
-                    data: "".to_string(),
-                    comment: Some("Properties".to_string()),
-                }));
-            // Then, for each field, write it out
-            for i in 0..t.property_count {
-                let prop = metadata
-                    .metadata
-                    .properties
-                    .get((t.property_start + i as u32) as usize)
-                    .unwrap();
-                let p_name = metadata.metadata.get_str(prop.name_index).unwrap();
-                let p_setter = metadata.metadata.methods.get(prop.set as usize);
-
-                let p_getter = metadata.metadata.methods.get(prop.get as usize);
-
-                let p_type = metadata
-                    .metadata_registration
-                    .types
-                    .get(p_getter.or(p_setter).unwrap().return_type as usize)
-                    .unwrap();
-
-                let cpp_name =
-                    self.get_cpp_ty_name(ctx_collection, metadata, config, p_type, false);
-
-                let method_map = |p: u32| {
-                    let method_calc = metadata.method_calculations.get(&p).unwrap();
-                    CppMethodData {
-                        estimated_size: method_calc.estimated_size,
-                        addrs: method_calc.addrs,
-                    }
-                };
-
-                // Need to include this type
-                self.declarations.push(CppMember::Property(CppProperty {
-                    name: p_name.to_owned(),
-                    ty: cpp_name.clone(),
-                    classof_call: self.classof_call(),
-                    setter: p_setter.map(|_| method_map(prop.set)),
-                    getter: p_getter.map(|_| method_map(prop.get)),
-                    abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
-                    instance: !p_getter.or(p_setter).unwrap().is_static_method(),
-                }));
-
-                // forward declare only if field type is not the same type as the holder
-                if let TypeData::TypeDefinitionIndex(f_tdi) = p_type.data && f_tdi != tdi {
-                    let cpp_type = ctx_collection.get_cpp_type(metadata, config, p_type.data).unwrap();
-
-                    self.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(cpp_type));
-                } /*else if f_type_data != self.ty {
-                      self.requirements.forward_declare_tids.insert(f_type_data);
-                  }*/
-            }
-        }
-    }
-
     pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         // Write all declarations within the type here
         self.implementations.iter().for_each(|d| {
@@ -585,5 +254,342 @@ impl CppType {
         writeln!(writer, "}} // namespace {}", self.namespace_fixed())?;
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
         Ok(())
+    }
+}
+
+pub fn fill_from_il2cpp(
+    cpp_type: &mut CppType,
+    metadata: &Metadata,
+    config: &GenerationConfig,
+    ctx_collection: &mut CppContextCollection,
+    tdi: TypeDefinitionIndex,
+) {
+    make_methods(cpp_type, metadata, config, ctx_collection, tdi);
+    make_fields(cpp_type, metadata, config, ctx_collection, tdi);
+    make_properties(cpp_type, metadata, config, ctx_collection, tdi);
+    make_parents(cpp_type, metadata, config, ctx_collection, tdi);
+}
+
+fn make_methods(
+    cpp_type: &mut CppType,
+    metadata: &Metadata,
+    config: &GenerationConfig,
+    ctx_collection: &mut CppContextCollection,
+    tdi: TypeDefinitionIndex,
+) {
+    let t = cpp_type.get_type_definition(metadata, tdi);
+
+    // Then, handle methods
+    if t.method_count > 0 {
+        // Write comment for methods
+        cpp_type
+            .declarations
+            .push(CppMember::Comment(CppCommentedString {
+                data: "".to_string(),
+                comment: Some("Methods".to_string()),
+            }));
+        // Then, for each method, write it out
+        for i in 0..t.method_count {
+            // TODO: Get method size
+            let method = metadata
+                .metadata
+                .methods
+                .get((t.method_start + i as u32) as usize)
+                .unwrap();
+            let m_name = metadata.metadata.get_str(method.name_index).unwrap();
+            let m_ret_type = metadata
+                .metadata_registration
+                .types
+                .get(method.return_type as usize)
+                .unwrap();
+            let mut m_params: Vec<CppParam> = vec![];
+
+            for p in 0..method.parameter_count {
+                let param = metadata
+                    .metadata
+                    .parameters
+                    .get((method.parameter_start + p as u32) as usize)
+                    .unwrap();
+
+                let param_type = metadata
+                    .metadata_registration
+                    .types
+                    .get(param.type_index as usize)
+                    .unwrap();
+
+                // TODO: We need DECLARATIONS in the def, DEFINITIONS in the impl
+                m_params.push(CppParam {
+                    name: metadata
+                        .metadata
+                        .get_str(param.name_index as u32)
+                        .unwrap()
+                        .to_string(),
+                    ty: cpp_type.get_cpp_ty_name(
+                        ctx_collection,
+                        metadata,
+                        config,
+                        param_type,
+                        false,
+                    ),
+                    modifiers: if param_type.is_byref() {
+                        String::from("byref")
+                    } else {
+                        String::from("")
+                    },
+                });
+            }
+
+            // Need to include this type
+            let cpp_type_name =
+                cpp_type.get_cpp_ty_name(ctx_collection, metadata, config, m_ret_type, false);
+
+            let method_calc = metadata
+                .method_calculations
+                .get(&(t.method_start + i as u32))
+                .unwrap();
+
+            cpp_type
+                .declarations
+                .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
+                    name: m_name.to_owned(),
+                    instance: true,
+                    method_data: CppMethodData {
+                        addrs: method_calc.addrs,
+                        estimated_size: method_calc.estimated_size,
+                    },
+                    ty: cpp_type.self_cpp_type_name(),
+                    params: m_params.clone(),
+                }));
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(CppMethodDecl {
+                    name: m_name.to_owned(),
+                    return_type: cpp_type_name,
+                    parameters: m_params,
+                    instance: true,
+                    prefix_modifiers: Default::default(),
+                    suffix_modifiers: Default::default(),
+                    method_data: CppMethodData {
+                        addrs: method_calc.addrs,
+                        estimated_size: method_calc.estimated_size,
+                    },
+                }));
+        }
+    }
+}
+
+fn make_fields(
+    cpp_type: &mut CppType,
+    metadata: &Metadata,
+    config: &GenerationConfig,
+    ctx_collection: &mut CppContextCollection,
+    tdi: TypeDefinitionIndex,
+) {
+    let t = cpp_type.get_type_definition(metadata, tdi);
+
+    // Then, handle fields
+    if t.field_count > 0 {
+        // Write comment for fields
+        cpp_type
+            .declarations
+            .push(CppMember::Comment(CppCommentedString {
+                data: "".to_string(),
+                comment: Some("Fields".to_string()),
+            }));
+        // Then, for each field, write it out
+        for i in 0..t.field_count {
+            let field = metadata
+                .metadata
+                .fields
+                .get((t.field_start + i as u32) as usize)
+                .unwrap();
+            let f_name = metadata.metadata.get_str(field.name_index).unwrap();
+            let f_offset = metadata
+                .metadata_registration
+                .field_offsets
+                .get(tdi as usize)
+                .unwrap()
+                .get(i as usize)
+                .unwrap();
+            let f_type = metadata
+                .metadata_registration
+                .types
+                .get(field.type_index as usize)
+                .unwrap();
+
+            let _f_type_data = TypeTag::from(f_type.data);
+
+            let cpp_name =
+                cpp_type.get_cpp_ty_name(ctx_collection, metadata, config, f_type, false);
+
+            // Need to include this type
+            cpp_type.declarations.push(CppMember::Field(CppField {
+                name: f_name.to_owned(),
+                ty: cpp_name,
+                offset: *f_offset,
+                instance: !f_type.is_static() && !f_type.is_const(),
+                readonly: f_type.is_const(),
+                classof_call: cpp_type.classof_call(),
+            }));
+
+            // forward declare only if field type is not the same type as the holder
+            if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
+                    let cpp_type = ctx_collection.get_cpp_type(metadata, config, f_type.data).unwrap();
+                    cpp_type.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(cpp_type));
+                } /*else if f_type_data != self.ty {
+                      self.requirements.forward_declare_tids.insert(f_type_data);
+                  }*/
+        }
+    }
+}
+
+fn make_parents(
+    cpp_type: &mut CppType,
+    metadata: &Metadata,
+    config: &GenerationConfig,
+    ctx_collection: &mut CppContextCollection,
+    tdi: TypeDefinitionIndex,
+) {
+    let t = metadata
+        .metadata
+        .type_definitions
+        .get(tdi as usize)
+        .unwrap();
+    let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
+    let name = metadata.metadata.get_str(t.name_index).unwrap();
+
+    if t.parent_index == u32::MAX {
+        if t.flags & 0x00000020 == 0 {
+            println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
+        }
+    } else if let Some(parent_type) = metadata
+        .metadata_registration
+        .types
+        .get(t.parent_index as usize)
+    {
+        // We have a parent, lets do something with it
+        let inherit_type =
+            cpp_type.get_cpp_ty_name(ctx_collection, metadata, config, parent_type, true);
+        cpp_type.inherit.push(inherit_type);
+    } else {
+        panic!("NO PARENT! But valid index found: {}", t.parent_index);
+    }
+}
+
+pub fn make_cpp_type(
+    metadata: &Metadata,
+    config: &GenerationConfig,
+    tdi: TypeDefinitionIndex,
+) -> Option<CppType> {
+    // let iface = metadata.interfaces.get(t.interfaces_start);
+    // Then, handle interfaces
+
+    // Then, handle methods
+    // - This includes constructors
+    // inherited methods will be inherited
+
+    let t = metadata
+        .metadata
+        .type_definitions
+        .get(tdi as usize)
+        .unwrap();
+    let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
+    let name = metadata.metadata.get_str(t.name_index).unwrap();
+    let cpptype = CppType {
+        prefix_comments: vec![format!("Type: {ns}::{name}")],
+        namespace: config.namespace_cpp(ns.to_string()),
+        name: config.name_cpp(name.to_string()),
+        declarations: Default::default(),
+        inherit: Default::default(),
+        generic_args: Default::default(),
+        requirements: Default::default(),
+        is_struct: t.is_value_type(),
+        implementations: Default::default(),
+    };
+
+    if t.parent_index == u32::MAX {
+        if t.flags & 0x00000020 == 0 {
+            println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
+            return None;
+        }
+    } else if metadata
+        .metadata_registration
+        .types
+        .get(t.parent_index as usize)
+        .is_none()
+    {
+        panic!("NO PARENT! But valid index found: {}", t.parent_index);
+    }
+
+    Some(cpptype)
+}
+
+fn make_properties(
+    cpp_type: &mut CppType,
+    metadata: &Metadata,
+    config: &GenerationConfig,
+    ctx_collection: &mut CppContextCollection,
+    tdi: u32,
+) {
+    let t = cpp_type.get_type_definition(metadata, tdi);
+
+    // Then, handle properties
+    if t.property_count > 0 {
+        // Write comment for properties
+        cpp_type
+            .declarations
+            .push(CppMember::Comment(CppCommentedString {
+                data: "".to_string(),
+                comment: Some("Properties".to_string()),
+            }));
+        // Then, for each field, write it out
+        for i in 0..t.property_count {
+            let prop = metadata
+                .metadata
+                .properties
+                .get((t.property_start + i as u32) as usize)
+                .unwrap();
+            let p_name = metadata.metadata.get_str(prop.name_index).unwrap();
+            let p_setter = metadata.metadata.methods.get(prop.set as usize);
+
+            let p_getter = metadata.metadata.methods.get(prop.get as usize);
+
+            let p_type = metadata
+                .metadata_registration
+                .types
+                .get(p_getter.or(p_setter).unwrap().return_type as usize)
+                .unwrap();
+
+            let cpp_name =
+                cpp_type.get_cpp_ty_name(ctx_collection, metadata, config, p_type, false);
+
+            let method_map = |p: u32| {
+                let method_calc = metadata.method_calculations.get(&p).unwrap();
+                CppMethodData {
+                    estimated_size: method_calc.estimated_size,
+                    addrs: method_calc.addrs,
+                }
+            };
+
+            // Need to include this type
+            cpp_type.declarations.push(CppMember::Property(CppProperty {
+                name: p_name.to_owned(),
+                ty: cpp_name.clone(),
+                classof_call: cpp_type.classof_call(),
+                setter: p_setter.map(|_| method_map(prop.set)),
+                getter: p_getter.map(|_| method_map(prop.get)),
+                abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
+                instance: !p_getter.or(p_setter).unwrap().is_static_method(),
+            }));
+
+            // forward declare only if field type is not the same type as the holder
+            if let TypeData::TypeDefinitionIndex(f_tdi) = p_type.data && f_tdi != tdi {
+                    let cpp_type = ctx_collection.get_cpp_type(metadata, config, p_type.data).unwrap();
+
+                    cpp_type.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(cpp_type));
+                } /*else if f_type_data != self.ty {
+                      self.requirements.forward_declare_tids.insert(f_type_data);
+                  }*/
+        }
     }
 }
