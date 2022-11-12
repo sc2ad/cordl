@@ -10,7 +10,7 @@ use super::{
     context::{CppContextCollection, TypeTag},
     members::{
         CppCommentedString, CppField, CppForwardDeclare, CppInclude, CppMember, CppMethodData,
-        CppMethodDecl, CppMethodSizeStruct, CppParam, CppProperty, CppTemplate,
+        CppMethodDecl, CppMethodSizeStruct, CppParam, CppProperty, CppTemplate, CppMethodImpl,
     },
     metadata::Metadata,
     writer::Writable,
@@ -357,7 +357,20 @@ fn make_methods(
                 .get(&(t.method_start + i as u32))
                 .unwrap();
 
-            cpp_type
+           
+                cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(CppMethodImpl {
+                    name: m_name.to_owned(),
+                    return_type: cpp_type_name.clone(),
+                    parameters: m_params.clone(),
+                    instance: true,
+                    prefix_modifiers: Default::default(),
+                    suffix_modifiers: Default::default(),
+                    ty: cpp_type.self_cpp_type_name(),
+                
+                }));
+                 cpp_type
                 .implementations
                 .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
                     name: m_name.to_owned(),

@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use super::{
     context::CppContext,
     cpp_type::CppType,
@@ -134,6 +136,7 @@ impl Writable for CppInclude {
 pub enum CppMember {
     Field(CppField),
     MethodDecl(CppMethodDecl),
+    MethodImpl(CppMethodImpl),
     Property(CppProperty),
     Comment(CppCommentedString),
     MethodSizeStruct(CppMethodSizeStruct), // TODO: Or a nested type
@@ -201,6 +204,28 @@ pub struct CppMethodDecl {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CppMethodImpl {
+    pub name: String,
+    pub ty: String,
+    pub return_type: String,
+    pub parameters: Vec<CppParam>,
+    pub instance: bool,
+    // TODO: Use bitflags to indicate these attributes
+    // Holds unique of:
+    // const
+    // override
+    // noexcept
+    pub suffix_modifiers: String,
+    // Holds unique of:
+    // constexpr
+    // static
+    // inline
+    // explicit(...)
+    // virtual
+    pub prefix_modifiers: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppProperty {
     pub name: String,
     pub ty: String,
@@ -234,6 +259,19 @@ impl CppMethodDecl {
             suffix_modifiers: todo!(),
             prefix_modifiers: todo!(),
             method_data: todo!(),
+        }
+    }
+}
+impl CppMethodImpl {
+    pub fn make() -> CppMethodImpl {
+        CppMethodImpl {
+            name: todo!(),
+            return_type: todo!(),
+            parameters: todo!(),
+            instance: todo!(),
+            suffix_modifiers: todo!(),
+            prefix_modifiers: todo!(),
+            ty: todo!(),
         }
     }
 }
@@ -291,6 +329,68 @@ impl Writable for CppMethodDecl {
             self.method_data.estimated_size
         )?;
 
+        if !self.instance {
+            write!(writer, "static ")?;
+        }
+        writeln!(
+            writer,
+            "{} {}({});",
+            self.return_type,
+            self.name,
+            self.parameters
+                .iter()
+                .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
+                .join(",")
+        )?;
+
+        Ok(())
+    }
+}
+impl Writable for CppMethodImpl {
+    // declaration
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        if !self.instance {
+            write!(writer, "static ")?;
+        }
+
+        // Start
+        writeln!(
+            writer,
+            "{} {}::{}({}){{",
+            self.return_type,
+            self.ty,
+            self.name,
+            self.parameters
+                .iter()
+                .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
+                .join(",")
+        )?;
+
+        //   static auto ___internal__logger = ::Logger::get().WithContext("::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals");
+        //   auto* ___internal__method = THROW_UNLESS((::il2cpp_utils::FindMethod(this, "Equals", std::vector<Il2CppClass*>{}, ::std::vector<const Il2CppType*>{::il2cpp_utils::ExtractType(obj)})));
+        //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
+
+        // Body
+        let param_names = self.parameters
+                .iter()
+                .map(|p| format!("::il2cpp_utils::ExtractType({})", p.name))
+                .join(",");
+
+        writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}));", 
+            self.name, 
+            &param_names
+        )?;
+
+        write!(writer, "return ::il2cpp_utils::RunMethodRethrow<{}, false>(this, ___internal__method", self.return_type)?;
+        
+        if !param_names.is_empty() {
+            write!(writer, ", {}", param_names)?;
+        }
+
+        writeln!(writer, ");")?;
+
+        // End
+        writeln!(writer, "}}")?;
         Ok(())
     }
 }
@@ -381,6 +481,7 @@ impl Writable for CppMember {
             CppMember::Property(p) => p.write(writer),
             CppMember::Comment(c) => c.write(writer),
             CppMember::MethodSizeStruct(s) => s.write(writer),
+            CppMember::MethodImpl(i) => i.write(writer),
         }
     }
 }
