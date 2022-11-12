@@ -28,6 +28,7 @@ pub struct CppTypeRequirements {
 // A C# type will be TURNED INTO this
 #[derive(Debug, Clone)]
 pub struct CppType {
+    self_tdi: TypeDefinitionIndex,
     prefix_comments: Vec<String>,
     namespace: String,
     name: String,
@@ -124,6 +125,12 @@ impl CppType {
                 "::bs_hook::Il2CppWrapperType".to_string()
             }
             TypeEnum::Valuetype | TypeEnum::Class => {
+                // Self
+                if let TypeData::TypeDefinitionIndex(tdi) = typ.data && tdi == self.self_tdi {
+                    // TODO: println!("Warning! This is self referencing, handle this better in the future");
+                    return self.self_cpp_type_name();
+                }
+
                 // In this case, just inherit the type
                 // But we have to:
                 // - Determine where to include it from
@@ -317,6 +324,14 @@ fn make_methods(
                     .get(param.type_index as usize)
                     .unwrap();
 
+                let param_cpp_name = 
+                if let TypeData::TypeDefinitionIndex(p_tdi) = param_type.data 
+                && p_tdi == tdi  {
+                    cpp_type.self_cpp_type_name()
+                } else {
+                    cpp_type.get_cpp_ty_name(ctx_collection, metadata, config, param_type, false)
+                };
+
                 // TODO: We need DECLARATIONS in the def, DEFINITIONS in the impl
                 m_params.push(CppParam {
                     name: metadata
@@ -324,13 +339,7 @@ fn make_methods(
                         .get_str(param.name_index as u32)
                         .unwrap()
                         .to_string(),
-                    ty: cpp_type.get_cpp_ty_name(
-                        ctx_collection,
-                        metadata,
-                        config,
-                        param_type,
-                        false,
-                    ),
+                    ty: param_cpp_name,
                     modifiers: if param_type.is_byref() {
                         String::from("byref")
                     } else {
@@ -434,11 +443,13 @@ fn make_fields(
 
             // forward declare only if field type is not the same type as the holder
             if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
-                    let cpp_type = ctx_collection.get_cpp_type(metadata, config, f_type.data).unwrap();
+                    let cpp_type = ctx_collection.get_cpp_type(metadata, config, f_type.data);
+                    if let Some(cpp_type) = cpp_type {
                     cpp_type.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(cpp_type));
-                } /*else if f_type_data != self.ty {
-                      self.requirements.forward_declare_tids.insert(f_type_data);
-                  }*/
+                }
+             } /*else if f_type_data != self.ty {
+                   self.requirements.forward_declare_tids.insert(f_type_data);
+               }*/
         }
     }
 }
@@ -505,6 +516,7 @@ pub fn make_cpp_type(
         requirements: Default::default(),
         is_struct: t.is_value_type(),
         implementations: Default::default(),
+        self_tdi: tdi,
     };
 
     if t.parent_index == u32::MAX {

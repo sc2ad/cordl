@@ -1,5 +1,7 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap, HashSet,
+    },
     fs::{create_dir_all, remove_file, File},
     path::{Path, PathBuf},
 };
@@ -12,7 +14,7 @@ use itertools::Itertools;
 
 use super::{
     config::GenerationConfig,
-    cpp_type::{fill_from_il2cpp, CppType, make_cpp_type},
+    cpp_type::{fill_from_il2cpp, make_cpp_type, CppType},
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
@@ -113,11 +115,17 @@ impl CppContext {
             )),
             typedef_types: Default::default(),
         };
-        if let Some(cpptype) = make_cpp_type(metadata, config, tdi) {
-            x.typedef_types
-                .insert(TypeTag::TypeDefinition(tdi), cpptype);
-        } else {
-            println!("Unable to create valid CppContext for type: {t:?}!");
+        match make_cpp_type(metadata, config, tdi) {
+            Some(cpptype) => {
+                x.typedef_types
+                    .insert(TypeTag::TypeDefinition(tdi), cpptype);
+            }
+            None => {
+                println!(
+                    "Unable to create valid CppContext for type: {}::{}!",
+                    ns, name
+                );
+            }
         }
 
         x
@@ -198,25 +206,30 @@ impl CppContextCollection {
         }
 
         self.make_from(metadata, config, tag);
-        let mut cpp_type = self
-            .all_contexts
-            .get_mut(&tag)
-            .unwrap()
-            .typedef_types
-            .remove(&tag)
-            .unwrap();
 
         let tdi = match tag {
             TypeTag::TypeDefinition(tdi) => tdi,
-            _ => panic!("What {:?}", tag),
+            _ => panic!("What {tag:?}"),
         };
-        fill_from_il2cpp(&mut cpp_type, metadata, config, self, tdi);
 
-        self.all_contexts
+        let cpp_type_entry = self
+            .all_contexts
             .get_mut(&tag)
-            .unwrap()
+            .expect("No cpp context")
             .typedef_types
-            .insert(tag, cpp_type);
+            .remove_entry(&tag);
+
+        if let Some((t, mut cpp_type)) = cpp_type_entry {
+            fill_from_il2cpp(&mut cpp_type, metadata, config, self, tdi);
+
+            self.all_contexts
+                .get_mut(&tag)
+                .expect("No cpp context")
+                .typedef_types
+                .insert(t, cpp_type);
+        }
+
+        self.filled_types.insert(tag);
     }
 
     pub fn make_from(

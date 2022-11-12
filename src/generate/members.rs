@@ -122,9 +122,9 @@ impl CppInclude {
 impl Writable for CppInclude {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
         if self.system {
-            writeln!(writer, "#include <{:?}>", self.include)?;
+            writeln!(writer, "#include <{}>", self.include.to_str().unwrap())?;
         } else {
-            writeln!(writer, "#include \"{:?}\"", self.include)?;
+            writeln!(writer, "#include \"{}\"", self.include.to_str().unwrap())?;
         }
         Ok(())
     }
