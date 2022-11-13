@@ -9,8 +9,9 @@ use super::{
     constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions},
     context::{CppContextCollection, TypeTag},
     members::{
-        CppCommentedString, CppField, CppForwardDeclare, CppInclude, CppMember, CppMethodData,
-        CppMethodDecl, CppMethodSizeStruct, CppParam, CppProperty, CppTemplate, CppMethodImpl,
+        CppCommentedString, CppConstructor, CppField, CppForwardDeclare, CppInclude, CppMember,
+        CppMethodData, CppMethodDecl, CppMethodImpl, CppMethodSizeStruct, CppParam, CppProperty,
+        CppTemplate,
     },
     metadata::Metadata,
     writer::Writable,
@@ -139,15 +140,17 @@ impl CppType {
                 // - Include it
                 if add_include {
                     self.requirements
-                    .required_includes
-                    .insert(CppInclude::new_context(to_incl));
-                } 
+                        .required_includes
+                        .insert(CppInclude::new_context(to_incl));
+                }
                 let inc = CppInclude::new_context(to_incl);
                 let to_incl_ty = to_incl.get_cpp_type(typ.data.into()).unwrap();
-                
+
                 // Forward declare it
                 if !add_include {
-                    self.requirements.forward_declares.insert((CppForwardDeclare::from_cpp_type(to_incl_ty), inc));
+                    self.requirements
+                        .forward_declares
+                        .insert((CppForwardDeclare::from_cpp_type(to_incl_ty), inc));
                 }
 
                 to_incl_ty.self_cpp_type_name()
@@ -311,10 +314,12 @@ fn make_methods(
                 .get((t.method_start + i as u32) as usize)
                 .unwrap();
             let m_name = metadata.metadata.get_str(method.name_index).unwrap();
-            
+
             // Skip weird names
             // TODO: Get constructors
-            if method.is_special_name() && !(m_name.starts_with("get") || m_name.starts_with("set")) {
+            if method.is_special_name()
+                && !(m_name.starts_with("get") || m_name.starts_with("set") || m_name == (".ctor"))
+            {
                 println!("Skipping {}", m_name);
                 continue;
             }
@@ -338,8 +343,8 @@ fn make_methods(
                     .get(param.type_index as usize)
                     .unwrap();
 
-                let param_cpp_name = 
-                if let TypeData::TypeDefinitionIndex(p_tdi) = param_type.data 
+                let param_cpp_name = if
+                let TypeData::TypeDefinitionIndex(p_tdi) = param_type.data
                 && p_tdi == tdi  {
                     cpp_type.self_cpp_type_name()
                 } else {
@@ -371,45 +376,57 @@ fn make_methods(
                 .get(&(t.method_start + i as u32))
                 .unwrap();
 
-           
+            if m_name == ".ctor" {
                 cpp_type
-                .implementations
-                .push(CppMember::MethodImpl(CppMethodImpl {
-                    name: m_name.to_owned(),
-                    return_type: cpp_type_name.clone(),
-                    parameters: m_params.clone(),
-                    instance: true,
-                    prefix_modifiers: Default::default(),
-                    suffix_modifiers: Default::default(),
-                    ty: cpp_type.self_cpp_type_name(),
-                
-                }));
-                 cpp_type
-                .implementations
-                .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
-                    name: m_name.to_owned(),
-                    instance: true,
-                    method_data: CppMethodData {
-                        addrs: method_calc.addrs,
-                        estimated_size: method_calc.estimated_size,
-                    },
-                    ty: cpp_type.self_cpp_type_name(),
-                    params: m_params.clone(),
-                }));
-            cpp_type
-                .declarations
-                .push(CppMember::MethodDecl(CppMethodDecl {
-                    name: m_name.to_owned(),
-                    return_type: cpp_type_name,
-                    parameters: m_params,
-                    instance: true,
-                    prefix_modifiers: Default::default(),
-                    suffix_modifiers: Default::default(),
-                    method_data: CppMethodData {
-                        addrs: method_calc.addrs,
-                        estimated_size: method_calc.estimated_size,
-                    },
-                }));
+                    .declarations
+                    .push(CppMember::Constructor(CppConstructor {
+                        parameters: m_params.clone(),
+                        ty: cpp_type.self_cpp_type_name(),
+                        method_data: CppMethodData {
+                            addrs: method_calc.addrs,
+                            estimated_size: method_calc.estimated_size,
+                        },
+                    }));
+            } else {
+                cpp_type
+                    .implementations
+                    .push(CppMember::MethodImpl(CppMethodImpl {
+                        name: m_name.to_owned(),
+                        return_type: cpp_type_name.clone(),
+                        parameters: m_params.clone(),
+                        instance: true,
+                        prefix_modifiers: Default::default(),
+                        suffix_modifiers: Default::default(),
+                        ty: cpp_type.self_cpp_type_name(),
+                    }));
+                cpp_type
+                    .implementations
+                    .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
+                        name: m_name.to_owned(),
+                        instance: true,
+                        method_data: CppMethodData {
+                            addrs: method_calc.addrs,
+                            estimated_size: method_calc.estimated_size,
+                        },
+                        ty: cpp_type.self_cpp_type_name(),
+                        params: m_params.clone(),
+                    }));
+                cpp_type
+                    .declarations
+                    .push(CppMember::MethodDecl(CppMethodDecl {
+                        name: m_name.to_owned(),
+                        return_type: cpp_type_name,
+                        parameters: m_params,
+                        instance: true,
+                        prefix_modifiers: Default::default(),
+                        suffix_modifiers: Default::default(),
+                        method_data: CppMethodData {
+                            addrs: method_calc.addrs,
+                            estimated_size: method_calc.estimated_size,
+                        },
+                        is_virtual: method.is_virtual_method(),
+                    }));
+            }
         }
     }
 }
@@ -467,7 +484,6 @@ fn make_fields(
                 readonly: f_type.is_const(),
                 classof_call: cpp_type.classof_call(),
             }));
-
         }
     }
 }

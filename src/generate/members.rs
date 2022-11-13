@@ -140,6 +140,7 @@ pub enum CppMember {
     Property(CppProperty),
     Comment(CppCommentedString),
     MethodSizeStruct(CppMethodSizeStruct), // TODO: Or a nested type
+    Constructor(CppConstructor),
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -201,6 +202,15 @@ pub struct CppMethodDecl {
     pub prefix_modifiers: String,
     // TODO: Add all descriptions missing for the method
     pub method_data: CppMethodData,
+    pub is_virtual: bool,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CppConstructor {
+    pub ty: String,
+    pub parameters: Vec<CppParam>,
+    // TODO: Add all descriptions missing for the method
+    pub method_data: CppMethodData,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -259,6 +269,7 @@ impl CppMethodDecl {
             suffix_modifiers: todo!(),
             prefix_modifiers: todo!(),
             method_data: todo!(),
+            is_virtual: todo!(),
         }
     }
 }
@@ -331,6 +342,8 @@ impl Writable for CppMethodDecl {
 
         if !self.instance {
             write!(writer, "static ")?;
+        } else if self.is_virtual {
+            write!(writer, "virtual ")?;
         }
         writeln!(
             writer,
@@ -340,8 +353,41 @@ impl Writable for CppMethodDecl {
             self.parameters
                 .iter()
                 .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
-                .join(",")
+                .join(", ")
         )?;
+
+        Ok(())
+    }
+}
+impl Writable for CppConstructor {
+    // declaration
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        writeln!(
+            writer,
+            "// Ctor Parameters: {:?} Addr {:x} Size {:x}",
+            self.parameters, self.method_data.addrs, self.method_data.estimated_size
+        )?;
+
+        writeln!(writer, "template<::il2cpp_utils::CreationType creationType = ::il2cpp_utils::CreationType::Temporary>")?;
+
+        writeln!(
+            writer,
+            "inline {} New_ctor({}) {{",
+            self.ty,
+            self.parameters
+                .iter()
+                .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
+                .join(", ")
+        )?;
+
+        writeln!(
+            writer,
+            "return THROW_UNLESS((::il2cpp_utils::New<{}, creationType>({})));",
+            self.ty,
+            self.parameters.iter().map(|p| &p.name).join(", ")
+        )?;
+
+        writeln!(writer, "}}")?;
 
         Ok(())
     }
@@ -371,18 +417,23 @@ impl Writable for CppMethodImpl {
         //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
         // Body
-        let param_names = self.parameters
-                .iter()
-                .map(|p| format!("::il2cpp_utils::ExtractType({})", p.name))
-                .join(",");
+        let param_names = self
+            .parameters
+            .iter()
+            .map(|p| format!("::il2cpp_utils::ExtractType({})", p.name))
+            .join(", ");
 
         writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}));", 
-            self.name, 
+            self.name,
             &param_names
         )?;
 
-        write!(writer, "return ::il2cpp_utils::RunMethodRethrow<{}, false>(this, ___internal__method", self.return_type)?;
-        
+        write!(
+            writer,
+            "return ::il2cpp_utils::RunMethodRethrow<{}, false>(this, ___internal__method",
+            self.return_type
+        )?;
+
         if !param_names.is_empty() {
             write!(writer, ", {}", param_names)?;
         }
@@ -482,6 +533,7 @@ impl Writable for CppMember {
             CppMember::Comment(c) => c.write(writer),
             CppMember::MethodSizeStruct(s) => s.write(writer),
             CppMember::MethodImpl(i) => i.write(writer),
+            CppMember::Constructor(c) => c.write(writer),
         }
     }
 }

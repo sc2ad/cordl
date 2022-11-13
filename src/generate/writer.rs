@@ -3,7 +3,7 @@ use std::{fs::File, io::Write};
 pub struct CppWriter {
     pub stream: File,
     pub indent: u16,
-    pub newline: bool
+    pub newline: bool,
 }
 
 impl CppWriter {
