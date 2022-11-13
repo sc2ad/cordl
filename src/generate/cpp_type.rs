@@ -139,10 +139,16 @@ impl CppType {
                 // - Include it
                 if add_include {
                     self.requirements
-                        .required_includes
-                        .insert(CppInclude::new_context(to_incl));
-                }
+                    .required_includes
+                    .insert(CppInclude::new_context(to_incl));
+                } 
                 let to_incl_ty = to_incl.get_cpp_type(typ.data.into()).unwrap();
+                
+                // Forward declare it
+                if !add_include {
+                    self.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(to_incl_ty));
+                }
+
                 to_incl_ty.self_cpp_type_name()
             }
             TypeEnum::Szarray => {

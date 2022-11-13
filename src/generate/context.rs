@@ -176,10 +176,10 @@ impl CppContext {
         // write forward declares
         self.typedef_types
             .values()
-            .flat_map(|t| &t.requirements.forward_declares)
+            .flat_map(|t|  &t.requirements.forward_declares)
             .unique()
-            // .group_by(|d| d.namespace)
-            // .into_iter()
+
+            // TODO: Check forward declare is not of own type
             .try_for_each(|i| i.write(&mut typedef_writer))?;
 
         CppInclude::new(self.type_impl_path.to_path_buf()).write(&mut typeimpl_writer)?;

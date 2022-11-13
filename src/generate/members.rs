@@ -68,7 +68,7 @@ impl Writable for CppForwardDeclare {
             self.name
         )?;
 
-        if self.is_struct {
+        if self.namespace.is_some() {
             writeln!(writer, "}}")?;
         }
 
