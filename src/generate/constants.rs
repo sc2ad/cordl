@@ -6,6 +6,8 @@ pub trait MethodDefintionExtensions {
     fn is_abstract_method(&self) -> bool;
     fn is_static_method(&self) -> bool;
     fn is_virtual_method(&self) -> bool;
+    fn is_hidden_sig(&self) -> bool;
+    fn is_special_name(&self) -> bool;
 }
 
 impl MethodDefintionExtensions for Il2CppMethodDefinition {
@@ -23,6 +25,14 @@ impl MethodDefintionExtensions for Il2CppMethodDefinition {
 
     fn is_abstract_method(&self) -> bool {
         (self.flags & 0x0400) != 0
+    }
+
+    fn is_hidden_sig(&self) -> bool {
+        (self.flags & 0x0080) != 0
+    }
+
+    fn is_special_name(&self) -> bool {
+        (self.flags & 0x0800) != 0
     }
 }
 

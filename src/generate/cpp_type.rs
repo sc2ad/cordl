@@ -311,6 +311,13 @@ fn make_methods(
                 .get((t.method_start + i as u32) as usize)
                 .unwrap();
             let m_name = metadata.metadata.get_str(method.name_index).unwrap();
+            
+            // Skip weird names
+            // TODO: Get constructors
+            if method.is_special_name() && !(m_name.starts_with("get") || m_name.starts_with("set")) {
+                println!("Skipping {}", m_name);
+                continue;
+            }
             let m_ret_type = metadata
                 .metadata_registration
                 .types
