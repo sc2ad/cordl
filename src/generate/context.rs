@@ -10,7 +10,7 @@ use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 use itertools::Itertools;
 
-use crate::generate::members::CppInclude;
+use crate::generate::members::{CppForwardDeclare, CppInclude};
 
 use super::{
     config::GenerationConfig,
@@ -176,13 +176,20 @@ impl CppContext {
         // write forward declares
         self.typedef_types
             .values()
-            .flat_map(|t|  &t.requirements.forward_declares)
+            .flat_map(|t| &t.requirements.forward_declares)
+            .map(|(d, _)| d)
             .unique()
-
             // TODO: Check forward declare is not of own type
             .try_for_each(|i| i.write(&mut typedef_writer))?;
 
         CppInclude::new(self.type_impl_path.to_path_buf()).write(&mut typeimpl_writer)?;
+        self.typedef_types
+            .values()
+            .flat_map(|t| &t.requirements.forward_declares)
+            .map(|(_, i)| i)
+            .unique()
+            // TODO: Check forward declare is not of own type
+            .try_for_each(|i| i.write(&mut typeimpl_writer))?;
 
         for t in self.typedef_types.values() {
             t.write_def(&mut typedef_writer)?;

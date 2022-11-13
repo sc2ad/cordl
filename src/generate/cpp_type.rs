@@ -18,7 +18,7 @@ use super::{
 
 #[derive(Debug, Clone, Default)]
 pub struct CppTypeRequirements {
-    pub forward_declares: HashSet<CppForwardDeclare>,
+    pub forward_declares: HashSet<(CppForwardDeclare, CppInclude)>,
 
     // Only value types or classes
     pub required_includes: HashSet<CppInclude>,
@@ -142,11 +142,12 @@ impl CppType {
                     .required_includes
                     .insert(CppInclude::new_context(to_incl));
                 } 
+                let inc = CppInclude::new_context(to_incl);
                 let to_incl_ty = to_incl.get_cpp_type(typ.data.into()).unwrap();
                 
                 // Forward declare it
                 if !add_include {
-                    self.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(to_incl_ty));
+                    self.requirements.forward_declares.insert((CppForwardDeclare::from_cpp_type(to_incl_ty), inc));
                 }
 
                 to_incl_ty.self_cpp_type_name()
@@ -460,15 +461,6 @@ fn make_fields(
                 classof_call: cpp_type.classof_call(),
             }));
 
-            // forward declare only if field type is not the same type as the holder
-            if let TypeData::TypeDefinitionIndex(f_tdi) = f_type.data && f_tdi != tdi {
-                    let cpp_type = ctx_collection.get_cpp_type(metadata, config, f_type.data);
-                    if let Some(cpp_type) = cpp_type {
-                    cpp_type.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(cpp_type));
-                }
-             } /*else if f_type_data != self.ty {
-                   self.requirements.forward_declare_tids.insert(f_type_data);
-               }*/
         }
     }
 }
@@ -612,15 +604,6 @@ fn make_properties(
                 abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
                 instance: !p_getter.or(p_setter).unwrap().is_static_method(),
             }));
-
-            // forward declare only if field type is not the same type as the holder
-            if let TypeData::TypeDefinitionIndex(f_tdi) = p_type.data && f_tdi != tdi {
-                    let cpp_type = ctx_collection.get_cpp_type(metadata, config, p_type.data).unwrap();
-
-                    cpp_type.requirements.forward_declares.insert(CppForwardDeclare::from_cpp_type(cpp_type));
-                } /*else if f_type_data != self.ty {
-                      self.requirements.forward_declare_tids.insert(f_type_data);
-                  }*/
         }
     }
 }
