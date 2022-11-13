@@ -387,6 +387,18 @@ fn make_methods(
                             estimated_size: method_calc.estimated_size,
                         },
                     }));
+                cpp_type
+                    .implementations
+                    .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
+                        name: "New_ctor".to_string(),
+                        instance: true,
+                        method_data: CppMethodData {
+                            addrs: method_calc.addrs,
+                            estimated_size: method_calc.estimated_size,
+                        },
+                        ty: cpp_type.self_cpp_type_name(),
+                        params: m_params.clone(),
+                    }));
             } else {
                 cpp_type
                     .implementations
