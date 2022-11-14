@@ -315,12 +315,11 @@ fn make_methods(
                 .unwrap();
             let m_name = metadata.metadata.get_str(method.name_index).unwrap();
 
-            // Skip weird names
-            // TODO: Get constructors
-            if method.is_special_name()
-                && !(m_name.starts_with("get") || m_name.starts_with("set") || m_name == (".ctor"))
-            {
-                println!("Skipping {}", m_name);
+            // Skip class/static constructor
+            // if method.is_special_name()
+            // && !(m_name.starts_with("get") || m_name.starts_with("set") || m_name == (".ctor"))
+            if m_name == ".cctor" {
+                // println!("Skipping {}", m_name);
                 continue;
             }
             let m_ret_type = metadata
@@ -376,69 +375,45 @@ fn make_methods(
                 .get(&(t.method_start + i as u32))
                 .unwrap();
 
-            if m_name == ".ctor" {
-                cpp_type
-                    .declarations
-                    .push(CppMember::Constructor(CppConstructor {
-                        parameters: m_params.clone(),
-                        ty: cpp_type.self_cpp_type_name(),
-                        method_data: CppMethodData {
-                            addrs: method_calc.addrs,
-                            estimated_size: method_calc.estimated_size,
-                        },
-                    }));
-                cpp_type
-                    .implementations
-                    .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
-                        name: "New_ctor".to_string(),
-                        instance: true,
-                        method_data: CppMethodData {
-                            addrs: method_calc.addrs,
-                            estimated_size: method_calc.estimated_size,
-                        },
-                        ty: cpp_type.self_cpp_type_name(),
-                        params: m_params.clone(),
-                    }));
-            } else {
-                cpp_type
-                    .implementations
-                    .push(CppMember::MethodImpl(CppMethodImpl {
-                        name: m_name.to_owned(),
-                        return_type: cpp_type_name.clone(),
-                        parameters: m_params.clone(),
-                        instance: true,
-                        prefix_modifiers: Default::default(),
-                        suffix_modifiers: Default::default(),
-                        ty: cpp_type.self_cpp_type_name(),
-                    }));
-                cpp_type
-                    .implementations
-                    .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
-                        name: m_name.to_owned(),
-                        instance: true,
-                        method_data: CppMethodData {
-                            addrs: method_calc.addrs,
-                            estimated_size: method_calc.estimated_size,
-                        },
-                        ty: cpp_type.self_cpp_type_name(),
-                        params: m_params.clone(),
-                    }));
-                cpp_type
-                    .declarations
-                    .push(CppMember::MethodDecl(CppMethodDecl {
-                        name: m_name.to_owned(),
-                        return_type: cpp_type_name,
-                        parameters: m_params,
-                        instance: true,
-                        prefix_modifiers: Default::default(),
-                        suffix_modifiers: Default::default(),
-                        method_data: CppMethodData {
-                            addrs: method_calc.addrs,
-                            estimated_size: method_calc.estimated_size,
-                        },
-                        is_virtual: method.is_virtual_method(),
-                    }));
-            }
+            cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(CppMethodImpl {
+                    name: m_name.to_string(),
+                    cpp_name: config.name_cpp(m_name),
+                    return_type: cpp_type_name.clone(),
+                    parameters: m_params.clone(),
+                    instance: true,
+                    prefix_modifiers: Default::default(),
+                    suffix_modifiers: Default::default(),
+                    ty: cpp_type.self_cpp_type_name(),
+                }));
+            cpp_type
+                .implementations
+                .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
+                    cpp_name: config.name_cpp(m_name),
+                    instance: true,
+                    method_data: CppMethodData {
+                        addrs: method_calc.addrs,
+                        estimated_size: method_calc.estimated_size,
+                    },
+                    ty: cpp_type.self_cpp_type_name(),
+                    params: m_params.clone(),
+                }));
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(CppMethodDecl {
+                    cpp_name: config.name_cpp(m_name),
+                    return_type: cpp_type_name,
+                    parameters: m_params,
+                    instance: true,
+                    prefix_modifiers: Default::default(),
+                    suffix_modifiers: Default::default(),
+                    method_data: CppMethodData {
+                        addrs: method_calc.addrs,
+                        estimated_size: method_calc.estimated_size,
+                    },
+                    is_virtual: method.is_virtual_method(),
+                }));
         }
     }
 }
@@ -554,8 +529,8 @@ pub fn make_cpp_type(
     let name = metadata.metadata.get_str(t.name_index).unwrap();
     let cpptype = CppType {
         prefix_comments: vec![format!("Type: {ns}::{name}")],
-        namespace: config.namespace_cpp(ns.to_string()),
-        name: config.name_cpp(name.to_string()),
+        namespace: config.namespace_cpp(ns),
+        name: config.name_cpp(name),
         declarations: Default::default(),
         inherit: Default::default(),
         generic_args: Default::default(),

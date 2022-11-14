@@ -91,7 +91,7 @@ impl CppContext {
         let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
         let name = metadata.metadata.get_str(t.name_index).unwrap();
 
-        let ns_path = config.namespace_path(ns.to_string());
+        let ns_path = config.namespace_path(ns);
         let path = if ns_path.is_empty() {
             "GlobalNamespace/".to_string()
         } else {
@@ -101,17 +101,17 @@ impl CppContext {
             typedef_path: config.header_path.join(format!(
                 "{}__{}_def.hpp",
                 path,
-                &config.path_name(name.to_string())
+                &config.path_name(name)
             )),
             type_impl_path: config.header_path.join(format!(
                 "{}__{}_impl.hpp",
                 path,
-                &config.path_name(name.to_string())
+                &config.path_name(name)
             )),
             fundamental_path: config.header_path.join(format!(
                 "{}{}.hpp",
                 path,
-                &config.path_name(name.to_string())
+                &config.path_name(name)
             )),
             typedef_types: Default::default(),
         };

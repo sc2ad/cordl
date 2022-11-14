@@ -151,7 +151,7 @@ pub struct CppMethodData {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethodSizeStruct {
-    pub name: String,
+    pub cpp_name: String,
     pub ty: String,
     pub instance: bool,
     pub params: Vec<CppParam>,
@@ -183,7 +183,7 @@ pub struct CppParam {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethodDecl {
-    pub name: String,
+    pub cpp_name: String,
     pub return_type: String,
     pub parameters: Vec<CppParam>,
     pub instance: bool,
@@ -215,6 +215,7 @@ pub struct CppConstructor {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethodImpl {
+    pub cpp_name: String,
     pub name: String,
     pub ty: String,
     pub return_type: String,
@@ -262,7 +263,7 @@ impl CppField {
 impl CppMethodDecl {
     pub fn make() -> CppMethodDecl {
         CppMethodDecl {
-            name: todo!(),
+            cpp_name: todo!(),
             return_type: todo!(),
             parameters: todo!(),
             instance: todo!(),
@@ -276,13 +277,14 @@ impl CppMethodDecl {
 impl CppMethodImpl {
     pub fn make() -> CppMethodImpl {
         CppMethodImpl {
-            name: todo!(),
+            cpp_name: todo!(),
             return_type: todo!(),
             parameters: todo!(),
             instance: todo!(),
             suffix_modifiers: todo!(),
             prefix_modifiers: todo!(),
             ty: todo!(),
+            name: todo!(),
         }
     }
 }
@@ -333,7 +335,7 @@ impl Writable for CppMethodDecl {
         writeln!(
             writer,
             "// Method: name: {}, Return Type Name: {} Parameters: {:?} Addr {:x} Size {:x}",
-            self.name,
+            self.cpp_name,
             self.return_type,
             self.parameters,
             self.method_data.addrs,
@@ -349,7 +351,7 @@ impl Writable for CppMethodDecl {
             writer,
             "{} {}({});",
             self.return_type,
-            self.name,
+            self.cpp_name,
             self.parameters
                 .iter()
                 .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
@@ -372,7 +374,7 @@ impl Writable for CppConstructor {
 
         writeln!(
             writer,
-            "inline {} New_ctor({}) {{",
+            "inline {}({}) {{",
             self.ty,
             self.parameters
                 .iter()
@@ -380,10 +382,10 @@ impl Writable for CppConstructor {
                 .join(", ")
         )?;
 
+// TODO: Call base constructor and allocate
         writeln!(
             writer,
-            "return THROW_UNLESS((::il2cpp_utils::New<{}, creationType>({})));",
-            self.ty,
+            "this->_ctor({});",
             self.parameters.iter().map(|p| &p.name).join(", ")
         )?;
 
@@ -405,7 +407,7 @@ impl Writable for CppMethodImpl {
             "{} {}::{}({}){{",
             self.return_type,
             self.ty,
-            self.name,
+            self.cpp_name,
             self.parameters
                 .iter()
                 .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
@@ -494,7 +496,7 @@ impl Writable for CppMethodSizeStruct {
         writeln!(
             writer,
             "//  Writing Method size for method: {}.{}",
-            self.ty, self.name
+            self.ty, self.cpp_name
         )?;
         let params_format = self
             .params
@@ -516,7 +518,7 @@ struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<void ({}::*
             self.ty,
             params_format,
             self.ty,
-            self.name,
+            self.cpp_name,
             self.method_data.estimated_size,
             self.method_data.addrs
         )?;
