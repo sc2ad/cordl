@@ -7,7 +7,11 @@ pub struct GenerationConfig {
 
 impl GenerationConfig {
     pub fn namespace_cpp(&self, string: &str) -> String {
-        string.replace(['<', '>', '`', '/'], "_").replace('.', "::")
+        if string.is_empty() {
+            "GlobalNamespace".to_owned()
+        } else {
+            string.replace(['<', '>', '`', '/'], "_").replace('.', "::")
+        }
     }
     pub fn name_cpp(&self, string: &str) -> String {
         // Coincidentally the same as path_name

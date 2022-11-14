@@ -87,6 +87,11 @@ fn main() -> color_eyre::Result<()> {
     cpp_context_collection.get()[&TypeTag::TypeDefinition(420)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(69)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(531)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(532)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(533)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(534)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(535)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(1455)].write()?;
     // for (_, context) in cpp_context_collection.get() {
     //     context.write().unwrap();
     // }

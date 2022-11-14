@@ -1,4 +1,4 @@
-use std::{collections::HashSet, io::Write, path::Path};
+use std::{collections::HashSet, io::Write};
 
 use color_eyre::eyre::Context;
 use il2cpp_binary::{Type, TypeData, TypeEnum};
@@ -9,7 +9,7 @@ use super::{
     constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions},
     context::{CppContextCollection, TypeTag},
     members::{
-        CppCommentedString, CppConstructor, CppField, CppForwardDeclare, CppInclude, CppMember,
+        CppCommentedString, CppField, CppForwardDeclare, CppInclude, CppMember,
         CppMethodData, CppMethodDecl, CppMethodImpl, CppMethodSizeStruct, CppParam, CppProperty,
         CppTemplate,
     },
@@ -32,7 +32,9 @@ pub struct CppType {
     self_tdi: TypeDefinitionIndex,
     prefix_comments: Vec<String>,
     namespace: String,
+    cpp_namespace: String,
     name: String,
+    cpp_name: String,
     pub declarations: Vec<CppMember>,
     pub implementations: Vec<CppMember>,
 
@@ -70,16 +72,16 @@ impl CppType {
         &self.namespace
     }
 
-    pub fn namespace_fixed(&self) -> &str {
-        if self.namespace.is_empty() {
-            "GlobalNamespace"
-        } else {
-            &self.namespace
-        }
+    pub fn cpp_namespace(&self) -> &str {
+        &self.cpp_namespace
     }
 
     pub fn name(&self) -> &String {
         &self.name
+    }
+
+    pub fn cpp_name(&self) -> &String {
+        &self.cpp_name
     }
 
     fn get_type_definition<'a>(
@@ -129,7 +131,7 @@ impl CppType {
                 // Self
                 if let TypeData::TypeDefinitionIndex(tdi) = typ.data && tdi == self.self_tdi {
                     // TODO: println!("Warning! This is self referencing, handle this better in the future");
-                    return self.self_cpp_type_name();
+                    return self.formatted_complete_cpp_name();
                 }
 
                 // In this case, just inherit the type
@@ -153,7 +155,7 @@ impl CppType {
                         .insert((CppForwardDeclare::from_cpp_type(to_incl_ty), inc));
                 }
 
-                to_incl_ty.self_cpp_type_name()
+                to_incl_ty.formatted_complete_cpp_name()
             }
             TypeEnum::Szarray => {
                 // In this case, just inherit the type
@@ -206,18 +208,18 @@ impl CppType {
         }
     }
 
-    pub fn self_cpp_type_name(&self) -> String {
+    pub fn formatted_complete_cpp_name(&self) -> String {
         // We found a valid type that we have defined for this idx!
         // TODO: We should convert it here.
         // Ex, if it is a generic, convert it to a template specialization
         // If it is a normal type, handle it accordingly, etc.
-        format!("{}::{}", self.namespace_fixed(), self.name())
+        format!("{}::{}", self.cpp_namespace(), self.cpp_name())
     }
 
     pub fn classof_call(&self) -> String {
         format!(
             "&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get",
-            self.self_cpp_type_name()
+            self.formatted_complete_cpp_name()
         )
     }
 
@@ -240,10 +242,10 @@ impl CppType {
         writeln!(
             writer,
             "// Forward declaring type: {}::{}",
-            self.namespace_fixed(),
+            self.cpp_namespace(),
             self.name()
         )?;
-        writeln!(writer, "namespace {} {{", self.namespace_fixed())?;
+        writeln!(writer, "namespace {} {{", self.cpp_namespace())?;
         writer.indent();
         self.generic_args.write(writer)?;
         writeln!(writer, "struct {};", self.name())?;
@@ -268,7 +270,7 @@ impl CppType {
         writeln!(writer, "}};")?;
         // Namespace complete
         writer.dedent();
-        writeln!(writer, "}} // namespace {}", self.namespace_fixed())?;
+        writeln!(writer, "}} // namespace {}", self.cpp_namespace())?;
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
         Ok(())
     }
@@ -342,15 +344,10 @@ fn make_methods(
                     .get(param.type_index as usize)
                     .unwrap();
 
-                let param_cpp_name = if
-                let TypeData::TypeDefinitionIndex(p_tdi) = param_type.data
-                && p_tdi == tdi  {
-                    cpp_type.self_cpp_type_name()
-                } else {
-                    cpp_type.get_cpp_ty_name(ctx_collection, metadata, config, param_type, false)
-                };
+                let param_cpp_name = 
+                    cpp_type.get_cpp_ty_name(ctx_collection, metadata, config, param_type, false);
+                
 
-                // TODO: We need DECLARATIONS in the def, DEFINITIONS in the impl
                 m_params.push(CppParam {
                     name: metadata
                         .metadata
@@ -367,7 +364,7 @@ fn make_methods(
             }
 
             // Need to include this type
-            let cpp_type_name =
+            let m_ret_cpp_type_name =
                 cpp_type.get_cpp_ty_name(ctx_collection, metadata, config, m_ret_type, false);
 
             let method_calc = metadata
@@ -380,12 +377,13 @@ fn make_methods(
                 .push(CppMember::MethodImpl(CppMethodImpl {
                     name: m_name.to_string(),
                     cpp_name: config.name_cpp(m_name),
-                    return_type: cpp_type_name.clone(),
+                    return_type: m_ret_cpp_type_name.clone(),
                     parameters: m_params.clone(),
                     instance: true,
                     prefix_modifiers: Default::default(),
                     suffix_modifiers: Default::default(),
-                    ty: cpp_type.self_cpp_type_name(),
+                    holder_namespaze: cpp_type.namespace.clone(),
+                    holder_name: cpp_type.name.clone()
                 }));
             cpp_type
                 .implementations
@@ -396,14 +394,14 @@ fn make_methods(
                         addrs: method_calc.addrs,
                         estimated_size: method_calc.estimated_size,
                     },
-                    ty: cpp_type.self_cpp_type_name(),
+                    ty: cpp_type.formatted_complete_cpp_name(),
                     params: m_params.clone(),
                 }));
             cpp_type
                 .declarations
                 .push(CppMember::MethodDecl(CppMethodDecl {
                     cpp_name: config.name_cpp(m_name),
-                    return_type: cpp_type_name,
+                    return_type: m_ret_cpp_type_name,
                     parameters: m_params,
                     instance: true,
                     prefix_modifiers: Default::default(),
@@ -538,6 +536,8 @@ pub fn make_cpp_type(
         is_struct: t.is_value_type(),
         implementations: Default::default(),
         self_tdi: tdi,
+        cpp_namespace: config.namespace_cpp(ns),
+        cpp_name: config.name_cpp(name),
     };
 
     if t.parent_index == u32::MAX {

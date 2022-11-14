@@ -43,7 +43,7 @@ impl CppForwardDeclare {
     pub fn from_cpp_type(cpp_type: &CppType) -> Self {
         Self {
             is_struct: cpp_type.is_struct,
-            namespace: Some(cpp_type.namespace_fixed().to_string()),
+            namespace: Some(cpp_type.cpp_namespace().to_string()),
             name: cpp_type.name().clone(),
             templates: cpp_type.generic_args.clone(),
         }
@@ -217,7 +217,8 @@ pub struct CppConstructor {
 pub struct CppMethodImpl {
     pub cpp_name: String,
     pub name: String,
-    pub ty: String,
+    pub holder_namespaze: String,
+    pub holder_name: String,
     pub return_type: String,
     pub parameters: Vec<CppParam>,
     pub instance: bool,
@@ -283,8 +284,9 @@ impl CppMethodImpl {
             instance: todo!(),
             suffix_modifiers: todo!(),
             prefix_modifiers: todo!(),
-            ty: todo!(),
             name: todo!(),
+            holder_namespaze: todo!(),
+            holder_name: todo!(),
         }
     }
 }
@@ -382,7 +384,7 @@ impl Writable for CppConstructor {
                 .join(", ")
         )?;
 
-// TODO: Call base constructor and allocate
+        // TODO: Call base constructor and allocate
         writeln!(
             writer,
             "this->_ctor({});",
@@ -404,9 +406,10 @@ impl Writable for CppMethodImpl {
         // Start
         writeln!(
             writer,
-            "{} {}::{}({}){{",
+            "{} {}::{}::{}({}){{",
             self.return_type,
-            self.ty,
+            self.holder_namespaze,
+            self.holder_name,
             self.cpp_name,
             self.parameters
                 .iter()

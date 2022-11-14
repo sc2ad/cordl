@@ -10,7 +10,7 @@ use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 use itertools::Itertools;
 
-use crate::generate::members::{CppForwardDeclare, CppInclude};
+use crate::generate::members::{CppInclude};
 
 use super::{
     config::GenerationConfig,
