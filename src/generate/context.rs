@@ -10,7 +10,7 @@ use il2cpp_binary::TypeData;
 use il2cpp_metadata_raw::TypeDefinitionIndex;
 use itertools::Itertools;
 
-use crate::generate::members::{CppInclude};
+use crate::generate::members::CppInclude;
 
 use super::{
     config::GenerationConfig,
@@ -76,6 +76,10 @@ impl CppContext {
 
     pub fn get_include_path(&self) -> &PathBuf {
         &self.typedef_path
+    }
+
+    pub fn get_types(&self) -> &HashMap<TypeTag, CppType> {
+        &self.typedef_types
     }
 
     fn make(

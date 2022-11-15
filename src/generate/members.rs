@@ -422,15 +422,13 @@ impl Writable for CppMethodImpl {
         //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
         // Body
-        let param_names = self
+        writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}));", 
+            self.name,
+            self
             .parameters
             .iter()
             .map(|p| format!("::il2cpp_utils::ExtractType({})", p.name))
-            .join(", ");
-
-        writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}));", 
-            self.name,
-            &param_names
+            .join(", ")
         )?;
 
         write!(
@@ -438,6 +436,11 @@ impl Writable for CppMethodImpl {
             "return ::il2cpp_utils::RunMethodRethrow<{}, false>(this, ___internal__method",
             self.return_type
         )?;
+
+        let param_names = self.parameters
+                .iter()
+                .map(|p| &p.name)
+                .join(",");
 
         if !param_names.is_empty() {
             write!(writer, ", {}", param_names)?;

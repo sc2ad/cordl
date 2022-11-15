@@ -2,16 +2,15 @@ use std::{collections::HashSet, io::Write};
 
 use color_eyre::eyre::Context;
 use il2cpp_binary::{Type, TypeData, TypeEnum};
-use il2cpp_metadata_raw::TypeDefinitionIndex;
+use il2cpp_metadata_raw::{Il2CppGenericParameter, TypeDefinitionIndex};
 
 use super::{
     config::GenerationConfig,
     constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions},
     context::{CppContextCollection, TypeTag},
     members::{
-        CppCommentedString, CppField, CppForwardDeclare, CppInclude, CppMember,
-        CppMethodData, CppMethodDecl, CppMethodImpl, CppMethodSizeStruct, CppParam, CppProperty,
-        CppTemplate,
+        CppCommentedString, CppField, CppForwardDeclare, CppInclude, CppMember, CppMethodData,
+        CppMethodDecl, CppMethodImpl, CppMethodSizeStruct, CppParam, CppProperty, CppTemplate,
     },
     metadata::Metadata,
     writer::Writable,
@@ -203,6 +202,7 @@ impl CppType {
                 self.requirements.needs_stringw_include();
                 "::StringW".to_string()
             }
+            TypeEnum::Ptr => "void*".to_owned(),
             // TODO: Void and the other primitives
             _ => format!("/* UNKNOWN TYPE! {:?} */", typ),
         }
@@ -344,9 +344,8 @@ fn make_methods(
                     .get(param.type_index as usize)
                     .unwrap();
 
-                let param_cpp_name = 
+                let param_cpp_name =
                     cpp_type.get_cpp_ty_name(ctx_collection, metadata, config, param_type, false);
-                
 
                 m_params.push(CppParam {
                     name: metadata
@@ -383,7 +382,7 @@ fn make_methods(
                     prefix_modifiers: Default::default(),
                     suffix_modifiers: Default::default(),
                     holder_namespaze: cpp_type.namespace.clone(),
-                    holder_name: cpp_type.name.clone()
+                    holder_name: cpp_type.name.clone(),
                 }));
             cpp_type
                 .implementations
@@ -523,6 +522,51 @@ pub fn make_cpp_type(
         .type_definitions
         .get(tdi as usize)
         .unwrap();
+
+    // Generics
+    let generics = metadata
+        .metadata
+        .generic_containers
+        .get(t.generic_container_index as usize)
+        .map(|container| {
+            let mut generics: Vec<(&Il2CppGenericParameter, Vec<u32>)> =
+                Vec::with_capacity(container.type_argc as usize);
+
+            for i in 0..container.type_argc {
+                let generic_param_index = i + container.generic_parameter_start;
+                let generic_param = metadata
+                    .metadata
+                    .generic_parameters
+                    .get(generic_param_index as usize)
+                    .unwrap();
+
+                let mut generic_constraints: Vec<u32> =
+                    Vec::with_capacity(generic_param.constraints_count as usize);
+                for j in 0..generic_param.constraints_count {
+                    let generic_constraint_index = j + generic_param.constraints_start;
+                    let generic_constraint = metadata
+                        .metadata
+                        .generic_parameter_constraints
+                        .get(generic_constraint_index as usize)
+                        .unwrap();
+
+                    // TODO: figure out
+                    generic_constraints.push(*generic_constraint);
+                }
+
+                generics.push((generic_param, generic_constraints));
+            }
+            generics
+        });
+
+    let cpp_template = CppTemplate {
+        names: generics
+            .unwrap_or_default()
+            .iter()
+            .map(|(g, _)| metadata.metadata.get_str(g.name_index).unwrap().to_string())
+            .collect(),
+    };
+
     let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
     let name = metadata.metadata.get_str(t.name_index).unwrap();
     let cpptype = CppType {
@@ -531,7 +575,7 @@ pub fn make_cpp_type(
         name: config.name_cpp(name),
         declarations: Default::default(),
         inherit: Default::default(),
-        generic_args: Default::default(),
+        generic_args: cpp_template,
         requirements: Default::default(),
         is_struct: t.is_value_type(),
         implementations: Default::default(),

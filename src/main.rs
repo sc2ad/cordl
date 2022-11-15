@@ -92,6 +92,18 @@ fn main() -> color_eyre::Result<()> {
     cpp_context_collection.get()[&TypeTag::TypeDefinition(534)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(535)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(1455)].write()?;
+    println!("Generic type");
+    cpp_context_collection
+        .get()
+        .iter()
+        .find(|(_, c)| {
+            c.get_types()
+                .iter()
+                .any(|(_, t)| !t.generic_args.names.is_empty())
+        })
+        .unwrap()
+        .1
+        .write()?;
     // for (_, context) in cpp_context_collection.get() {
     //     context.write().unwrap();
     // }
