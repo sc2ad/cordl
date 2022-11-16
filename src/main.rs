@@ -5,8 +5,8 @@ use generate::config::GenerationConfig;
 use generate::context::{CppContextCollection, TypeTag};
 use generate::metadata::Metadata;
 
-use std::{fs, time};
 use std::path::PathBuf;
+use std::{fs, time};
 
 use clap::{Parser, Subcommand};
 use il2cpp_binary::{Elf, TypeData};
@@ -67,11 +67,10 @@ fn main() -> color_eyre::Result<()> {
 
     // First, make all the contexts
     for tdi in 0..metadata.metadata.type_definitions.len() {
-        cpp_context_collection.make_from(
+        cpp_context_collection.fill(
             &metadata,
             &config,
             TypeData::TypeDefinitionIndex(tdi.try_into()?),
-            true,
         );
     }
     // for t in &metadata.type_definitions {
@@ -79,24 +78,32 @@ fn main() -> color_eyre::Result<()> {
     //     let dest = open_writer(&metadata, &config, &t);
     //     write_type(&metadata, &config, &t, &dest);
     // }
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(123)]
-        .write()
-        ?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(342)]
-        .write()
-        ?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(512)]
-        .write()
-        ?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(1024)]
-        .write()
-        ?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(600)]
-        .write()
-        ?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(1000)]
-        .write()
-        ?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(123)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(342)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(512)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(1024)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(600)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(1000)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(420)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(69)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(531)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(532)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(533)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(534)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(535)].write()?;
+    cpp_context_collection.get()[&TypeTag::TypeDefinition(1455)].write()?;
+    println!("Generic type");
+    cpp_context_collection
+        .get()
+        .iter()
+        .find(|(_, c)| {
+            c.get_types()
+                .iter()
+                .any(|(_, t)| !t.generic_args.names.is_empty())
+        })
+        .unwrap()
+        .1
+        .write()?;
     // for (_, context) in cpp_context_collection.get() {
     //     context.write().unwrap();
     // }
