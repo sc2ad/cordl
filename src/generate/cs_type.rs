@@ -481,7 +481,7 @@ pub trait CSType: Sized {
         let mut cursor = Cursor::new(data);
 
         match ty {
-            TypeEnum::Boolean => (if data[0] != 0 { "false" } else { "true" }).to_string(),
+            TypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
             TypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
             TypeEnum::I2 => cursor.read_i16::<Endian>().unwrap().to_string(),
             TypeEnum::Valuetype | TypeEnum::I4 => cursor.read_i32::<Endian>().unwrap().to_string(),
