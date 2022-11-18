@@ -165,6 +165,7 @@ pub struct CppField {
     pub instance: bool,
     pub readonly: bool,
     pub classof_call: String,
+    pub literal_value: Option<String>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -257,6 +258,7 @@ impl CppField {
             instance: todo!(),
             readonly: todo!(),
             classof_call: todo!(),
+            literal_value: todo!(),
         }
     }
 }
@@ -315,17 +317,32 @@ impl Writable for CppField {
             self.name, self.ty, self.offset
         )?;
 
+
+        if let Some(literal) = &self.literal_value {
+            writeln!(
+                writer,
+                "constexpr {} {} = {literal};",
+                self.ty, self.name
+            )?;
+        }
+
+        let cpp_name = if self.literal_value.is_some() {
+            format!("_{}", &self.name)
+        } else {
+            self.name.to_string()
+        };
+
         if self.instance {
             writeln!(
                 writer,
-                "::bs_hook::InstanceField<{}, 0x{:x},{}> {};",
-                self.ty, self.offset, !self.readonly, self.name
+                "::bs_hook::InstanceField<{}, 0x{:x},{}> {cpp_name};",
+                self.ty, self.offset, !self.readonly
             )?;
         } else {
             writeln!(
                 writer,
-                "static inline ::bs_hook::StaticField<{},\"{}\",{},{}> {};",
-                self.ty, self.name, !self.readonly, self.classof_call, self.name
+                "static inline ::bs_hook::StaticField<{},\"{}\",{},{}> {cpp_name};",
+                self.ty, self.name, !self.readonly, self.classof_call
             )?;
         }
         Ok(())
@@ -437,10 +454,7 @@ impl Writable for CppMethodImpl {
             self.return_type
         )?;
 
-        let param_names = self.parameters
-                .iter()
-                .map(|p| &p.name)
-                .join(",");
+        let param_names = self.parameters.iter().map(|p| &p.name).join(",");
 
         if !param_names.is_empty() {
             write!(writer, ", {}", param_names)?;

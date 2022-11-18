@@ -1,5 +1,6 @@
 #![feature(entry_insert)]
 #![feature(let_chains)]
+#![feature(core_intrinsics)]
 
 use generate::config::GenerationConfig;
 use generate::context::{CppContextCollection, TypeTag};

@@ -1,8 +1,14 @@
-use std::{collections::HashSet, io::Write};
+use byteorder::{BigEndian, ReadBytesExt};
+use std::{
+    collections::HashSet,
+    intrinsics::size_of,
+    io::{Cursor, Write},
+};
 
 use color_eyre::eyre::Context;
 use il2cpp_binary::{Type, TypeData, TypeEnum};
 use il2cpp_metadata_raw::{Il2CppGenericParameter, TypeDefinitionIndex};
+use itertools::Itertools;
 
 use super::{
     config::GenerationConfig,
@@ -435,11 +441,8 @@ fn make_fields(
             }));
         // Then, for each field, write it out
         for i in 0..t.field_count {
-            let field = metadata
-                .metadata
-                .fields
-                .get((t.field_start + i as u32) as usize)
-                .unwrap();
+            let field_index = (t.field_start + i as u32) as usize;
+            let field = metadata.metadata.fields.get(field_index).unwrap();
             let f_name = metadata.metadata.get_str(field.name_index).unwrap();
             let f_offset = metadata
                 .metadata_registration
@@ -459,6 +462,99 @@ fn make_fields(
             let cpp_name =
                 cpp_type.get_cpp_ty_name(ctx_collection, metadata, config, f_type, false);
 
+            // TODO: Move to function
+            let def_value = if f_type.is_const() {
+                metadata
+                    .metadata
+                    .field_default_values
+                    .get(field_index)
+                    .map(|def| {
+                        let ty = metadata
+                            .metadata_registration
+                            .types
+                            .get(field.type_index as usize)
+                            .unwrap();
+                        let _size = match ty.ty {
+                            TypeEnum::String => *metadata
+                                .metadata
+                                .string_literal_data
+                                .get(def.data_index as usize)
+                                .unwrap() as usize,
+
+                            TypeEnum::I1 => size_of::<i8>(),
+                            TypeEnum::I2 => size_of::<i16>(),
+                            TypeEnum::I4 => size_of::<i32>(),
+                            // TODO: We assume 64 bit
+                            TypeEnum::I | TypeEnum::I8 => size_of::<i64>(),
+                            TypeEnum::U1 => size_of::<u8>(),
+                            TypeEnum::U2 => size_of::<u16>(),
+                            TypeEnum::U4 => size_of::<u32>(),
+                            // TODO: We assume 64 bit
+                            TypeEnum::U | TypeEnum::U8 => size_of::<u64>(),
+
+                            // https://learn.microsoft.com/en-us/nimbusml/concepts/types
+                            // https://en.cppreference.com/w/cpp/types/floating-point
+                            TypeEnum::R4 => size_of::<f32>(),
+                            TypeEnum::R8 => size_of::<f64>(),
+                            TypeEnum::Boolean => size_of::<bool>(),
+                            TypeEnum::Char => size_of::<char>() * 2,
+
+                            // Figure out
+                            // TypeEnum::Ptr => 8,
+                            // TypeEnum::Valuetype => 4, // TODO:
+                            // TypeEnum::Class => 4,
+                            // TypeEnum::Szarray => 4, // TODO:
+                            _ => {
+                                // println!("Invalid type {:?}", ty);
+                                4
+                            }
+                        };
+
+                        let data = &metadata.metadata.field_and_parameter_default_value_data;
+                        let mut cursor = Cursor::new(data);
+                        cursor.set_position(def.data_index as u64);
+
+                        match ty.ty {
+                            TypeEnum::Boolean => {
+                                (if data[0] != 0 { "false" } else { "true" }).to_string()
+                            }
+                            TypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
+                            TypeEnum::I2 => cursor.read_i16::<BigEndian>().unwrap().to_string(),
+                            TypeEnum::I4 => cursor.read_i32::<BigEndian>().unwrap().to_string(),
+                            // TODO: We assume 64 bit
+                            TypeEnum::I | TypeEnum::I8 => {
+                                cursor.read_i64::<BigEndian>().unwrap().to_string()
+                            }
+                            TypeEnum::U1 => cursor.read_u8().unwrap().to_string(),
+                            TypeEnum::U2 => cursor.read_u16::<BigEndian>().unwrap().to_string(),
+                            TypeEnum::U4 => cursor.read_u32::<BigEndian>().unwrap().to_string(),
+                            // TODO: We assume 64 bit
+                            TypeEnum::U | TypeEnum::U8 => {
+                                cursor.read_u64::<BigEndian>().unwrap().to_string()
+                            }
+
+                            // https://learn.microsoft.com/en-us/nimbusml/concepts/types
+                            // https://en.cppreference.com/w/cpp/types/floating-point
+                            TypeEnum::R4 => cursor.read_f32::<BigEndian>().unwrap().to_string(),
+                            TypeEnum::R8 => cursor.read_f64::<BigEndian>().unwrap().to_string(),
+                            TypeEnum::Char => {
+                                String::from_utf16_lossy(&[cursor.read_u16::<BigEndian>().unwrap()])
+                            }
+                            TypeEnum::String => String::from_utf16_lossy(
+                                &data
+                                    .chunks(2)
+                                    .into_iter()
+                                    .map(|e| u16::from_be_bytes(e.try_into().unwrap()))
+                                    .collect_vec(),
+                            ),
+
+                            _ => "unknown".to_string(),
+                        }
+                    })
+            } else {
+                None
+            };
+
             // Need to include this type
             cpp_type.declarations.push(CppMember::Field(CppField {
                 name: f_name.to_owned(),
@@ -467,6 +563,7 @@ fn make_fields(
                 instance: !f_type.is_static() && !f_type.is_const(),
                 readonly: f_type.is_const(),
                 classof_call: cpp_type.classof_call(),
+                literal_value: def_value,
             }));
         }
     }
