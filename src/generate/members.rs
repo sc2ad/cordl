@@ -317,13 +317,8 @@ impl Writable for CppField {
             self.name, self.ty, self.offset
         )?;
 
-
         if let Some(literal) = &self.literal_value {
-            writeln!(
-                writer,
-                "constexpr {} {} = {literal};",
-                self.ty, self.name
-            )?;
+            writeln!(writer, "constexpr {} {} = {literal};", self.ty, self.name)?;
         }
 
         let cpp_name = if self.literal_value.is_some() {

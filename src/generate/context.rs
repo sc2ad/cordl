@@ -14,7 +14,8 @@ use crate::generate::members::CppInclude;
 
 use super::{
     config::GenerationConfig,
-    cpp_type::{fill_from_il2cpp, make_cpp_type, CppType},
+    cpp_type::CppType,
+    cs_type::CSType,
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
@@ -119,7 +120,7 @@ impl CppContext {
             )),
             typedef_types: Default::default(),
         };
-        match make_cpp_type(metadata, config, tdi) {
+        match CppType::make_cpp_type(metadata, config, tdi) {
             Some(cpptype) => {
                 x.typedef_types
                     .insert(TypeTag::TypeDefinition(tdi), cpptype);
@@ -236,7 +237,7 @@ impl CppContextCollection {
             .remove_entry(&tag);
 
         if let Some((t, mut cpp_type)) = cpp_type_entry {
-            fill_from_il2cpp(&mut cpp_type, metadata, config, self, tdi);
+            cpp_type.fill_from_il2cpp(metadata, config, self, tdi);
 
             self.all_contexts
                 .get_mut(&tag)
