@@ -179,11 +179,8 @@ pub trait CSType: Sized {
                     Vec::with_capacity(method.parameter_count as usize);
 
                 for p in 0..method.parameter_count {
-                    let param = metadata
-                        .metadata
-                        .parameters
-                        .get((method.parameter_start + p as u32) as usize)
-                        .unwrap();
+                    let param_index = (method.parameter_start + p as u32) as usize;
+                    let param = metadata.metadata.parameters.get(param_index).unwrap();
 
                     let param_type = metadata
                         .metadata_registration
@@ -199,12 +196,15 @@ pub trait CSType: Sized {
                         false,
                     );
 
+                    let def_value = None; //Self::param_default_value(metadata, param_index as u32);
+
                     m_params.push(CppParam {
                         name: metadata
                             .metadata
                             .get_str(param.name_index as u32)
                             .unwrap()
                             .to_string(),
+                        def_value,
                         ty: param_cpp_name,
                         modifiers: if param_type.is_byref() {
                             String::from("byref")
@@ -426,7 +426,7 @@ pub trait CSType: Sized {
         }
     }
 
-    fn ty_size(ty: &Type, metadata: &Metadata) -> usize {
+    fn ty_size(ty: &Type, _metadata: &Metadata) -> usize {
         match ty.ty {
             TypeEnum::I1 => size_of::<i8>(),
             TypeEnum::I2 => size_of::<i16>(),
@@ -447,20 +447,21 @@ pub trait CSType: Sized {
             TypeEnum::Char => size_of::<char>() * 2,
 
             /* TODO: TypeEnum::Genericinst | */
-            TypeEnum::Object | TypeEnum::Class => match ty.data {
-                TypeData::TypeDefinitionIndex(tdi) => {
-                    metadata
-                        .metadata_registration
-                        .type_definition_sizes
-                        .get(tdi as usize)
-                        .unwrap()
-                        .instance_size as usize
-                }
-                TypeData::TypeIndex(_) => todo!(),
-                TypeData::GenericParameterIndex(_) => todo!(),
-                TypeData::GenericClassIndex(_) => todo!(),
-                TypeData::ArrayType => todo!(),
-            },
+            TypeEnum::Object | TypeEnum::Class => 0,
+            // TypeEnum::Object | TypeEnum::Class => match ty.data {
+            //     TypeData::TypeDefinitionIndex(tdi) => {
+            //         metadata
+            //             .metadata_registration
+            //             .type_definition_sizes
+            //             .get(tdi as usize)
+            //             .unwrap()
+            //             .instance_size as usize
+            //     }
+            //     TypeData::TypeIndex(_) => todo!(),
+            //     TypeData::GenericParameterIndex(_) => todo!(),
+            //     TypeData::GenericClassIndex(_) => todo!(),
+            //     TypeData::ArrayType => todo!(),
+            // },
             TypeEnum::String => 0,
             _ => {
                 println!("Invalid type {:?}", ty);
@@ -471,10 +472,10 @@ pub trait CSType: Sized {
 
     fn default_value(metadata: &Metadata, ty: TypeEnum, size: usize, data_index: usize) -> String {
         let data = if size == 0 {
-            &metadata.metadata.field_and_parameter_default_value_data[data_index as usize..]
+            &metadata.metadata.field_and_parameter_default_value_data[data_index..]
         } else {
             &metadata.metadata.field_and_parameter_default_value_data
-                [data_index as usize..data_index as usize + size]
+                [data_index..data_index + size]
         };
 
         let mut cursor = Cursor::new(data);

@@ -180,6 +180,7 @@ pub struct CppParam {
     // &
     // &&
     pub modifiers: String,
+    pub def_value: Option<String>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -248,65 +249,6 @@ pub struct CppProperty {
     pub instance: bool,
     pub classof_call: String,
 }
-
-impl CppField {
-    pub fn make() -> CppField {
-        CppField {
-            name: todo!(),
-            ty: todo!(),
-            offset: todo!(),
-            instance: todo!(),
-            readonly: todo!(),
-            classof_call: todo!(),
-            literal_value: todo!(),
-        }
-    }
-}
-
-impl CppMethodDecl {
-    pub fn make() -> CppMethodDecl {
-        CppMethodDecl {
-            cpp_name: todo!(),
-            return_type: todo!(),
-            parameters: todo!(),
-            instance: todo!(),
-            suffix_modifiers: todo!(),
-            prefix_modifiers: todo!(),
-            method_data: todo!(),
-            is_virtual: todo!(),
-        }
-    }
-}
-impl CppMethodImpl {
-    pub fn make() -> CppMethodImpl {
-        CppMethodImpl {
-            cpp_name: todo!(),
-            return_type: todo!(),
-            parameters: todo!(),
-            instance: todo!(),
-            suffix_modifiers: todo!(),
-            prefix_modifiers: todo!(),
-            name: todo!(),
-            holder_namespaze: todo!(),
-            holder_name: todo!(),
-        }
-    }
-}
-
-impl CppProperty {
-    pub fn make() -> CppProperty {
-        CppProperty {
-            name: todo!(),
-            ty: todo!(),
-            setter: todo!(),
-            getter: todo!(),
-            abstr: todo!(),
-            instance: todo!(),
-            classof_call: todo!(),
-        }
-    }
-}
-
 // Writing
 
 impl Writable for CppField {
@@ -368,7 +310,10 @@ impl Writable for CppMethodDecl {
             self.cpp_name,
             self.parameters
                 .iter()
-                .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
+                .map(|p| match &p.def_value {
+                    Some(val) => format!("{}{} {} = {val}", p.ty, p.modifiers, p.name),
+                    None => format!("{}{} {}", p.ty, p.modifiers, p.name),
+                })
                 .join(", ")
         )?;
 
