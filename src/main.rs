@@ -12,6 +12,8 @@ use std::{fs, time};
 
 use clap::{Parser, Subcommand};
 use il2cpp_binary::{Elf, TypeData};
+
+use crate::generate::members::CppMember;
 mod generate;
 
 #[derive(Parser)]
@@ -103,6 +105,25 @@ fn main() -> color_eyre::Result<()> {
                 .iter()
                 .any(|(_, t)| !t.generic_args.names.is_empty())
         })
+        .unwrap()
+        .1
+        .write()?;
+    println!("Default param");
+    cpp_context_collection
+        .get()
+        .iter()
+        .filter(|(_, c)| {
+            c.get_types().iter().any(|(_, t)| {
+                t.declarations.iter().any(|d| {
+                    if let CppMember::MethodDecl(m) = d {
+                        m.parameters.iter().any(|p| p.def_value.is_some())
+                    } else {
+                        false
+                    }
+                })
+            })
+        })
+        .nth(2)
         .unwrap()
         .1
         .write()?;

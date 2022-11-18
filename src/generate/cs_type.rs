@@ -7,6 +7,8 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use il2cpp_binary::{Type, TypeData, TypeEnum};
 use il2cpp_metadata_raw::{Il2CppGenericParameter, TypeDefinitionIndex};
 
+use crate::generate::cpp_type;
+
 use super::{
     config::GenerationConfig,
     constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions},
@@ -155,7 +157,6 @@ pub trait CSType: Sized {
                 }));
             // Then, for each method, write it out
             for i in 0..t.method_count {
-                // TODO: Get method size
                 let method = metadata
                     .metadata
                     .methods
@@ -196,7 +197,7 @@ pub trait CSType: Sized {
                         false,
                     );
 
-                    let def_value = None; //Self::param_default_value(metadata, param_index as u32);
+                    let def_value = Self::param_default_value(metadata, param_index as u32);
 
                     m_params.push(CppParam {
                         name: metadata
@@ -470,12 +471,16 @@ pub trait CSType: Sized {
         }
     }
 
-    fn default_value(metadata: &Metadata, ty: TypeEnum, size: usize, data_index: usize) -> String {
+    fn default_value_blob(
+        metadata: &Metadata,
+        ty: TypeEnum,
+        size: usize,
+        data_index: usize,
+    ) -> String {
         let data = if size == 0 {
             &metadata.metadata.field_and_parameter_default_value_data[data_index..]
         } else {
-            &metadata.metadata.field_and_parameter_default_value_data
-                [data_index..data_index + size]
+            &metadata.metadata.field_and_parameter_default_value_data[data_index..data_index + size]
         };
 
         let mut cursor = Cursor::new(data);
@@ -528,7 +533,7 @@ pub trait CSType: Sized {
                     .unwrap();
                 let size = Self::ty_size(ty, metadata);
 
-                Self::default_value(metadata, ty.ty, size, def.data_index as usize)
+                Self::default_value_blob(metadata, ty.ty, size, def.data_index as usize)
             })
     }
     fn param_default_value(metadata: &Metadata, parameter_index: u32) -> Option<String> {
@@ -538,14 +543,44 @@ pub trait CSType: Sized {
             .iter()
             .find(|p| p.parameter_index == parameter_index)
             .map(|def| {
-                let ty = metadata
+                let mut ty = metadata
                     .metadata_registration
                     .types
                     .get(def.type_index as usize)
                     .unwrap();
                 let size = Self::ty_size(ty, metadata);
 
-                Self::default_value(metadata, ty.ty, size, def.data_index as usize)
+                if def.data_index as i64 == -1 || def.data_index == u32::MAX {
+                    return "nullptr".to_string();
+                }
+
+                if let TypeEnum::Valuetype = ty.ty {
+                    match ty.data {
+                        TypeData::TypeDefinitionIndex(tdi) => {
+                            let type_def = metadata
+                                .metadata
+                                .type_definitions
+                                .get(tdi as usize)
+                                .unwrap();
+
+                            // System.Nullable`1
+                            if metadata.metadata.get_str(type_def.name_index).unwrap()
+                                == "Nullable`1"
+                                && metadata.metadata.get_str(type_def.namespace_index).unwrap()
+                                    == "System"
+                            {
+                                ty = metadata
+                                    .metadata_registration
+                                    .types
+                                    .get(type_def.byval_type_index as usize)
+                                    .unwrap();
+                            }
+                        }
+                        _ => todo!(),
+                    }
+                }
+
+                Self::default_value_blob(metadata, ty.ty, size, def.data_index as usize)
             })
     }
 
