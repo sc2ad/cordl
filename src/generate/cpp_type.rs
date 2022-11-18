@@ -1,8 +1,8 @@
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::{
     collections::HashSet,
     intrinsics::size_of,
-    io::{Cursor, Write},
+    io::{Cursor, Read, Write},
 };
 
 use color_eyre::eyre::Context;
@@ -467,23 +467,18 @@ fn make_fields(
                 metadata
                     .metadata
                     .field_default_values
-                    .get(field_index)
+                    .iter()
+                    .find(|f| f.field_index == field_index as u32)
                     .map(|def| {
                         let ty = metadata
                             .metadata_registration
                             .types
-                            .get(field.type_index as usize)
+                            .get(def.type_index as usize)
                             .unwrap();
                         let size = match ty.ty {
-                            TypeEnum::String => *metadata
-                                .metadata
-                                .string_literal_data
-                                .get(def.data_index as usize)
-                                .unwrap() as usize,
-
                             TypeEnum::I1 => size_of::<i8>(),
                             TypeEnum::I2 => size_of::<i16>(),
-                            TypeEnum::I4 => size_of::<i32>(),
+                            TypeEnum::Valuetype | TypeEnum::I4 => size_of::<i32>(),
                             // TODO: We assume 64 bit
                             TypeEnum::I | TypeEnum::I8 => size_of::<i64>(),
                             TypeEnum::U1 => size_of::<u8>(),
@@ -499,73 +494,80 @@ fn make_fields(
                             TypeEnum::Boolean => size_of::<bool>(),
                             TypeEnum::Char => size_of::<char>() * 2,
 
-                            TypeEnum::Valuetype | TypeEnum::Szarray | TypeEnum::Class => {
-                                match ty.data {
-                                    TypeData::TypeDefinitionIndex(tdi) => {
-                                        metadata
-                                            .metadata_registration
-                                            .type_definition_sizes
-                                            .get(tdi as usize)
-                                            .unwrap()
-                                            .instance_size
-                                            as usize
-                                    }
-                                    TypeData::TypeIndex(_) => todo!(),
-                                    TypeData::GenericParameterIndex(_) => todo!(),
-                                    TypeData::GenericClassIndex(_) => todo!(),
-                                    TypeData::ArrayType => todo!(),
+                            /* TODO: TypeEnum::Genericinst | */
+                            TypeEnum::Object | TypeEnum::Class => match ty.data {
+                                TypeData::TypeDefinitionIndex(tdi) => {
+                                    metadata
+                                        .metadata_registration
+                                        .type_definition_sizes
+                                        .get(tdi as usize)
+                                        .unwrap()
+                                        .instance_size as usize
                                 }
-                            }
-
-                            // Figure out
-                            // TypeEnum::Ptr => 8,
-                            // TypeEnum::Valuetype => 4, // TODO:
-                            // TypeEnum::Class => 4,
-                            // TypeEnum::Szarray => 4, // TODO:
+                                TypeData::TypeIndex(_) => todo!(),
+                                TypeData::GenericParameterIndex(_) => todo!(),
+                                TypeData::GenericClassIndex(_) => todo!(),
+                                TypeData::ArrayType => todo!(),
+                            },
+                            TypeEnum::String => 0,
                             _ => {
-                                // println!("Invalid type {:?}", ty);
-                                4
+                                println!("Invalid type {:?}", ty);
+                                0
                             }
                         };
 
-                        let data = &metadata.metadata.field_and_parameter_default_value_data
-                            [def.data_index as usize..def.data_index as usize + size];
+                        let data = if size == 0 {
+                            &metadata.metadata.field_and_parameter_default_value_data
+                                [def.data_index as usize..]
+                        } else {
+                            &metadata.metadata.field_and_parameter_default_value_data
+                                [def.data_index as usize..def.data_index as usize + size]
+                        };
 
                         let mut cursor = Cursor::new(data);
+
+                        type Endian = LittleEndian;
 
                         match ty.ty {
                             TypeEnum::Boolean => {
                                 (if data[0] != 0 { "false" } else { "true" }).to_string()
                             }
                             TypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
-                            TypeEnum::I2 => cursor.read_i16::<BigEndian>().unwrap().to_string(),
-                            TypeEnum::I4 => cursor.read_i32::<BigEndian>().unwrap().to_string(),
+                            TypeEnum::I2 => cursor.read_i16::<Endian>().unwrap().to_string(),
+                            TypeEnum::Valuetype | TypeEnum::I4 => {
+                                cursor.read_i32::<Endian>().unwrap().to_string()
+                            }
                             // TODO: We assume 64 bit
                             TypeEnum::I | TypeEnum::I8 => {
-                                cursor.read_i64::<BigEndian>().unwrap().to_string()
+                                cursor.read_i64::<Endian>().unwrap().to_string()
                             }
                             TypeEnum::U1 => cursor.read_u8().unwrap().to_string(),
-                            TypeEnum::U2 => cursor.read_u16::<BigEndian>().unwrap().to_string(),
-                            TypeEnum::U4 => cursor.read_u32::<BigEndian>().unwrap().to_string(),
+                            TypeEnum::U2 => cursor.read_u16::<Endian>().unwrap().to_string(),
+                            TypeEnum::U4 => cursor.read_u32::<Endian>().unwrap().to_string(),
                             // TODO: We assume 64 bit
                             TypeEnum::U | TypeEnum::U8 => {
-                                cursor.read_u64::<BigEndian>().unwrap().to_string()
+                                cursor.read_u64::<Endian>().unwrap().to_string()
                             }
 
                             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
                             // https://en.cppreference.com/w/cpp/types/floating-point
-                            TypeEnum::R4 => cursor.read_f32::<BigEndian>().unwrap().to_string(),
-                            TypeEnum::R8 => cursor.read_f64::<BigEndian>().unwrap().to_string(),
+                            TypeEnum::R4 => cursor.read_f32::<Endian>().unwrap().to_string(),
+                            TypeEnum::R8 => cursor.read_f64::<Endian>().unwrap().to_string(),
                             TypeEnum::Char => {
-                                String::from_utf16_lossy(&[cursor.read_u16::<BigEndian>().unwrap()])
+                                String::from_utf16_lossy(&[cursor.read_u16::<Endian>().unwrap()])
                             }
-                            TypeEnum::String | TypeEnum::Valuetype => {
-                                let (chunks, _remainder) = data.as_chunks::<2>();
-
-                                String::from_utf16_lossy(
-                                    &chunks.iter().map(|e| u16::from_be_bytes(*e)).collect_vec(),
-                                )
+                            TypeEnum::String => {
+                                let size = cursor.read_u32::<Endian>().unwrap();
+                                let mut str = String::with_capacity(size as usize);
+                                unsafe {
+                                    cursor.read_exact(str.as_bytes_mut()).unwrap();
+                                }
+                                str
                             }
+                            TypeEnum::Genericinst
+                            | TypeEnum::Object
+                            | TypeEnum::Class
+                            | TypeEnum::Szarray => "nullptr".to_string(),
 
                             _ => "unknown".to_string(),
                         }
