@@ -1,6 +1,7 @@
 #![feature(entry_insert)]
 #![feature(let_chains)]
 #![feature(core_intrinsics)]
+#![feature(slice_as_chunks)]
 
 use generate::config::GenerationConfig;
 use generate::context::{CppContextCollection, TypeTag};

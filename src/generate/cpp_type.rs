@@ -474,7 +474,7 @@ fn make_fields(
                             .types
                             .get(field.type_index as usize)
                             .unwrap();
-                        let _size = match ty.ty {
+                        let size = match ty.ty {
                             TypeEnum::String => *metadata
                                 .metadata
                                 .string_literal_data
@@ -499,6 +499,24 @@ fn make_fields(
                             TypeEnum::Boolean => size_of::<bool>(),
                             TypeEnum::Char => size_of::<char>() * 2,
 
+                            TypeEnum::Valuetype | TypeEnum::Szarray | TypeEnum::Class => {
+                                match ty.data {
+                                    TypeData::TypeDefinitionIndex(tdi) => {
+                                        metadata
+                                            .metadata_registration
+                                            .type_definition_sizes
+                                            .get(tdi as usize)
+                                            .unwrap()
+                                            .instance_size
+                                            as usize
+                                    }
+                                    TypeData::TypeIndex(_) => todo!(),
+                                    TypeData::GenericParameterIndex(_) => todo!(),
+                                    TypeData::GenericClassIndex(_) => todo!(),
+                                    TypeData::ArrayType => todo!(),
+                                }
+                            }
+
                             // Figure out
                             // TypeEnum::Ptr => 8,
                             // TypeEnum::Valuetype => 4, // TODO:
@@ -510,9 +528,10 @@ fn make_fields(
                             }
                         };
 
-                        let data = &metadata.metadata.field_and_parameter_default_value_data;
+                        let data = &metadata.metadata.field_and_parameter_default_value_data
+                            [def.data_index as usize..def.data_index as usize + size];
+
                         let mut cursor = Cursor::new(data);
-                        cursor.set_position(def.data_index as u64);
 
                         match ty.ty {
                             TypeEnum::Boolean => {
@@ -540,13 +559,13 @@ fn make_fields(
                             TypeEnum::Char => {
                                 String::from_utf16_lossy(&[cursor.read_u16::<BigEndian>().unwrap()])
                             }
-                            TypeEnum::String => String::from_utf16_lossy(
-                                &data
-                                    .chunks(2)
-                                    .into_iter()
-                                    .map(|e| u16::from_be_bytes(e.try_into().unwrap()))
-                                    .collect_vec(),
-                            ),
+                            TypeEnum::String | TypeEnum::Valuetype => {
+                                let (chunks, _remainder) = data.as_chunks::<2>();
+
+                                String::from_utf16_lossy(
+                                    &chunks.iter().map(|e| u16::from_be_bytes(*e)).collect_vec(),
+                                )
+                            }
 
                             _ => "unknown".to_string(),
                         }
