@@ -148,36 +148,36 @@ pub trait CSType: Sized {
         let cpp_type = self.get_mut_cpp_type();
         let t = Self::get_type_definition(metadata, tdi);
 
-        let mut fields: Vec<CppParam> = Vec::with_capacity(t.field_count as usize);
-        for field_index in t.field_start..t.field_start + t.field_count as u32 {
-            let field = metadata.metadata.fields.get(field_index as usize).unwrap();
-            let f_type = metadata
-                .metadata_registration
-                .types
-                .get(field.type_index as usize)
-                .unwrap();
-
-            let cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, f_type, false);
-
-            fields.push(CppParam {
-                name: metadata
-                    .metadata
-                    .get_str(field.name_index)
-                    .unwrap()
-                    .to_owned(),
-                ty: cpp_name,
-                modifiers: "".to_string(),
-                def_value: Some("{}".to_string()),
-            })
-        }
+        // default ctor
         if t.is_value_type() {
+            let mut fields: Vec<CppParam> = Vec::with_capacity(t.field_count as usize);
+            for field_index in t.field_start..t.field_start + t.field_count as u32 {
+                let field = metadata.metadata.fields.get(field_index as usize).unwrap();
+                let f_type = metadata
+                    .metadata_registration
+                    .types
+                    .get(field.type_index as usize)
+                    .unwrap();
+
+                let cpp_name =
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, f_type, false);
+
+                fields.push(CppParam {
+                    name: metadata
+                        .metadata
+                        .get_str(field.name_index)
+                        .unwrap()
+                        .to_owned(),
+                    ty: cpp_name,
+                    modifiers: "".to_string(),
+                    def_value: Some("{}".to_string()),
+                });
+            }
             cpp_type
                 .declarations
                 .push(CppMember::ConstructorImpl(CppConstructorImpl {
                     holder_cpp_ty: cpp_type.formatted_complete_cpp_name(),
                     parameters: fields.clone(),
-                    is_value: true,
                     is_constexpr: true,
                 }));
         }
@@ -265,16 +265,12 @@ pub trait CSType: Sized {
                     .get(&(t.method_start + i as u32))
                     .unwrap();
 
-                if m_name == ".ctor"
-                    && m_params.iter().map(|p| &p.ty).collect_vec()
-                        != fields.iter().map(|p| &p.ty).collect_vec()
-                {
+                if m_name == ".ctor" && !t.is_value_type() {
                     cpp_type
                         .implementations
                         .push(CppMember::ConstructorImpl(CppConstructorImpl {
                             holder_cpp_ty: cpp_type.formatted_complete_cpp_name(),
                             parameters: m_params.clone(),
-                            is_value: t.is_value_type(),
                             is_constexpr: false,
                         }));
                     cpp_type

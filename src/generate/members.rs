@@ -246,7 +246,6 @@ pub struct CppConstructorImpl {
     pub holder_cpp_ty: String,
 
     pub parameters: Vec<CppParam>,
-    pub is_value: bool,
     pub is_constexpr: bool,
 }
 
@@ -394,22 +393,17 @@ impl Writable for CppConstructorImpl {
             )?;
         }
 
-        if self.is_value {
-            if self.is_constexpr {
-                // Constexpr constructor
-                writeln!(
-                    writer,
-                    " : {} {{",
-                    self.parameters
-                        .iter()
-                        .map(|p| format!("{}({})", &p.name, &p.name))
-                        .collect_vec()
-                        .join(",")
-                )?;
-            } else {
-                // Call base constructor
-                writeln!(writer, "{{")?;
-            }
+        if self.is_constexpr {
+            // Constexpr constructor
+            writeln!(
+                writer,
+                " : {} {{",
+                self.parameters
+                    .iter()
+                    .map(|p| format!("{}({})", &p.name, &p.name))
+                    .collect_vec()
+                    .join(",")
+            )?;
         } else {
             // Call base constructor
             writeln!(
