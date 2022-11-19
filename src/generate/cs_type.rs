@@ -6,6 +6,7 @@ use std::{
 use byteorder::{LittleEndian, ReadBytesExt};
 use il2cpp_binary::{Type, TypeData, TypeEnum};
 use il2cpp_metadata_raw::{Il2CppGenericParameter, TypeDefinitionIndex};
+use itertools::Itertools;
 
 use crate::generate::cpp_type;
 
@@ -15,8 +16,9 @@ use super::{
     context::{CppContextCollection, TypeTag},
     cpp_type::CppType,
     members::{
-        CppCommentedString, CppField, CppForwardDeclare, CppInclude, CppMember, CppMethodData,
-        CppMethodDecl, CppMethodImpl, CppMethodSizeStruct, CppParam, CppProperty, CppTemplate,
+        CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppField, CppForwardDeclare,
+        CppInclude, CppMember, CppMethodData, CppMethodDecl, CppMethodImpl, CppMethodSizeStruct,
+        CppParam, CppProperty, CppTemplate,
     },
     metadata::Metadata,
 };
@@ -146,6 +148,40 @@ pub trait CSType: Sized {
         let cpp_type = self.get_mut_cpp_type();
         let t = Self::get_type_definition(metadata, tdi);
 
+        let mut fields: Vec<CppParam> = Vec::with_capacity(t.field_count as usize);
+        for field_index in t.field_start..t.field_start + t.field_count as u32 {
+            let field = metadata.metadata.fields.get(field_index as usize).unwrap();
+            let f_type = metadata
+                .metadata_registration
+                .types
+                .get(field.type_index as usize)
+                .unwrap();
+
+            let cpp_name =
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, f_type, false);
+
+            fields.push(CppParam {
+                name: metadata
+                    .metadata
+                    .get_str(field.name_index)
+                    .unwrap()
+                    .to_owned(),
+                ty: cpp_name,
+                modifiers: "".to_string(),
+                def_value: Some("{}".to_string()),
+            })
+        }
+        if t.is_value_type() {
+            cpp_type
+                .declarations
+                .push(CppMember::ConstructorImpl(CppConstructorImpl {
+                    holder_cpp_ty: cpp_type.formatted_complete_cpp_name(),
+                    parameters: fields.clone(),
+                    is_value: true,
+                    is_constexpr: true,
+                }));
+        }
+
         // Then, handle methods
         if t.method_count > 0 {
             // Write comment for methods
@@ -229,6 +265,26 @@ pub trait CSType: Sized {
                     .get(&(t.method_start + i as u32))
                     .unwrap();
 
+                if m_name == ".ctor"
+                    && m_params.iter().map(|p| &p.ty).collect_vec()
+                        != fields.iter().map(|p| &p.ty).collect_vec()
+                {
+                    cpp_type
+                        .implementations
+                        .push(CppMember::ConstructorImpl(CppConstructorImpl {
+                            holder_cpp_ty: cpp_type.formatted_complete_cpp_name(),
+                            parameters: m_params.clone(),
+                            is_value: t.is_value_type(),
+                            is_constexpr: false,
+                        }));
+                    cpp_type
+                        .declarations
+                        .push(CppMember::ConstructorDecl(CppConstructorDecl {
+                            ty: cpp_type.formatted_complete_cpp_name(),
+                            parameters: m_params.clone(),
+                        }));
+                }
+
                 cpp_type
                     .implementations
                     .push(CppMember::MethodImpl(CppMethodImpl {
@@ -240,19 +296,20 @@ pub trait CSType: Sized {
                         prefix_modifiers: Default::default(),
                         suffix_modifiers: Default::default(),
                         holder_namespaze: cpp_type.namespace().clone(),
-                        holder_name: cpp_type.name().clone(),
+                        holder_cpp_name: cpp_type.cpp_name().clone(),
                     }));
                 cpp_type
                     .implementations
                     .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
+                        ret_ty: m_ret_cpp_type_name.clone(),
                         cpp_name: config.name_cpp(m_name),
+                        ty: cpp_type.formatted_complete_cpp_name(),
                         instance: true,
+                        params: m_params.clone(),
                         method_data: CppMethodData {
                             addrs: method_calc.addrs,
                             estimated_size: method_calc.estimated_size,
                         },
-                        ty: cpp_type.formatted_complete_cpp_name(),
-                        params: m_params.clone(),
                     }));
                 cpp_type
                     .declarations

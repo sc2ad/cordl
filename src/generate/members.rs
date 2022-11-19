@@ -140,7 +140,8 @@ pub enum CppMember {
     Property(CppProperty),
     Comment(CppCommentedString),
     MethodSizeStruct(CppMethodSizeStruct), // TODO: Or a nested type
-    Constructor(CppConstructor),
+    ConstructorDecl(CppConstructorDecl),
+    ConstructorImpl(CppConstructorImpl),
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -153,6 +154,7 @@ pub struct CppMethodData {
 pub struct CppMethodSizeStruct {
     pub cpp_name: String,
     pub ty: String,
+    pub ret_ty: String,
     pub instance: bool,
     pub params: Vec<CppParam>,
     pub method_data: CppMethodData,
@@ -183,6 +185,7 @@ pub struct CppParam {
     pub def_value: Option<String>,
 }
 
+// TODO: Generics
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethodDecl {
     pub cpp_name: String,
@@ -207,20 +210,13 @@ pub struct CppMethodDecl {
     pub is_virtual: bool,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CppConstructor {
-    pub ty: String,
-    pub parameters: Vec<CppParam>,
-    // TODO: Add all descriptions missing for the method
-    pub method_data: CppMethodData,
-}
-
+// TODO: Generic
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethodImpl {
     pub cpp_name: String,
     pub name: String,
     pub holder_namespaze: String,
-    pub holder_name: String,
+    pub holder_cpp_name: String,
     pub return_type: String,
     pub parameters: Vec<CppParam>,
     pub instance: bool,
@@ -239,6 +235,21 @@ pub struct CppMethodImpl {
     pub prefix_modifiers: String,
 }
 
+// TODO: Generics
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CppConstructorDecl {
+    pub ty: String,
+    pub parameters: Vec<CppParam>,
+}
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CppConstructorImpl {
+    pub holder_cpp_ty: String,
+
+    pub parameters: Vec<CppParam>,
+    pub is_value: bool,
+    pub is_constexpr: bool,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppProperty {
     pub name: String,
@@ -250,6 +261,37 @@ pub struct CppProperty {
     pub classof_call: String,
 }
 // Writing
+
+impl CppParam {
+    fn params_as_args(params: &[CppParam]) -> String {
+        params
+            .iter()
+            .map(|p| match &p.def_value {
+                Some(val) => format!("{}{} {} = {val}", p.ty, p.modifiers, p.name),
+                None => format!("{}{} {}", p.ty, p.modifiers, p.name),
+            })
+            .join(", ")
+    }
+    fn params_as_args_no_default(params: &[CppParam]) -> String {
+        params
+            .iter()
+            .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
+            .join(", ")
+    }
+    fn params_names(params: &[CppParam]) -> String {
+        params.iter().map(|p| &p.name).join(", ")
+    }
+    fn params_types(params: &[CppParam]) -> String {
+        params.iter().map(|p| &p.ty).join(", ")
+    }
+
+    fn params_il2cpp_types(params: &[CppParam]) -> String {
+        params
+            .iter()
+            .map(|p| format!("::il2cpp_utils::ExtractType({})", p.name))
+            .join(", ")
+    }
+}
 
 impl Writable for CppField {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -308,46 +350,77 @@ impl Writable for CppMethodDecl {
             "{} {}({});",
             self.return_type,
             self.cpp_name,
-            self.parameters
-                .iter()
-                .map(|p| match &p.def_value {
-                    Some(val) => format!("{}{} {} = {val}", p.ty, p.modifiers, p.name),
-                    None => format!("{}{} {}", p.ty, p.modifiers, p.name),
-                })
-                .join(", ")
+            CppParam::params_as_args(&self.parameters)
         )?;
 
         Ok(())
     }
 }
-impl Writable for CppConstructor {
+
+impl Writable for CppConstructorDecl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        writeln!(
-            writer,
-            "// Ctor Parameters: {:?} Addr {:x} Size {:x}",
-            self.parameters, self.method_data.addrs, self.method_data.estimated_size
-        )?;
-
-        writeln!(writer, "template<::il2cpp_utils::CreationType creationType = ::il2cpp_utils::CreationType::Temporary>")?;
+        writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
 
         writeln!(
             writer,
-            "inline {}({}) {{",
+            "{}({});",
             self.ty,
-            self.parameters
-                .iter()
-                .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
-                .join(", ")
+            CppParam::params_as_args(&self.parameters)
         )?;
+        Ok(())
+    }
+}
+impl Writable for CppConstructorImpl {
+    // declaration
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
 
-        // TODO: Call base constructor and allocate
-        writeln!(
+        // Constructor
+        if self.is_constexpr {
+            // TODO:
+            write!(
+                writer,
+                "inline {}({})",
+                self.holder_cpp_ty,
+                CppParam::params_as_args(&self.parameters)
+            )?;
+        } else {
+            write!(
+                writer,
+                "{}({})",
+                self.holder_cpp_ty,
+                CppParam::params_as_args_no_default(&self.parameters)
+            )?;
+        }
+
+        if self.is_value {
+            if self.is_constexpr {
+                // Constexpr constructor
+                writeln!(
+                    writer,
+                    " : {} {{",
+                    self.parameters
+                        .iter()
+                        .map(|p| format!("{}({})", &p.name, &p.name))
+                        .collect_vec()
+                        .join(",")
+                )?;
+            } else {
+                // Call base constructor
+                writeln!(writer, "{{")?;
+            }
+        } else {
+            // Call base constructor
+            writeln!(
             writer,
-            "this->_ctor({});",
-            self.parameters.iter().map(|p| &p.name).join(", ")
+            " : ::bs_hook::Il2CppWrapperType(::il2cpp_utils::New<Il2CppObject*>(classof({}), {})) {{",
+            self.holder_cpp_ty,
+            CppParam::params_names(&self.parameters)
         )?;
+        }
 
+        // End
         writeln!(writer, "}}")?;
 
         Ok(())
@@ -366,12 +439,9 @@ impl Writable for CppMethodImpl {
             "{} {}::{}::{}({}){{",
             self.return_type,
             self.holder_namespaze,
-            self.holder_name,
+            self.holder_cpp_name,
             self.cpp_name,
-            self.parameters
-                .iter()
-                .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
-                .join(",")
+            CppParam::params_as_args_no_default(&self.parameters)
         )?;
 
         //   static auto ___internal__logger = ::Logger::get().WithContext("::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals");
@@ -381,11 +451,7 @@ impl Writable for CppMethodImpl {
         // Body
         writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}));", 
             self.name,
-            self
-            .parameters
-            .iter()
-            .map(|p| format!("::il2cpp_utils::ExtractType({})", p.name))
-            .join(", ")
+            CppParam::params_il2cpp_types(&self.parameters)
         )?;
 
         write!(
@@ -394,7 +460,7 @@ impl Writable for CppMethodImpl {
             self.return_type
         )?;
 
-        let param_names = self.parameters.iter().map(|p| &p.name).join(",");
+        let param_names = CppParam::params_names(&self.parameters);
 
         if !param_names.is_empty() {
             write!(writer, ", {}", param_names)?;
@@ -458,16 +524,11 @@ impl Writable for CppMethodSizeStruct {
             "//  Writing Method size for method: {}.{}",
             self.ty, self.cpp_name
         )?;
-        let params_format = self
-            .params
-            .iter()
-            .map(|p| format!("{} {}", p.ty, p.name))
-            .collect::<Vec<_>>()
-            .join(",");
+        let params_format = CppParam::params_types(&self.params);
         writeln!(
             writer,
             "template<>
-struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<void ({}::*)({})>(&{}::{})> {{
+struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({}::*)({params_format})>(&{}::{})> {{
   constexpr static const usize size() {{
     return 0x{:x};
   }}
@@ -475,8 +536,8 @@ struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<void ({}::*
     return 0x{:x};
   }}
 }};",
+            self.ret_ty,
             self.ty,
-            params_format,
             self.ty,
             self.cpp_name,
             self.method_data.estimated_size,
@@ -495,7 +556,8 @@ impl Writable for CppMember {
             CppMember::Comment(c) => c.write(writer),
             CppMember::MethodSizeStruct(s) => s.write(writer),
             CppMember::MethodImpl(i) => i.write(writer),
-            CppMember::Constructor(c) => c.write(writer),
+            CppMember::ConstructorDecl(c) => c.write(writer),
+            CppMember::ConstructorImpl(ci) => ci.write(writer),
         }
     }
 }
