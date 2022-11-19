@@ -42,7 +42,7 @@ pub struct CppForwardDeclare {
 impl CppForwardDeclare {
     pub fn from_cpp_type(cpp_type: &CppType) -> Self {
         Self {
-            is_struct: cpp_type.is_struct,
+            is_struct: cpp_type.is_value_type,
             namespace: Some(cpp_type.cpp_namespace().to_string()),
             name: cpp_type.name().clone(),
             templates: cpp_type.generic_args.clone(),
@@ -168,6 +168,7 @@ pub struct CppField {
     pub readonly: bool,
     pub classof_call: String,
     pub literal_value: Option<String>,
+    pub use_wrapper: bool,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -300,29 +301,43 @@ impl Writable for CppField {
             self.name, self.ty, self.offset
         )?;
 
-        if let Some(literal) = &self.literal_value {
-            writeln!(writer, "constexpr {} {} = {literal};", self.ty, self.name)?;
-        }
-
         let cpp_name = if self.literal_value.is_some() {
             format!("_{}", &self.name)
         } else {
             self.name.to_string()
         };
 
-        if self.instance {
-            writeln!(
+        match self.use_wrapper {
+            // no wrapper
+            false => writeln!(
                 writer,
-                "::bs_hook::InstanceField<{}, 0x{:x},{}> {cpp_name};",
-                self.ty, self.offset, !self.readonly
-            )?;
-        } else {
-            writeln!(
-                writer,
-                "static inline ::bs_hook::StaticField<{},\"{}\",{},{}> {cpp_name};",
-                self.ty, self.name, !self.readonly, self.classof_call
-            )?;
+                "{}{} {} = {}",
+                if self.instance { "" } else { "static " },
+                self.ty,
+                self.name,
+                self.literal_value.as_ref().unwrap_or(&"{}".to_string())
+            )?,
+            // wrapper
+            true => {
+                if let Some(literal) = &self.literal_value {
+                    writeln!(writer, "constexpr {} {} = {literal};", self.ty, self.name)?;
+                }
+                if self.instance {
+                    writeln!(
+                        writer,
+                        "::bs_hook::InstanceField<{}, 0x{:x},{}> {cpp_name};",
+                        self.ty, self.offset, !self.readonly
+                    )?;
+                } else {
+                    writeln!(
+                        writer,
+                        "static inline ::bs_hook::StaticField<{},\"{}\",{},{}> {cpp_name};",
+                        self.ty, self.name, !self.readonly, self.classof_call
+                    )?;
+                }
+            }
         }
+
         Ok(())
     }
 }
@@ -488,8 +503,8 @@ impl Writable for CppProperty {
             writeln!(
                 writer,
                 "::bs_hook::InstanceProperty<{},\"{}\",{},{}> {};",
-                self.name,
                 self.ty,
+                self.name,
                 self.getter.is_some(),
                 self.setter.is_some(),
                 self.name

@@ -101,7 +101,7 @@ pub trait CSType: Sized {
             inherit: Default::default(),
             generic_args: cpp_template,
             requirements: Default::default(),
-            is_struct: t.is_value_type(),
+            is_value_type: t.is_value_type(),
             implementations: Default::default(),
             self_tdi: tdi,
             cpp_namespace: config.namespace_cpp(ns),
@@ -132,10 +132,10 @@ pub trait CSType: Sized {
         ctx_collection: &mut CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
-        self.make_methods(metadata, config, ctx_collection, tdi);
+        self.make_parents(metadata, config, ctx_collection, tdi);
         self.make_fields(metadata, config, ctx_collection, tdi);
         self.make_properties(metadata, config, ctx_collection, tdi);
-        self.make_parents(metadata, config, ctx_collection, tdi);
+        self.make_methods(metadata, config, ctx_collection, tdi);
     }
 
     fn make_methods(
@@ -379,6 +379,7 @@ pub trait CSType: Sized {
                     readonly: f_type.is_const(),
                     classof_call: cpp_type.classof_call(),
                     literal_value: def_value,
+                    use_wrapper: !t.is_value_type(),
                 }));
             }
         }
@@ -445,17 +446,37 @@ pub trait CSType: Sized {
                     .get((t.property_start + i as u32) as usize)
                     .unwrap();
                 let p_name = metadata.metadata.get_str(prop.name_index).unwrap();
-                let p_setter = metadata.metadata.methods.get(prop.set as usize);
+                let p_setter = if prop.set != u32::MAX {
+                    metadata.metadata.methods.get((t.method_start + prop.set) as usize)
+                } else {
+                    None
+                };
 
-                let p_getter = metadata.metadata.methods.get(prop.get as usize);
+                let p_getter = if prop.get != u32::MAX {
+                    metadata.metadata.methods.get((t.method_start + prop.get) as usize)
+                } else {
+                    None
+                };
+
+                let p_type_index = match p_getter {
+                    Some(g) => g.return_type as usize,
+                    None => {
+                        metadata
+                            .metadata
+                            .parameters
+                            .get(p_setter.unwrap().parameter_start as usize)
+                            .unwrap()
+                            .type_index as usize
+                    }
+                };
 
                 let p_type = metadata
                     .metadata_registration
                     .types
-                    .get(p_getter.or(p_setter).unwrap().return_type as usize)
+                    .get(p_type_index)
                     .unwrap();
 
-                let cpp_name =
+                let p_cpp_name =
                     cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, p_type, false);
 
                 let method_map = |p: u32| {
@@ -469,7 +490,7 @@ pub trait CSType: Sized {
                 // Need to include this type
                 cpp_type.declarations.push(CppMember::Property(CppProperty {
                     name: p_name.to_owned(),
-                    ty: cpp_name.clone(),
+                    ty: p_cpp_name.clone(),
                     classof_call: cpp_type.classof_call(),
                     setter: p_setter.map(|_| method_map(prop.set)),
                     getter: p_getter.map(|_| method_map(prop.get)),

@@ -33,7 +33,7 @@ pub struct CppType {
     pub declarations: Vec<CppMember>,
     pub implementations: Vec<CppMember>,
 
-    pub is_struct: bool,
+    pub is_value_type: bool,
     pub requirements: CppTypeRequirements,
 
     pub inherit: Vec<String>,
@@ -116,7 +116,7 @@ impl CppType {
 
         // Write type definition
         self.generic_args.write(writer)?;
-        writeln!(writer, "// Is value type: {}", self.is_struct)?;
+        writeln!(writer, "// Is value type: {}", self.is_value_type)?;
         // Type definition plus inherit lines
         writeln!(
             writer,

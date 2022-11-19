@@ -115,7 +115,19 @@ fn main() -> color_eyre::Result<()> {
         .find(|(_, c)| {
             c.get_types()
                 .iter()
-                .any(|(_, t)| t.is_struct && t.name == "Color" && t.namespace == "UnityEngine")
+                .any(|(_, t)| t.is_value_type && t.name == "Color" && t.namespace == "UnityEngine")
+        })
+        .unwrap()
+        .1
+        .write()?;
+    println!("AlignmentUnion type");
+    cpp_context_collection
+        .get()
+        .iter()
+        .find(|(_, c)| {
+            c.get_types()
+                .iter()
+                .any(|(_, t)| t.is_value_type && t.name == "AlignmentUnion")
         })
         .unwrap()
         .1
