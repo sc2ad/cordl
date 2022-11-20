@@ -118,12 +118,19 @@ impl CppType {
         self.generic_args.write(writer)?;
         writeln!(writer, "// Is value type: {}", self.is_value_type)?;
         // Type definition plus inherit lines
-        writeln!(
-            writer,
-            "struct {} : public {} {{",
-            self.name(),
-            self.inherit.join(", ")
-        )?;
+        match self.inherit.is_empty() {
+            true => writeln!(writer, "struct {} {{", self.cpp_name())?,
+            false => writeln!(
+                writer,
+                "struct {} : {} {{",
+                self.cpp_name(),
+                self.inherit
+                    .iter()
+                    .map(|s| format!("public {}", s))
+                    .join(", ")
+            )?,
+        }
+
         writer.indent();
         // Write all declarations within the type here
         self.declarations.iter().for_each(|d| {

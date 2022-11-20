@@ -1,6 +1,22 @@
 use il2cpp_binary::Type;
 use il2cpp_metadata_raw::{Il2CppMethodDefinition, Il2CppTypeDefinition};
 
+pub const TYPE_ATTRIBUTE_INTERFACE: u32 = 0x00000020;
+pub const TYPE_ATTRIBUTE_NESTED_PUBLIC: u32 = 0x00000002;
+
+pub const FIELD_ATTRIBUTE_PUBLIC: u16 = 0x0006;
+pub const FIELD_ATTRIBUTE_PRIVATE: u16 = 0x0001;
+pub const FIELD_ATTRIBUTE_STATIC: u16 = 0x0010;
+pub const FIELD_ATTRIBUTE_LITERAL: u16 = 0x0040;
+
+pub const METHOD_ATTRIBUTE_PUBLIC: u16 = 0x0006;
+pub const METHOD_ATTRIBUTE_STATIC: u16 = 0x0010;
+pub const METHOD_ATTRIBUTE_FINAL: u16 = 0x0020;
+pub const METHOD_ATTRIBUTE_VIRTUAL: u16 = 0x0040;
+pub const METHOD_ATTRIBUTE_HIDE_BY_SIG: u16 = 0x0080;
+pub const METHOD_ATTRIBUTE_ABSTRACT: u16 = 0x0400;
+pub const METHOD_ATTRIBUTE_SPECIAL_NAME: u16 = 0x0800;
+
 pub trait MethodDefintionExtensions {
     fn is_public_method(&self) -> bool;
     fn is_abstract_method(&self) -> bool;
@@ -12,27 +28,27 @@ pub trait MethodDefintionExtensions {
 
 impl MethodDefintionExtensions for Il2CppMethodDefinition {
     fn is_public_method(&self) -> bool {
-        (self.flags & 7) == 6
+        (self.flags & METHOD_ATTRIBUTE_PUBLIC) != 0
     }
 
     fn is_virtual_method(&self) -> bool {
-        (self.flags & 0x0040) != 0
+        (self.flags & METHOD_ATTRIBUTE_VIRTUAL) != 0
     }
 
     fn is_static_method(&self) -> bool {
-        (self.flags & 0x0010) != 0
+        (self.flags & METHOD_ATTRIBUTE_STATIC) != 0
     }
 
     fn is_abstract_method(&self) -> bool {
-        (self.flags & 0x0400) != 0
+        (self.flags & METHOD_ATTRIBUTE_VIRTUAL) != 0
     }
 
     fn is_hidden_sig(&self) -> bool {
-        (self.flags & 0x0080) != 0
+        (self.flags & METHOD_ATTRIBUTE_HIDE_BY_SIG) != 0
     }
 
     fn is_special_name(&self) -> bool {
-        (self.flags & 0x0800) != 0
+        (self.flags & METHOD_ATTRIBUTE_SPECIAL_NAME) != 0
     }
 }
 
@@ -48,12 +64,12 @@ pub trait TypeExtentions {
 
 impl TypeExtentions for Type {
     fn is_static(&self) -> bool {
-        (self.attrs & 0x0010) != 0
+        (self.attrs & FIELD_ATTRIBUTE_STATIC) != 0
     }
 
     // FIELD_ATTRIBUTE_LITERAL
     fn is_const(&self) -> bool {
-        (self.attrs & 0x0040) != 0
+        (self.attrs & FIELD_ATTRIBUTE_LITERAL) != 0
     }
 
     fn is_byref(&self) -> bool {

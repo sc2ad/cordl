@@ -12,7 +12,7 @@ use crate::generate::cpp_type;
 
 use super::{
     config::GenerationConfig,
-    constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions},
+    constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions, TYPE_ATTRIBUTE_INTERFACE},
     context::{CppContextCollection, TypeTag},
     cpp_type::CppType,
     members::{
@@ -402,7 +402,8 @@ pub trait CSType: Sized {
         let name = metadata.metadata.get_str(t.name_index).unwrap();
 
         if t.parent_index == u32::MAX {
-            if t.flags & 0x00000020 == 0 {
+            // TYPE_ATTRIBUTE_INTERFACE = 0x00000020
+            if t.flags & TYPE_ATTRIBUTE_INTERFACE == 0 {
                 println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
             }
         } else if let Some(parent_type) = metadata
@@ -416,6 +417,20 @@ pub trait CSType: Sized {
             cpp_type.inherit.push(inherit_type);
         } else {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
+        }
+
+        for interface_index in t.interfaces_start..t.interfaces_start + (t.interfaces_count as u32)
+        {
+            let int_ty = metadata
+                .metadata_registration
+                .types
+                .get(interface_index as usize)
+                .unwrap();
+
+            // We have a parent, lets do something with it
+            let inherit_type =
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, int_ty, true);
+            cpp_type.inherit.push(inherit_type);
         }
     }
 
@@ -447,13 +462,19 @@ pub trait CSType: Sized {
                     .unwrap();
                 let p_name = metadata.metadata.get_str(prop.name_index).unwrap();
                 let p_setter = if prop.set != u32::MAX {
-                    metadata.metadata.methods.get((t.method_start + prop.set) as usize)
+                    metadata
+                        .metadata
+                        .methods
+                        .get((t.method_start + prop.set) as usize)
                 } else {
                     None
                 };
 
                 let p_getter = if prop.get != u32::MAX {
-                    metadata.metadata.methods.get((t.method_start + prop.get) as usize)
+                    metadata
+                        .metadata
+                        .methods
+                        .get((t.method_start + prop.get) as usize)
                 } else {
                     None
                 };
@@ -521,8 +542,7 @@ pub trait CSType: Sized {
             TypeEnum::Boolean => size_of::<bool>(),
             TypeEnum::Char => size_of::<char>() * 2,
 
-            /* TODO: TypeEnum::Genericinst | */
-            TypeEnum::Object | TypeEnum::Class => 0,
+            TypeEnum::Genericinst | TypeEnum::Object | TypeEnum::Class | TypeEnum::Szarray => 0,
             // TypeEnum::Object | TypeEnum::Class => match ty.data {
             //     TypeData::TypeDefinitionIndex(tdi) => {
             //         metadata
