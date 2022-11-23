@@ -260,18 +260,6 @@ pub trait CSType: Sized {
                     false,
                 );
 
-                let declaring_type = metadata
-                    .metadata_registration
-                    .types
-                    .get(method.declaring_type as usize)
-                    .unwrap();
-                let declaring_cpp_type = match declaring_type.data {
-                    TypeData::TypeDefinitionIndex(_) => ctx_collection
-                        .make_from(metadata, config, declaring_type.data)
-                        .get_cpp_type(declaring_type.data.into()),
-                    _ => None,
-                };
-
                 let method_calc = metadata
                     .method_calculations
                     .get(&(t.method_start + i as u32))
@@ -293,6 +281,21 @@ pub trait CSType: Sized {
                         }));
                 }
 
+                let declaring_type = metadata
+                    .metadata
+                    .type_definitions
+                    .get(method.declaring_type as usize)
+                    .unwrap();
+                let tag = TypeTag::TypeDefinition(method.declaring_type);
+                let declaring_cpp_type: Option<&CppType> =
+                    if method.declaring_type == cpp_type.self_tdi {
+                        Some(cpp_type)
+                    } else {
+                        ctx_collection
+                            .make_from(metadata, config, tag)
+                            .get_cpp_type(tag)
+                    };
+
                 cpp_type
                     .implementations
                     .push(CppMember::MethodImpl(CppMethodImpl {
@@ -305,10 +308,10 @@ pub trait CSType: Sized {
                         instance: true,
                         suffix_modifiers: Default::default(),
                         prefix_modifiers: Default::default(),
-                        declaringClazzOf: cpp_type.classof_call(),
-                        interfaceClazzOf: declaring_cpp_type
-                            .map(|d| d.classof_call())
-                            .unwrap_or_else(|| "Bad stuff happened".to_string()),
+                        interface_clazz_of: declaring_cpp_type
+                            .map(|d| d.classof_cpp_name())
+                            .unwrap_or_else(|| format!("Bad stuff happened {:?}", declaring_type)),
+                        is_final: method.is_final_method(),
                         slot: if method.slot != u16::MAX {
                             Some(method.slot)
                         } else {
@@ -341,7 +344,7 @@ pub trait CSType: Sized {
                             addrs: method_calc.addrs,
                             estimated_size: method_calc.estimated_size,
                         },
-                        is_virtual: method.is_virtual_method(),
+                        is_virtual: method.is_virtual_method() && !method.is_final_method(),
                     }));
             }
         }
@@ -398,7 +401,7 @@ pub trait CSType: Sized {
                     offset: *f_offset,
                     instance: !f_type.is_static() && !f_type.is_const(),
                     readonly: f_type.is_const(),
-                    classof_call: cpp_type.classof_call(),
+                    classof_call: cpp_type.classof_cpp_name(),
                     literal_value: def_value,
                     use_wrapper: !t.is_value_type(),
                 }));
@@ -533,7 +536,7 @@ pub trait CSType: Sized {
                 cpp_type.declarations.push(CppMember::Property(CppProperty {
                     name: p_name.to_owned(),
                     ty: p_cpp_name.clone(),
-                    classof_call: cpp_type.classof_call(),
+                    classof_call: cpp_type.classof_cpp_name(),
                     setter: p_setter.map(|_| method_map(prop.set)),
                     getter: p_getter.map(|_| method_map(prop.get)),
                     abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
@@ -814,9 +817,9 @@ pub trait CSType: Sized {
         }
     }
 
-    fn classof_call(&self) -> String {
+    fn classof_cpp_name(&self) -> String {
         format!(
-            "&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get",
+            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get",
             self.get_cpp_type().formatted_complete_cpp_name()
         )
     }

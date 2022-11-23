@@ -212,6 +212,7 @@ impl CppContext {
 pub struct CppContextCollection {
     all_contexts: HashMap<TypeTag, CppContext>,
     filled_types: HashSet<TypeTag>,
+    filling_types: HashSet<TypeTag>,
 }
 
 impl CppContextCollection {
@@ -235,6 +236,7 @@ impl CppContextCollection {
             .expect("No cpp context")
             .typedef_types
             .remove_entry(&tag);
+        self.filling_types.insert(tag);
 
         if let Some((t, mut cpp_type)) = cpp_type_entry {
             cpp_type.fill_from_il2cpp(metadata, config, self, tdi);
@@ -247,6 +249,7 @@ impl CppContextCollection {
         }
 
         self.filled_types.insert(tag);
+        self.filling_types.remove(&tag);
     }
 
     pub fn make_from(
@@ -256,6 +259,10 @@ impl CppContextCollection {
         ty: impl Into<TypeTag>,
     ) -> &mut CppContext {
         let tag = ty.into();
+
+        if self.filling_types.contains(&tag) {
+            panic!("Currently filling type {tag:?}, cannot fill")
+        }
 
         self.all_contexts.entry(tag).or_insert_with(|| match tag {
             TypeTag::TypeDefinition(tdi) => CppContext::make(metadata, config, tdi),
@@ -283,6 +290,7 @@ impl CppContextCollection {
         CppContextCollection {
             all_contexts: Default::default(),
             filled_types: Default::default(),
+            filling_types: Default::default(),
         }
     }
     pub fn get(&self) -> &HashMap<TypeTag, CppContext> {

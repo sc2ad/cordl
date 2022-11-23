@@ -221,8 +221,8 @@ pub struct CppMethodImpl {
     pub return_type: String,
     pub parameters: Vec<CppParam>,
     pub instance: bool,
-    pub declaringClazzOf: String,
-    pub interfaceClazzOf: String,
+    pub interface_clazz_of: String,
+    pub is_final: bool,
     pub slot: Option<u16>,
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:
@@ -334,7 +334,7 @@ impl Writable for CppField {
                 } else {
                     writeln!(
                         writer,
-                        "static inline ::bs_hook::StaticField<{},\"{}\",{},{}> {cpp_name};",
+                        "static inline ::bs_hook::StaticField<{},\"{}\",{},&{}> {cpp_name};",
                         self.ty, self.name, !self.readonly, self.classof_call
                     )?;
                 }
@@ -461,15 +461,15 @@ impl Writable for CppMethodImpl {
         //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
         // Body
-        match self.slot {
-            Some(slot) => writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot({}, {}, {slot}));", 
-            self.declaringClazzOf,
-            self.interfaceClazzOf
-        )?,
-            None => writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}));", 
-            self.name,
-            CppParam::params_il2cpp_types(&self.parameters)
-        )?,
+        if let Some(slot) = self.slot && !self.is_final {
+            writeln!(writer, "auto ___internal__method = THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot((*reinterpret_cast<Il2CppObject**>(this))->klass, {}(), {slot}));", 
+              self.interface_clazz_of
+            )?
+        } else {
+            writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}));", 
+                self.name,
+                CppParam::params_il2cpp_types(&self.parameters)
+            )?
         }
 
         write!(
@@ -521,7 +521,7 @@ impl Writable for CppProperty {
         } else {
             writeln!(
                 writer,
-                "static inline ::bs_hook::StaticProperty<{},\"{}\",{},{}, {}> {};",
+                "static inline ::bs_hook::StaticProperty<{},\"{}\",{},{}, &{}> {};",
                 self.ty,
                 self.name,
                 self.getter.is_some(),

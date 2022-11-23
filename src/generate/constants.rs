@@ -24,6 +24,7 @@ pub trait MethodDefintionExtensions {
     fn is_virtual_method(&self) -> bool;
     fn is_hidden_sig(&self) -> bool;
     fn is_special_name(&self) -> bool;
+    fn is_final_method(&self) -> bool;
 }
 
 impl MethodDefintionExtensions for Il2CppMethodDefinition {
@@ -49,6 +50,10 @@ impl MethodDefintionExtensions for Il2CppMethodDefinition {
 
     fn is_special_name(&self) -> bool {
         (self.flags & METHOD_ATTRIBUTE_SPECIAL_NAME) != 0
+    }
+
+    fn is_final_method(&self) -> bool {
+        (self.flags & METHOD_ATTRIBUTE_FINAL) != 0
     }
 }
 
