@@ -221,6 +221,9 @@ pub struct CppMethodImpl {
     pub return_type: String,
     pub parameters: Vec<CppParam>,
     pub instance: bool,
+    pub declaringClazzOf: String,
+    pub interfaceClazzOf: String,
+    pub slot: Option<u16>,
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:
     // const
@@ -458,10 +461,16 @@ impl Writable for CppMethodImpl {
         //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
         // Body
-        writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}));", 
+        match self.slot {
+            Some(slot) => writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot({}, {}, {slot}));", 
+            self.declaringClazzOf,
+            self.interfaceClazzOf
+        )?,
+            None => writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}));", 
             self.name,
             CppParam::params_il2cpp_types(&self.parameters)
-        )?;
+        )?,
+        }
 
         write!(
             writer,

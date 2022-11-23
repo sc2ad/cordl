@@ -6,13 +6,13 @@ use std::{
 use byteorder::{LittleEndian, ReadBytesExt};
 use il2cpp_binary::{Type, TypeData, TypeEnum};
 use il2cpp_metadata_raw::{Il2CppGenericParameter, TypeDefinitionIndex};
-use itertools::Itertools;
-
-use crate::generate::cpp_type;
 
 use super::{
     config::GenerationConfig,
-    constants::{MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions, TYPE_ATTRIBUTE_INTERFACE},
+    constants::{
+        MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions,
+        TYPE_ATTRIBUTE_INTERFACE,
+    },
     context::{CppContextCollection, TypeTag},
     cpp_type::CppType,
     members::{
@@ -260,6 +260,18 @@ pub trait CSType: Sized {
                     false,
                 );
 
+                let declaring_type = metadata
+                    .metadata_registration
+                    .types
+                    .get(method.declaring_type as usize)
+                    .unwrap();
+                let declaring_cpp_type = match declaring_type.data {
+                    TypeData::TypeDefinitionIndex(_) => ctx_collection
+                        .make_from(metadata, config, declaring_type.data)
+                        .get_cpp_type(declaring_type.data.into()),
+                    _ => None,
+                };
+
                 let method_calc = metadata
                     .method_calculations
                     .get(&(t.method_start + i as u32))
@@ -284,15 +296,24 @@ pub trait CSType: Sized {
                 cpp_type
                     .implementations
                     .push(CppMember::MethodImpl(CppMethodImpl {
-                        name: m_name.to_string(),
                         cpp_name: config.name_cpp(m_name),
+                        name: m_name.to_string(),
+                        holder_namespaze: cpp_type.namespace().clone(),
+                        holder_cpp_name: cpp_type.cpp_name().clone(),
                         return_type: m_ret_cpp_type_name.clone(),
                         parameters: m_params.clone(),
                         instance: true,
-                        prefix_modifiers: Default::default(),
                         suffix_modifiers: Default::default(),
-                        holder_namespaze: cpp_type.namespace().clone(),
-                        holder_cpp_name: cpp_type.cpp_name().clone(),
+                        prefix_modifiers: Default::default(),
+                        declaringClazzOf: cpp_type.classof_call(),
+                        interfaceClazzOf: declaring_cpp_type
+                            .map(|d| d.classof_call())
+                            .unwrap_or_else(|| "Bad stuff happened".to_string()),
+                        slot: if method.slot != u16::MAX {
+                            Some(method.slot)
+                        } else {
+                            None
+                        },
                     }));
                 cpp_type
                     .implementations
