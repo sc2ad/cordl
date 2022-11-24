@@ -315,7 +315,7 @@ impl Writable for CppField {
             false => writeln!(
                 writer,
                 "{}{} {} = {}",
-                if self.instance { "" } else { "static " },
+                if self.instance { "" } else { "inline static " },
                 self.ty,
                 self.name,
                 self.literal_value.as_ref().unwrap_or(&"{}".to_string())

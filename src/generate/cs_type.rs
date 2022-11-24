@@ -765,28 +765,49 @@ pub trait CSType: Sized {
 
                 to_incl_ty.formatted_complete_cpp_name()
             }
+            // TODO: MVAR and VAR
             TypeEnum::Szarray => {
-                // In this case, just inherit the type
-                // But we have to:
-                // - Determine where to include it from
                 requirements.needs_arrayw_include();
 
-                // let to_incl = ctx_collection.make_from(metadata, config, typ.data, false);
-                // let to_incl_ty = to_incl.get_cpp_type(TypeTag::from(typ.data)).unwrap();
-                let generic_type = match typ.data.into() {
-                    TypeTag::TypeDefinition(e) | TypeTag::GenericParameter(e) => {
-                        metadata.metadata_registration.types.get(e as usize)
+                let generic: String = match typ.data.into() {
+                    TypeTag::Type(e) => {
+                        let ty = metadata.metadata_registration.types.get(e).unwrap();
+                        self.cppify_name_il2cpp(ctx_collection, metadata, config, ty, false)
                     }
-                    TypeTag::GenericClass(e) | TypeTag::Type(e) => {
-                        metadata.metadata_registration.types.get(e)
+
+                    _ => panic!("Unknown type data for array {typ:?}!"),
+                };
+
+                format!("::ArrayW<{}>", generic)
+            }
+            TypeEnum::Genericinst => {
+                let generic_types: Vec<String> = match typ.data.into() {
+                    TypeTag::GenericClass(e) => {
+                        let generic_class = metadata
+                            .metadata_registration
+                            .generic_classes
+                            .get(e)
+                            .unwrap();
+                        let generic_inst = metadata
+                            .metadata_registration
+                            .generic_insts
+                            .get(generic_class.context.class_inst_idx.unwrap())
+                            .unwrap();
+
+                        let types = generic_inst
+                            .types
+                            .iter()
+                            .map(|t| metadata.metadata_registration.types.get(*t).unwrap())
+                            .map(|t| {
+                                self.cppify_name_il2cpp(ctx_collection, metadata, config, t, false)
+                            });
+
+                        types.collect()
                     }
-                    _ => panic!("Unknown type data for array!"),
-                }
-                .unwrap();
-                format!(
-                    "::ArrayW<{}>",
-                    self.cppify_name_il2cpp(ctx_collection, metadata, config, generic_type, false)
-                )
+
+                    _ => panic!("Unknown type data for array {typ:?}!"),
+                };
+                generic_types.join(",")
             }
             TypeEnum::I1 => "int8_t".to_string(),
             TypeEnum::I2 => "int16_t".to_string(),
