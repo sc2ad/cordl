@@ -1,6 +1,5 @@
 use std::{
     io::{Cursor, Read},
-    mem::size_of,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -393,51 +392,52 @@ pub trait CSType: Sized {
         let t = Self::get_type_definition(metadata, tdi);
 
         // Then, handle fields
-        if t.field_count > 0 {
-            // Write comment for fields
-            cpp_type
-                .declarations
-                .push(CppMember::Comment(CppCommentedString {
-                    data: "".to_string(),
-                    comment: Some("Fields".to_string()),
-                }));
-            // Then, for each field, write it out
-            for i in 0..t.field_count {
-                let field_index = (t.field_start + i as u32) as usize;
-                let field = metadata.metadata.fields.get(field_index).unwrap();
-                let f_name = metadata.metadata.get_str(field.name_index).unwrap();
-                let f_offset = metadata
-                    .metadata_registration
-                    .field_offsets
-                    .get(tdi as usize)
-                    .unwrap()
-                    .get(i as usize)
-                    .unwrap();
-                let f_type = metadata
-                    .metadata_registration
-                    .types
-                    .get(field.type_index as usize)
-                    .unwrap();
+        if t.field_count == 0 {
+            return;
+        }
+        // Write comment for fields
+        cpp_type
+            .declarations
+            .push(CppMember::Comment(CppCommentedString {
+                data: "".to_string(),
+                comment: Some("Fields".to_string()),
+            }));
+        // Then, for each field, write it out
+        for i in 0..t.field_count {
+            let field_index = (t.field_start + i as u32) as usize;
+            let field = metadata.metadata.fields.get(field_index).unwrap();
+            let f_name = metadata.metadata.get_str(field.name_index).unwrap();
+            let f_offset = metadata
+                .metadata_registration
+                .field_offsets
+                .get(tdi as usize)
+                .unwrap()
+                .get(i as usize)
+                .unwrap();
+            let f_type = metadata
+                .metadata_registration
+                .types
+                .get(field.type_index as usize)
+                .unwrap();
 
-                let _f_type_data = TypeTag::from(f_type.data);
+            let _f_type_data = TypeTag::from(f_type.data);
 
-                let cpp_name =
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, f_type, false);
+            let cpp_name =
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, f_type, false);
 
-                let def_value = Self::field_default_value(metadata, field_index as u32);
+            let def_value = Self::field_default_value(metadata, field_index as u32);
 
-                // Need to include this type
-                cpp_type.declarations.push(CppMember::Field(CppField {
-                    name: f_name.to_owned(),
-                    ty: cpp_name,
-                    offset: *f_offset,
-                    instance: !f_type.is_static() && !f_type.is_const(),
-                    readonly: f_type.is_const(),
-                    classof_call: cpp_type.classof_cpp_name(),
-                    literal_value: def_value,
-                    use_wrapper: !t.is_value_type(),
-                }));
-            }
+            // Need to include this type
+            cpp_type.declarations.push(CppMember::Field(CppField {
+                name: f_name.to_owned(),
+                ty: cpp_name,
+                offset: *f_offset,
+                instance: !f_type.is_static() && !f_type.is_const(),
+                readonly: f_type.is_const(),
+                classof_call: cpp_type.classof_cpp_name(),
+                literal_value: def_value,
+                use_wrapper: !t.is_value_type(),
+            }));
         }
     }
 
@@ -501,137 +501,86 @@ pub trait CSType: Sized {
         let t = Self::get_type_definition(metadata, tdi);
 
         // Then, handle properties
-        if t.property_count > 0 {
-            // Write comment for properties
-            cpp_type
-                .declarations
-                .push(CppMember::Comment(CppCommentedString {
-                    data: "".to_string(),
-                    comment: Some("Properties".to_string()),
-                }));
-            // Then, for each field, write it out
-            for i in 0..t.property_count {
-                let prop = metadata
+        if t.property_count == 0 {
+            return;
+        }
+        // Write comment for properties
+        cpp_type
+            .declarations
+            .push(CppMember::Comment(CppCommentedString {
+                data: "".to_string(),
+                comment: Some("Properties".to_string()),
+            }));
+        // Then, for each field, write it out
+        for i in 0..t.property_count {
+            let prop = metadata
+                .metadata
+                .properties
+                .get((t.property_start + i as u32) as usize)
+                .unwrap();
+            let p_name = metadata.metadata.get_str(prop.name_index).unwrap();
+            let p_setter = if prop.set != u32::MAX {
+                metadata
                     .metadata
-                    .properties
-                    .get((t.property_start + i as u32) as usize)
-                    .unwrap();
-                let p_name = metadata.metadata.get_str(prop.name_index).unwrap();
-                let p_setter = if prop.set != u32::MAX {
+                    .methods
+                    .get((t.method_start + prop.set) as usize)
+            } else {
+                None
+            };
+
+            let p_getter = if prop.get != u32::MAX {
+                metadata
+                    .metadata
+                    .methods
+                    .get((t.method_start + prop.get) as usize)
+            } else {
+                None
+            };
+
+            let p_type_index = match p_getter {
+                Some(g) => g.return_type as usize,
+                None => {
                     metadata
                         .metadata
-                        .methods
-                        .get((t.method_start + prop.set) as usize)
-                } else {
-                    None
-                };
+                        .parameters
+                        .get(p_setter.unwrap().parameter_start as usize)
+                        .unwrap()
+                        .type_index as usize
+                }
+            };
 
-                let p_getter = if prop.get != u32::MAX {
-                    metadata
-                        .metadata
-                        .methods
-                        .get((t.method_start + prop.get) as usize)
-                } else {
-                    None
-                };
+            let p_type = metadata
+                .metadata_registration
+                .types
+                .get(p_type_index)
+                .unwrap();
 
-                let p_type_index = match p_getter {
-                    Some(g) => g.return_type as usize,
-                    None => {
-                        metadata
-                            .metadata
-                            .parameters
-                            .get(p_setter.unwrap().parameter_start as usize)
-                            .unwrap()
-                            .type_index as usize
-                    }
-                };
+            let p_cpp_name =
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, p_type, false);
 
-                let p_type = metadata
-                    .metadata_registration
-                    .types
-                    .get(p_type_index)
-                    .unwrap();
+            let method_map = |p: u32| {
+                let method_calc = metadata.method_calculations.get(&p).unwrap();
+                CppMethodData {
+                    estimated_size: method_calc.estimated_size,
+                    addrs: method_calc.addrs,
+                }
+            };
 
-                let p_cpp_name =
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, p_type, false);
-
-                let method_map = |p: u32| {
-                    let method_calc = metadata.method_calculations.get(&p).unwrap();
-                    CppMethodData {
-                        estimated_size: method_calc.estimated_size,
-                        addrs: method_calc.addrs,
-                    }
-                };
-
-                // Need to include this type
-                cpp_type.declarations.push(CppMember::Property(CppProperty {
-                    name: p_name.to_owned(),
-                    ty: p_cpp_name.clone(),
-                    classof_call: cpp_type.classof_cpp_name(),
-                    setter: p_setter.map(|_| method_map(prop.set)),
-                    getter: p_getter.map(|_| method_map(prop.get)),
-                    abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
-                    instance: !p_getter.or(p_setter).unwrap().is_static_method(),
-                }));
-            }
+            // Need to include this type
+            cpp_type.declarations.push(CppMember::Property(CppProperty {
+                name: p_name.to_owned(),
+                ty: p_cpp_name.clone(),
+                classof_call: cpp_type.classof_cpp_name(),
+                setter: p_setter.map(|_| method_map(prop.set)),
+                getter: p_getter.map(|_| method_map(prop.get)),
+                abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
+                instance: !p_getter.or(p_setter).unwrap().is_static_method(),
+            }));
         }
     }
 
-    fn ty_size(ty: &Type, _metadata: &Metadata) -> usize {
-        match ty.ty {
-            TypeEnum::I1 => size_of::<i8>(),
-            TypeEnum::I2 => size_of::<i16>(),
-            TypeEnum::Valuetype | TypeEnum::I4 => size_of::<i32>(),
-            // TODO: We assume 64 bit
-            TypeEnum::I | TypeEnum::I8 => size_of::<i64>(),
-            TypeEnum::U1 => size_of::<u8>(),
-            TypeEnum::U2 => size_of::<u16>(),
-            TypeEnum::U4 => size_of::<u32>(),
-            // TODO: We assume 64 bit
-            TypeEnum::U | TypeEnum::U8 => size_of::<u64>(),
-
-            // https://learn.microsoft.com/en-us/nimbusml/concepts/types
-            // https://en.cppreference.com/w/cpp/types/floating-point
-            TypeEnum::R4 => size_of::<f32>(),
-            TypeEnum::R8 => size_of::<f64>(),
-            TypeEnum::Boolean => size_of::<bool>(),
-            TypeEnum::Char => size_of::<char>() * 2,
-
-            TypeEnum::Genericinst | TypeEnum::Object | TypeEnum::Class | TypeEnum::Szarray => 0,
-            // TypeEnum::Object | TypeEnum::Class => match ty.data {
-            //     TypeData::TypeDefinitionIndex(tdi) => {
-            //         metadata
-            //             .metadata_registration
-            //             .type_definition_sizes
-            //             .get(tdi as usize)
-            //             .unwrap()
-            //             .instance_size as usize
-            //     }
-            //     TypeData::TypeIndex(_) => todo!(),
-            //     TypeData::GenericParameterIndex(_) => todo!(),
-            //     TypeData::GenericClassIndex(_) => todo!(),
-            //     TypeData::ArrayType => todo!(),
-            // },
-            TypeEnum::String => 0,
-            _ => {
-                println!("Invalid type {:?}", ty);
-                0
-            }
-        }
-    }
-
-    fn default_value_blob(
-        metadata: &Metadata,
-        ty: TypeEnum,
-        size: usize,
-        data_index: usize,
-    ) -> String {
-        let data = if size == 0 {
-            &metadata.metadata.field_and_parameter_default_value_data[data_index..]
-        } else {
-            &metadata.metadata.field_and_parameter_default_value_data[data_index..data_index + size]
-        };
+    fn default_value_blob(metadata: &Metadata, ty: TypeEnum, data_index: usize) -> String {
+        let data = &metadata.metadata.field_and_parameter_default_value_data[data_index..];
 
         let mut cursor = Cursor::new(data);
 
@@ -681,9 +630,8 @@ pub trait CSType: Sized {
                     .types
                     .get(def.type_index as usize)
                     .unwrap();
-                let size = Self::ty_size(ty, metadata);
 
-                Self::default_value_blob(metadata, ty.ty, size, def.data_index as usize)
+                Self::default_value_blob(metadata, ty.ty, def.data_index as usize)
             })
     }
     fn param_default_value(metadata: &Metadata, parameter_index: u32) -> Option<String> {
@@ -698,7 +646,6 @@ pub trait CSType: Sized {
                     .types
                     .get(def.type_index as usize)
                     .unwrap();
-                let size = Self::ty_size(ty, metadata);
 
                 if def.data_index as i64 == -1 || def.data_index == u32::MAX {
                     return "nullptr".to_string();
@@ -730,7 +677,7 @@ pub trait CSType: Sized {
                     }
                 }
 
-                Self::default_value_blob(metadata, ty.ty, size, def.data_index as usize)
+                Self::default_value_blob(metadata, ty.ty, def.data_index as usize)
             })
     }
 
@@ -855,7 +802,7 @@ pub trait CSType: Sized {
                         .type_definitions
                         .get(generic_class.type_definition_index as usize)
                         .unwrap();
-                        
+
                     let generic_type = metadata
                         .metadata_registration
                         .types
