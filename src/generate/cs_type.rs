@@ -334,7 +334,7 @@ pub trait CSType: Sized {
                         holder_cpp_name: cpp_type.cpp_name().clone(),
                         return_type: m_ret_cpp_type_name.clone(),
                         parameters: m_params.clone(),
-                        instance: true,
+                        instance: !method.is_static_method(),
                         suffix_modifiers: Default::default(),
                         prefix_modifiers: Default::default(),
                         interface_clazz_of: declaring_cpp_type
@@ -354,7 +354,7 @@ pub trait CSType: Sized {
                         ret_ty: m_ret_cpp_type_name.clone(),
                         cpp_name: config.name_cpp(m_name),
                         ty: cpp_type.formatted_complete_cpp_name(),
-                        instance: true,
+                        instance: !method.is_static_method(),
                         params: m_params.clone(),
                         method_data: CppMethodData {
                             addrs: method_calc.addrs,
@@ -367,7 +367,7 @@ pub trait CSType: Sized {
                         cpp_name: config.name_cpp(m_name),
                         return_type: m_ret_cpp_type_name,
                         parameters: m_params,
-                        instance: true,
+                        instance: !method.is_static_method(),
                         prefix_modifiers: Default::default(),
                         suffix_modifiers: Default::default(),
                         method_data: CppMethodData {
