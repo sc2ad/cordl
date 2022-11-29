@@ -6,6 +6,7 @@ use std::{
 use byteorder::{LittleEndian, ReadBytesExt};
 use il2cpp_binary::{Type, TypeData, TypeEnum};
 use il2cpp_metadata_raw::{Il2CppGenericParameter, TypeDefinitionIndex};
+use itertools::Itertools;
 
 use super::{
     config::GenerationConfig,
@@ -33,7 +34,7 @@ pub trait CSType: Sized {
         metadata: &Metadata,
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
-        tag: impl Into<TypeTag>
+        tag: impl Into<TypeTag>,
     ) -> Option<CppType> {
         // let iface = metadata.interfaces.get(t.interfaces_start);
         // Then, handle interfaces
@@ -317,14 +318,13 @@ pub trait CSType: Sized {
                     .get(method.declaring_type as usize)
                     .unwrap();
                 let tag = TypeTag::TypeDefinition(method.declaring_type);
-                let declaring_cpp_type: Option<&CppType> =
-                    if tag == cpp_type.self_tag {
-                        Some(cpp_type)
-                    } else {
-                        ctx_collection
-                            .make_from(metadata, config, tag)
-                            .get_cpp_type(tag)
-                    };
+                let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
+                    Some(cpp_type)
+                } else {
+                    ctx_collection
+                        .make_from(metadata, config, tag)
+                        .get_cpp_type(tag)
+                };
 
                 cpp_type
                     .implementations
@@ -813,6 +813,7 @@ pub trait CSType: Sized {
                 format!("::ArrayW<{}>", generic)
             }
             TypeEnum::Mvar | TypeEnum::Var => match typ.data {
+                // TODO: Alias to actual generic
                 TypeData::GenericParameterIndex(index) => {
                     let generic_param = metadata
                         .metadata
@@ -826,35 +827,53 @@ pub trait CSType: Sized {
                 }
                 _ => todo!(),
             },
-            TypeEnum::Genericinst => {
-                let generic_types: Vec<String> = match typ.data.into() {
-                    TypeTag::GenericClass(e) => {
-                        let generic_class = metadata
-                            .metadata_registration
-                            .generic_classes
-                            .get(e)
-                            .unwrap();
-                        let generic_inst = metadata
-                            .metadata_registration
-                            .generic_insts
-                            .get(generic_class.context.class_inst_idx.unwrap())
-                            .unwrap();
+            TypeEnum::Genericinst => match typ.data.into() {
+                TypeTag::GenericClass(e) => {
+                    let generic_class = metadata
+                        .metadata_registration
+                        .generic_classes
+                        .get(e)
+                        .unwrap();
+                    let generic_inst = metadata
+                        .metadata_registration
+                        .generic_insts
+                        .get(generic_class.context.class_inst_idx.unwrap())
+                        .unwrap();
 
-                        let types = generic_inst
-                            .types
-                            .iter()
-                            .map(|t| metadata.metadata_registration.types.get(*t).unwrap())
-                            .map(|t| {
-                                self.cppify_name_il2cpp(ctx_collection, metadata, config, t, false)
-                            });
+                    let types = generic_inst
+                        .types
+                        .iter()
+                        .map(|t| metadata.metadata_registration.types.get(*t).unwrap())
+                        .map(|t| {
+                            self.cppify_name_il2cpp(ctx_collection, metadata, config, t, false)
+                        });
 
-                        types.collect()
-                    }
+                    let generic_types = types.collect_vec();
 
-                    _ => panic!("Unknown type data for array {typ:?}!"),
-                };
-                generic_types.join(",")
-            }
+                    let generic_type_def = metadata
+                        .metadata
+                        .type_definitions
+                        .get(generic_class.type_definition_index as usize)
+                        .unwrap();
+                        
+                    let generic_type = metadata
+                        .metadata_registration
+                        .types
+                        .get(generic_type_def.byval_type_index as usize)
+                        .unwrap();
+                    let owner_name = self.cppify_name_il2cpp(
+                        ctx_collection,
+                        metadata,
+                        config,
+                        generic_type,
+                        false,
+                    );
+
+                    format!("{owner_name}<{}>", generic_types.join(","))
+                }
+
+                _ => panic!("Unknown type data for generic inst {typ:?}!"),
+            },
             TypeEnum::I1 => "int8_t".to_string(),
             TypeEnum::I2 => "int16_t".to_string(),
             TypeEnum::I4 => "int32_t".to_string(),
