@@ -7,7 +7,7 @@ use super::{
 };
 use std::{io::Write, path::PathBuf};
 
-#[derive(Debug, Eq, Hash, PartialEq, Clone, Default)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
 pub struct CppTemplate {
     pub names: Vec<String>,
 }
@@ -193,6 +193,7 @@ pub struct CppMethodDecl {
     pub return_type: String,
     pub parameters: Vec<CppParam>,
     pub instance: bool,
+    pub template: CppTemplate,
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:
     // const
@@ -224,6 +225,7 @@ pub struct CppMethodImpl {
     pub interface_clazz_of: String,
     pub is_final: bool,
     pub slot: Option<u16>,
+    pub template: CppTemplate,
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:
     // const
@@ -244,6 +246,7 @@ pub struct CppMethodImpl {
 pub struct CppConstructorDecl {
     pub ty: String,
     pub parameters: Vec<CppParam>,
+    pub template: CppTemplate,
 }
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppConstructorImpl {
@@ -251,6 +254,7 @@ pub struct CppConstructorImpl {
 
     pub parameters: Vec<CppParam>,
     pub is_constexpr: bool,
+    pub template: CppTemplate,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -357,6 +361,8 @@ impl Writable for CppMethodDecl {
             self.method_data.estimated_size
         )?;
 
+        self.template.write(writer)?;
+
         if !self.instance {
             write!(writer, "static ")?;
         } else if self.is_virtual {
@@ -374,73 +380,11 @@ impl Writable for CppMethodDecl {
     }
 }
 
-impl Writable for CppConstructorDecl {
-    // declaration
-    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
-
-        writeln!(
-            writer,
-            "{}({});",
-            self.ty,
-            CppParam::params_as_args(&self.parameters)
-        )?;
-        Ok(())
-    }
-}
-impl Writable for CppConstructorImpl {
-    // declaration
-    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
-
-        // Constructor
-        if self.is_constexpr {
-            // TODO:
-            write!(
-                writer,
-                "inline {}({})",
-                self.holder_cpp_ty,
-                CppParam::params_as_args(&self.parameters)
-            )?;
-        } else {
-            write!(
-                writer,
-                "{}({})",
-                self.holder_cpp_ty,
-                CppParam::params_as_args_no_default(&self.parameters)
-            )?;
-        }
-
-        if self.is_constexpr {
-            // Constexpr constructor
-            writeln!(
-                writer,
-                " : {} {{",
-                self.parameters
-                    .iter()
-                    .map(|p| format!("{}({})", &p.name, &p.name))
-                    .collect_vec()
-                    .join(",")
-            )?;
-        } else {
-            // Call base constructor
-            writeln!(
-            writer,
-            " : ::bs_hook::Il2CppWrapperType(::il2cpp_utils::New<Il2CppObject*>(classof({}), {})) {{",
-            self.holder_cpp_ty,
-            CppParam::params_names(&self.parameters)
-        )?;
-        }
-
-        // End
-        writeln!(writer, "}}")?;
-
-        Ok(())
-    }
-}
 impl Writable for CppMethodImpl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        self.template.write(writer)?;
+        
         if !self.instance {
             write!(writer, "static ")?;
         }
@@ -491,6 +435,75 @@ impl Writable for CppMethodImpl {
         Ok(())
     }
 }
+
+impl Writable for CppConstructorDecl {
+    // declaration
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
+
+        self.template.write(writer)?;
+        writeln!(
+            writer,
+            "{}({});",
+            self.ty,
+            CppParam::params_as_args(&self.parameters)
+        )?;
+        Ok(())
+    }
+}
+impl Writable for CppConstructorImpl {
+    // declaration
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
+
+        // Constructor
+        self.template.write(writer)?;
+
+        if self.is_constexpr {
+            // TODO:
+            write!(
+                writer,
+                "inline {}({})",
+                self.holder_cpp_ty,
+                CppParam::params_as_args(&self.parameters)
+            )?;
+        } else {
+            write!(
+                writer,
+                "{}({})",
+                self.holder_cpp_ty,
+                CppParam::params_as_args_no_default(&self.parameters)
+            )?;
+        }
+
+        if self.is_constexpr {
+            // Constexpr constructor
+            writeln!(
+                writer,
+                " : {} {{",
+                self.parameters
+                    .iter()
+                    .map(|p| format!("{}({})", &p.name, &p.name))
+                    .collect_vec()
+                    .join(",")
+            )?;
+        } else {
+            // Call base constructor
+            writeln!(
+            writer,
+            " : ::bs_hook::Il2CppWrapperType(::il2cpp_utils::New<Il2CppObject*>(classof({}), {})) {{",
+            self.holder_cpp_ty,
+            CppParam::params_names(&self.parameters)
+        )?;
+        }
+
+        // End
+        writeln!(writer, "}}")?;
+
+        Ok(())
+    }
+}
+
 impl Writable for CppProperty {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         writeln!(

@@ -179,6 +179,7 @@ pub trait CSType: Sized {
                     holder_cpp_ty: cpp_type.formatted_complete_cpp_name(),
                     parameters: fields.clone(),
                     is_constexpr: true,
+                    template: CppTemplate::default(),
                 }));
         }
 
@@ -251,6 +252,32 @@ pub trait CSType: Sized {
                     });
                 }
 
+                let generic_container = metadata
+                    .metadata
+                    .generic_containers
+                    .get(method.generic_container_index as usize);
+
+                let mut generics: Vec<String> = vec![];
+
+                if let Some(generic_container) = generic_container {
+                    generics = Vec::with_capacity(generic_container.type_argc as usize);
+
+                    for param_index in generic_container.generic_parameter_start
+                        ..generic_container.generic_parameter_start + generic_container.type_argc
+                    {
+                        let param = metadata
+                            .metadata
+                            .generic_parameters
+                            .get(param_index as usize)
+                            .unwrap();
+
+                        let param_str = metadata.metadata.get_str(param.name_index).unwrap();
+                        generics.push(param_str.to_string());
+                    }
+                }
+
+                let template = CppTemplate { names: generics };
+
                 // Need to include this type
                 let m_ret_cpp_type_name = cpp_type.cppify_name_il2cpp(
                     ctx_collection,
@@ -272,12 +299,14 @@ pub trait CSType: Sized {
                             holder_cpp_ty: cpp_type.formatted_complete_cpp_name(),
                             parameters: m_params.clone(),
                             is_constexpr: false,
+                            template: template.clone(),
                         }));
                     cpp_type
                         .declarations
                         .push(CppMember::ConstructorDecl(CppConstructorDecl {
                             ty: cpp_type.formatted_complete_cpp_name(),
                             parameters: m_params.clone(),
+                            template: template.clone(),
                         }));
                 }
 
@@ -317,6 +346,7 @@ pub trait CSType: Sized {
                         } else {
                             None
                         },
+                        template: template.clone(),
                     }));
                 cpp_type
                     .implementations
@@ -345,6 +375,7 @@ pub trait CSType: Sized {
                             estimated_size: method_calc.estimated_size,
                         },
                         is_virtual: method.is_virtual_method() && !method.is_final_method(),
+                        template,
                     }));
             }
         }
@@ -780,6 +811,20 @@ pub trait CSType: Sized {
 
                 format!("::ArrayW<{}>", generic)
             }
+            TypeEnum::Mvar | TypeEnum::Var => match typ.data {
+                TypeData::GenericParameterIndex(index) => {
+                    let generic_param = metadata
+                        .metadata
+                        .generic_parameters
+                        .get(index as usize)
+                        .unwrap();
+
+                    let name = metadata.metadata.get_str(generic_param.name_index).unwrap();
+
+                    name.to_string()
+                }
+                _ => todo!(),
+            },
             TypeEnum::Genericinst => {
                 let generic_types: Vec<String> = match typ.data.into() {
                     TypeTag::GenericClass(e) => {
