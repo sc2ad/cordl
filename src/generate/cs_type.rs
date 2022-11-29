@@ -33,6 +33,7 @@ pub trait CSType: Sized {
         metadata: &Metadata,
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
+        tag: impl Into<TypeTag>
     ) -> Option<CppType> {
         // let iface = metadata.interfaces.get(t.interfaces_start);
         // Then, handle interfaces
@@ -103,7 +104,7 @@ pub trait CSType: Sized {
             requirements: Default::default(),
             is_value_type: t.is_value_type(),
             implementations: Default::default(),
-            self_tdi: tdi,
+            self_tag: tag.into(),
             cpp_namespace: config.namespace_cpp(ns),
             cpp_name: config.name_cpp(name),
         };
@@ -317,7 +318,7 @@ pub trait CSType: Sized {
                     .unwrap();
                 let tag = TypeTag::TypeDefinition(method.declaring_type);
                 let declaring_cpp_type: Option<&CppType> =
-                    if method.declaring_type == cpp_type.self_tdi {
+                    if tag == cpp_type.self_tag {
                         Some(cpp_type)
                     } else {
                         ctx_collection
@@ -768,7 +769,7 @@ pub trait CSType: Sized {
             }
             TypeEnum::Valuetype | TypeEnum::Class => {
                 // Self
-                if let TypeData::TypeDefinitionIndex(tdi) = typ.data && tdi == cpp_type.self_tdi {
+                if TypeTag::from(typ.data) == cpp_type.self_tag {
                     // TODO: println!("Warning! This is self referencing, handle this better in the future");
                     return cpp_type.formatted_complete_cpp_name();
                 }

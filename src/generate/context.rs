@@ -87,6 +87,7 @@ impl CppContext {
         metadata: &Metadata,
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
+        tag: impl Into<TypeTag>
     ) -> CppContext {
         let t = metadata
             .metadata
@@ -120,7 +121,7 @@ impl CppContext {
             )),
             typedef_types: Default::default(),
         };
-        match CppType::make_cpp_type(metadata, config, tdi) {
+        match CppType::make_cpp_type(metadata, config, tdi, tag) {
             Some(cpptype) => {
                 x.typedef_types
                     .insert(TypeTag::TypeDefinition(tdi), cpptype);
@@ -265,7 +266,7 @@ impl CppContextCollection {
         }
 
         self.all_contexts.entry(tag).or_insert_with(|| match tag {
-            TypeTag::TypeDefinition(tdi) => CppContext::make(metadata, config, tdi),
+            TypeTag::TypeDefinition(tdi) => CppContext::make(metadata, config, tdi, tag),
             _ => panic!("Unsupported type: {tag:?}"),
         })
     }

@@ -2,12 +2,12 @@ use std::{collections::HashSet, io::Write};
 
 use color_eyre::eyre::Context;
 
-use il2cpp_metadata_raw::TypeDefinitionIndex;
+
 use itertools::Itertools;
 
 use super::{
     members::{CppForwardDeclare, CppInclude, CppMember, CppTemplate},
-    writer::Writable,
+    writer::Writable, context::TypeTag,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -22,7 +22,7 @@ pub struct CppTypeRequirements {
 // A C# type will be TURNED INTO this
 #[derive(Debug, Clone)]
 pub struct CppType {
-    pub self_tdi: TypeDefinitionIndex,
+    pub self_tag: TypeTag,
 
     pub(crate) prefix_comments: Vec<String>,
     pub(crate) namespace: String,
