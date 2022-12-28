@@ -1,5 +1,7 @@
 #![feature(entry_insert)]
 #![feature(let_chains)]
+#![feature(core_intrinsics)]
+#![feature(slice_as_chunks)]
 
 use generate::config::GenerationConfig;
 use generate::context::{CppContextCollection, TypeTag};
@@ -10,6 +12,8 @@ use std::{fs, time};
 
 use clap::{Parser, Subcommand};
 use il2cpp_binary::{Elf, TypeData};
+
+use crate::generate::members::CppMember;
 mod generate;
 
 #[derive(Parser)]
@@ -101,6 +105,61 @@ fn main() -> color_eyre::Result<()> {
                 .iter()
                 .any(|(_, t)| !t.generic_args.names.is_empty())
         })
+        .unwrap()
+        .1
+        .write()?;
+    println!("Value type");
+    cpp_context_collection
+        .get()
+        .iter()
+        .find(|(_, c)| {
+            c.get_types()
+                .iter()
+                .any(|(_, t)| t.is_value_type && t.name == "Color" && t.namespace == "UnityEngine")
+        })
+        .unwrap()
+        .1
+        .write()?;
+    println!("AlignmentUnion type");
+    cpp_context_collection
+        .get()
+        .iter()
+        .find(|(_, c)| {
+            c.get_types()
+                .iter()
+                .any(|(_, t)| t.is_value_type && t.name == "AlignmentUnion")
+        })
+        .unwrap()
+        .1
+        .write()?;
+    println!("Array type");
+    cpp_context_collection
+        .get()
+        .iter()
+        .find(|(_, c)| {
+            c.get_types()
+                .iter()
+                .any(|(_, t)| t.name == "Array" && t.namespace == "System")
+        })
+        .unwrap()
+        .1
+        .write()?;
+    println!("Default param");
+    cpp_context_collection
+        .get()
+        .iter()
+        .filter(|(_, c)| {
+            c.get_types().iter().any(|(_, t)| {
+                t.declarations.iter().any(|d| {
+                    if let CppMember::MethodDecl(m) = d {
+                        m.parameters.iter().any(|p| p.def_value.is_some())
+                    } else {
+                        false
+                    }
+                })
+            })
+        })
+        .nth(2)
         .unwrap()
         .1
         .write()?;

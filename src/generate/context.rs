@@ -14,7 +14,8 @@ use crate::generate::members::CppInclude;
 
 use super::{
     config::GenerationConfig,
-    cpp_type::{fill_from_il2cpp, make_cpp_type, CppType},
+    cpp_type::CppType,
+    cs_type::CSType,
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
@@ -86,6 +87,7 @@ impl CppContext {
         metadata: &Metadata,
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
+        tag: impl Into<TypeTag>
     ) -> CppContext {
         let t = metadata
             .metadata
@@ -119,7 +121,7 @@ impl CppContext {
             )),
             typedef_types: Default::default(),
         };
-        match make_cpp_type(metadata, config, tdi) {
+        match CppType::make_cpp_type(metadata, config, tdi, tag) {
             Some(cpptype) => {
                 x.typedef_types
                     .insert(TypeTag::TypeDefinition(tdi), cpptype);
@@ -211,6 +213,7 @@ impl CppContext {
 pub struct CppContextCollection {
     all_contexts: HashMap<TypeTag, CppContext>,
     filled_types: HashSet<TypeTag>,
+    filling_types: HashSet<TypeTag>,
 }
 
 impl CppContextCollection {
@@ -234,9 +237,10 @@ impl CppContextCollection {
             .expect("No cpp context")
             .typedef_types
             .remove_entry(&tag);
+        self.filling_types.insert(tag);
 
         if let Some((t, mut cpp_type)) = cpp_type_entry {
-            fill_from_il2cpp(&mut cpp_type, metadata, config, self, tdi);
+            cpp_type.fill_from_il2cpp(metadata, config, self, tdi);
 
             self.all_contexts
                 .get_mut(&tag)
@@ -246,6 +250,7 @@ impl CppContextCollection {
         }
 
         self.filled_types.insert(tag);
+        self.filling_types.remove(&tag);
     }
 
     pub fn make_from(
@@ -256,8 +261,12 @@ impl CppContextCollection {
     ) -> &mut CppContext {
         let tag = ty.into();
 
+        if self.filling_types.contains(&tag) {
+            panic!("Currently filling type {tag:?}, cannot fill")
+        }
+
         self.all_contexts.entry(tag).or_insert_with(|| match tag {
-            TypeTag::TypeDefinition(tdi) => CppContext::make(metadata, config, tdi),
+            TypeTag::TypeDefinition(tdi) => CppContext::make(metadata, config, tdi, tag),
             _ => panic!("Unsupported type: {tag:?}"),
         })
     }
@@ -282,6 +291,7 @@ impl CppContextCollection {
         CppContextCollection {
             all_contexts: Default::default(),
             filled_types: Default::default(),
+            filling_types: Default::default(),
         }
     }
     pub fn get(&self) -> &HashMap<TypeTag, CppContext> {
