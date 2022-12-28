@@ -1,13 +1,13 @@
-use std::{collections::HashSet, io::Write};
+use std::{collections::HashSet, io::Write, rc::Rc};
 
 use color_eyre::eyre::Context;
-
 
 use itertools::Itertools;
 
 use super::{
+    context::TypeTag,
     members::{CppForwardDeclare, CppInclude, CppMember, CppTemplate},
-    writer::Writable, context::TypeTag,
+    writer::Writable,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -32,6 +32,10 @@ pub struct CppType {
 
     pub declarations: Vec<CppMember>,
     pub implementations: Vec<CppMember>,
+    /// Outside of the class declaration
+    /// Move to CsType/CppType?
+    pub nonmember_implementations: Vec<Rc<dyn Writable>>,
+    pub nonmember_declarations: Vec<Rc<dyn Writable>>,
 
     pub is_value_type: bool,
     pub requirements: CppTypeRequirements,
@@ -89,9 +93,12 @@ impl CppType {
 
     pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         // Write all declarations within the type here
-        self.implementations.iter().for_each(|d| {
-            d.write(writer).unwrap();
-        });
+        self.implementations
+            .iter()
+            .try_for_each(|d| d.write(writer))?;
+        self.nonmember_implementations
+            .iter()
+            .try_for_each(|d| d.write(writer))?;
 
         Ok(())
     }
@@ -139,6 +146,12 @@ impl CppType {
         // Type complete
         writer.dedent();
         writeln!(writer, "}};")?;
+
+        // NON MEMBER DECLARATIONS
+        self.nonmember_declarations
+            .iter()
+            .try_for_each(|d| d.write(writer))?;
+
         // Namespace complete
         writer.dedent();
         writeln!(writer, "}} // namespace {}", self.cpp_namespace())?;

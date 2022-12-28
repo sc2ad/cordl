@@ -12,24 +12,6 @@ pub struct CppTemplate {
     pub names: Vec<String>,
 }
 
-impl Writable for CppTemplate {
-    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if !self.names.is_empty() {
-            writeln!(
-                writer,
-                "template<{}>",
-                self.names
-                    .iter()
-                    .map(|s| format!("typename {}", s))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )?;
-        }
-
-        Ok(())
-    }
-}
-
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub struct CppForwardDeclare {
     // TODO: Make this group lots into a single namespace
@@ -39,57 +21,10 @@ pub struct CppForwardDeclare {
     pub templates: CppTemplate, // names of template arguments, T, TArgs etc.
 }
 
-impl CppForwardDeclare {
-    pub fn from_cpp_type(cpp_type: &CppType) -> Self {
-        Self {
-            is_struct: cpp_type.is_value_type,
-            namespace: Some(cpp_type.cpp_namespace().to_string()),
-            name: cpp_type.name().clone(),
-            templates: cpp_type.generic_args.clone(),
-        }
-    }
-}
-
-impl Writable for CppForwardDeclare {
-    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if let Some(namespace) = &self.namespace {
-            writeln!(writer, "namespace {} {{", namespace)?;
-        }
-
-        self.templates.write(writer)?;
-
-        writeln!(
-            writer,
-            "{} {};",
-            match self.is_struct {
-                true => "struct",
-                false => "class",
-            },
-            self.name
-        )?;
-
-        if self.namespace.is_some() {
-            writeln!(writer, "}}")?;
-        }
-
-        Ok(())
-    }
-}
-
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub struct CppCommentedString {
     pub data: String,
     pub comment: Option<String>,
-}
-
-impl Writable for CppCommentedString {
-    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if let Some(val) = &self.comment {
-            writeln!(writer, "// {val}")?;
-        }
-        writeln!(writer, "{}", self.data)?;
-        Ok(())
-    }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -98,39 +33,6 @@ pub struct CppInclude {
     system: bool,
 }
 
-impl CppInclude {
-    pub fn new_context(context: &CppContext) -> Self {
-        Self {
-            include: context.fundamental_path.clone(),
-            system: false,
-        }
-    }
-
-    pub fn new_system(str: PathBuf) -> Self {
-        Self {
-            include: str,
-            system: true,
-        }
-    }
-
-    pub fn new(str: PathBuf) -> Self {
-        Self {
-            include: str,
-            system: false,
-        }
-    }
-}
-
-impl Writable for CppInclude {
-    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if self.system {
-            writeln!(writer, "#include <{}>", self.include.to_str().unwrap())?;
-        } else {
-            writeln!(writer, "#include \"{}\"", self.include.to_str().unwrap())?;
-        }
-        Ok(())
-    }
-}
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CppMember {
@@ -139,7 +41,6 @@ pub enum CppMember {
     MethodImpl(CppMethodImpl),
     Property(CppProperty),
     Comment(CppCommentedString),
-    MethodSizeStruct(CppMethodSizeStruct), // TODO: Or a nested type
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
 }
@@ -152,12 +53,18 @@ pub struct CppMethodData {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethodSizeStruct {
-    pub cpp_name: String,
-    pub ty: String,
+    pub cpp_method_name: String,
+    pub complete_type_name: String,
     pub ret_ty: String,
     pub instance: bool,
     pub params: Vec<CppParam>,
     pub method_data: CppMethodData,
+
+    pub template: CppTemplate,
+    
+    pub interface_clazz_of: String,
+    pub is_final: bool,
+    pub slot: Option<u16>,
 }
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppField {
@@ -215,16 +122,16 @@ pub struct CppMethodDecl {
 // TODO: Generic
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethodImpl {
-    pub cpp_name: String,
-    pub name: String,
-    pub holder_namespaze: String,
+    pub cpp_method_name: String,
+    pub cs_method_name: String,
+
+    pub holder_cpp_namespaze: String,
     pub holder_cpp_name: String,
+
     pub return_type: String,
     pub parameters: Vec<CppParam>,
     pub instance: bool,
-    pub interface_clazz_of: String,
-    pub is_final: bool,
-    pub slot: Option<u16>,
+
     pub template: CppTemplate,
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:
@@ -268,6 +175,107 @@ pub struct CppProperty {
     pub classof_call: String,
 }
 // Writing
+
+
+impl Writable for CppTemplate {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if !self.names.is_empty() {
+            writeln!(
+                writer,
+                "template<{}>",
+                self.names
+                    .iter()
+                    .map(|s| format!("typename {}", s))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )?;
+        }
+
+        Ok(())
+    }
+}
+
+impl CppForwardDeclare {
+    pub fn from_cpp_type(cpp_type: &CppType) -> Self {
+        Self {
+            is_struct: cpp_type.is_value_type,
+            namespace: Some(cpp_type.cpp_namespace().to_string()),
+            name: cpp_type.name().clone(),
+            templates: cpp_type.generic_args.clone(),
+        }
+    }
+}
+
+impl Writable for CppForwardDeclare {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if let Some(namespace) = &self.namespace {
+            writeln!(writer, "namespace {} {{", namespace)?;
+        }
+
+        self.templates.write(writer)?;
+
+        writeln!(
+            writer,
+            "{} {};",
+            match self.is_struct {
+                true => "struct",
+                false => "class",
+            },
+            self.name
+        )?;
+
+        if self.namespace.is_some() {
+            writeln!(writer, "}}")?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Writable for CppCommentedString {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if let Some(val) = &self.comment {
+            writeln!(writer, "// {val}")?;
+        }
+        writeln!(writer, "{}", self.data)?;
+        Ok(())
+    }
+}
+
+impl CppInclude {
+    pub fn new_context(context: &CppContext) -> Self {
+        Self {
+            include: context.fundamental_path.clone(),
+            system: false,
+        }
+    }
+
+    pub fn new_system(str: PathBuf) -> Self {
+        Self {
+            include: str,
+            system: true,
+        }
+    }
+
+    pub fn new(str: PathBuf) -> Self {
+        Self {
+            include: str,
+            system: false,
+        }
+    }
+}
+
+impl Writable for CppInclude {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if self.system {
+            writeln!(writer, "#include <{}>", self.include.to_str().unwrap())?;
+        } else {
+            writeln!(writer, "#include \"{}\"", self.include.to_str().unwrap())?;
+        }
+        Ok(())
+    }
+}
+
 
 impl CppParam {
     fn params_as_args(params: &[CppParam]) -> String {
@@ -394,9 +402,9 @@ impl Writable for CppMethodImpl {
             writer,
             "{} {}::{}::{}({}){{",
             self.return_type,
-            self.holder_namespaze,
+            self.holder_cpp_namespaze,
             self.holder_cpp_name,
-            self.cpp_name,
+            self.cpp_method_name,
             CppParam::params_as_args_no_default(&self.parameters)
         )?;
 
@@ -405,20 +413,17 @@ impl Writable for CppMethodImpl {
         //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
         // Body
-        if let Some(slot) = self.slot && !self.is_final {
-            writeln!(writer, "auto ___internal__method = THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot((*reinterpret_cast<Il2CppObject**>(this))->klass, {}(), {slot}));", 
-              self.interface_clazz_of
-            )?
-        } else {
-            writeln!(writer, "static auto ___internal__method = THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}));", 
-                self.name,
-                CppParam::params_il2cpp_types(&self.parameters)
-            )?
-        }
+
+        let complete_type_name = format!("{}::{}", self.holder_cpp_namespaze, self.holder_cpp_name);
+        let params_format = CppParam::params_types(&self.parameters);
+
+        writeln!(writer, "static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({complete_type_name}::*)({params_format})>(&{complete_type_name}::{})>::methodInfo();",
+            self.return_type,
+            self.cpp_method_name)?;
 
         write!(
             writer,
-            "return ::il2cpp_utils::RunMethodRethrow<{}, false>(this, ___internal__method",
+            "return ::il2cpp_utils::RunMethodRethrow<{}, false>(this, ___internal__method,",
             self.return_type
         )?;
 
@@ -553,9 +558,23 @@ impl Writable for CppMethodSizeStruct {
         writeln!(
             writer,
             "//  Writing Method size for method: {}.{}",
-            self.ty, self.cpp_name
+            self.complete_type_name, self.cpp_method_name
         )?;
         let params_format = CppParam::params_types(&self.params);
+
+        let method_info_rhs = 
+
+        if let Some(slot) = self.slot && !self.is_final {
+            format!("THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot((*reinterpret_cast<Il2CppObject**>(this))->klass, {}(), {slot}))", 
+              self.interface_clazz_of
+            )
+        } else {
+            format!("THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{params_format}}}))", 
+                self.cpp_method_name
+            )
+        };
+
+
         writeln!(
             writer,
             "template<>
@@ -566,11 +585,15 @@ struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({}::*)(
   constexpr static const usize addrs() {{
     return 0x{:x};
   }}
+
+  inline static const ::MethodInfo* methodInfo() {{
+    return {method_info_rhs};
+  }}
 }};",
             self.ret_ty,
-            self.ty,
-            self.ty,
-            self.cpp_name,
+            self.complete_type_name,
+            self.complete_type_name,
+            self.cpp_method_name,
             self.method_data.estimated_size,
             self.method_data.addrs
         )?;
@@ -585,7 +608,6 @@ impl Writable for CppMember {
             CppMember::MethodDecl(m) => m.write(writer),
             CppMember::Property(p) => p.write(writer),
             CppMember::Comment(c) => c.write(writer),
-            CppMember::MethodSizeStruct(s) => s.write(writer),
             CppMember::MethodImpl(i) => i.write(writer),
             CppMember::ConstructorDecl(c) => c.write(writer),
             CppMember::ConstructorImpl(ci) => ci.write(writer),

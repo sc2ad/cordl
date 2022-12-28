@@ -1,5 +1,6 @@
 use std::{
     io::{Cursor, Read},
+    rc::Rc,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -98,12 +99,15 @@ pub trait CSType: Sized {
             prefix_comments: vec![format!("Type: {ns}::{name}")],
             namespace: config.namespace_cpp(ns),
             name: config.name_cpp(name),
-            declarations: Default::default(),
             inherit: Default::default(),
             generic_args: cpp_template,
             requirements: Default::default(),
-            is_value_type: t.is_value_type(),
+
+            declarations: Default::default(),
             implementations: Default::default(),
+            nonmember_declarations: Default::default(),
+            nonmember_implementations: Default::default(),
+            is_value_type: t.is_value_type(),
             self_tag: tag.into(),
             cpp_namespace: config.namespace_cpp(ns),
             cpp_name: config.name_cpp(name),
@@ -326,17 +330,18 @@ pub trait CSType: Sized {
                 };
 
                 cpp_type
-                    .implementations
-                    .push(CppMember::MethodImpl(CppMethodImpl {
-                        cpp_name: config.name_cpp(m_name),
-                        name: m_name.to_string(),
-                        holder_namespaze: cpp_type.namespace().clone(),
-                        holder_cpp_name: cpp_type.cpp_name().clone(),
-                        return_type: m_ret_cpp_type_name.clone(),
-                        parameters: m_params.clone(),
+                    .nonmember_implementations
+                    .push(Rc::new(CppMethodSizeStruct {
+                        ret_ty: m_ret_cpp_type_name.clone(),
+                        cpp_method_name: config.name_cpp(m_name),
+                        complete_type_name: cpp_type.formatted_complete_cpp_name(),
                         instance: !method.is_static_method(),
-                        suffix_modifiers: Default::default(),
-                        prefix_modifiers: Default::default(),
+                        params: m_params.clone(),
+                        template: template.clone(),
+                        method_data: CppMethodData {
+                            addrs: method_calc.addrs,
+                            estimated_size: method_calc.estimated_size,
+                        },
                         interface_clazz_of: declaring_cpp_type
                             .map(|d| d.classof_cpp_name())
                             .unwrap_or_else(|| format!("Bad stuff happened {:?}", declaring_type)),
@@ -346,20 +351,20 @@ pub trait CSType: Sized {
                         } else {
                             None
                         },
-                        template: template.clone(),
                     }));
                 cpp_type
                     .implementations
-                    .push(CppMember::MethodSizeStruct(CppMethodSizeStruct {
-                        ret_ty: m_ret_cpp_type_name.clone(),
-                        cpp_name: config.name_cpp(m_name),
-                        ty: cpp_type.formatted_complete_cpp_name(),
+                    .push(CppMember::MethodImpl(CppMethodImpl {
+                        cpp_method_name: config.name_cpp(m_name),
+                        cs_method_name: m_name.to_string(),
+                        holder_cpp_namespaze: cpp_type.cpp_namespace().to_string(),
+                        holder_cpp_name: cpp_type.cpp_name().clone(),
+                        return_type: m_ret_cpp_type_name.clone(),
+                        parameters: m_params.clone(),
                         instance: !method.is_static_method(),
-                        params: m_params.clone(),
-                        method_data: CppMethodData {
-                            addrs: method_calc.addrs,
-                            estimated_size: method_calc.estimated_size,
-                        },
+                        suffix_modifiers: Default::default(),
+                        prefix_modifiers: Default::default(),
+                        template: template.clone(),
                     }));
                 cpp_type
                     .declarations
