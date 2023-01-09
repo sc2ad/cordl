@@ -30,10 +30,17 @@ pub trait CSType: Sized {
     fn get_mut_cpp_type(&mut self) -> &mut CppType; // idk how else to do this
     fn get_cpp_type(&self) -> &CppType; // idk how else to do this
 
+    fn get_tag_tdi(tag: impl Into<TypeTag>) -> u32 {
+        let tag_convert = tag.into();
+        match tag_convert {
+            TypeTag::TypeDefinition(tdi) => tdi,
+            _ => panic!("Unsupported type: {tag_convert:?}"),
+        }
+    }
+
     fn make_cpp_type(
         metadata: &Metadata,
         config: &GenerationConfig,
-        tdi: TypeDefinitionIndex,
         tag: impl Into<TypeTag>,
     ) -> Option<CppType> {
         // let iface = metadata.interfaces.get(t.interfaces_start);
@@ -42,6 +49,9 @@ pub trait CSType: Sized {
         // Then, handle methods
         // - This includes constructors
         // inherited methods will be inherited
+
+        let tag_copy = tag.into();
+        let tdi = Self::get_tag_tdi(tag_copy);
 
         let t = metadata
             .metadata
@@ -108,9 +118,10 @@ pub trait CSType: Sized {
             nonmember_declarations: Default::default(),
             nonmember_implementations: Default::default(),
             is_value_type: t.is_value_type(),
-            self_tag: tag.into(),
+            self_tag: tag_copy,
             cpp_namespace: config.namespace_cpp(ns),
             cpp_name: config.name_cpp(name),
+            nested_types: Default::default(),
         };
 
         if t.parent_index == u32::MAX {
@@ -141,6 +152,7 @@ pub trait CSType: Sized {
         self.make_fields(metadata, config, ctx_collection, tdi);
         self.make_properties(metadata, config, ctx_collection, tdi);
         self.make_methods(metadata, config, ctx_collection, tdi);
+        self.make_nested_types(metadata, config, ctx_collection, tdi);
     }
 
     fn make_methods(
@@ -181,7 +193,7 @@ pub trait CSType: Sized {
             cpp_type
                 .declarations
                 .push(CppMember::ConstructorImpl(CppConstructorImpl {
-                    holder_cpp_ty: cpp_type.formatted_complete_cpp_name(),
+                    holder_cpp_ty_name: cpp_type.cpp_name().clone(),
                     parameters: fields.clone(),
                     is_constexpr: true,
                     template: CppTemplate::default(),
@@ -301,7 +313,7 @@ pub trait CSType: Sized {
                     cpp_type
                         .implementations
                         .push(CppMember::ConstructorImpl(CppConstructorImpl {
-                            holder_cpp_ty: cpp_type.formatted_complete_cpp_name(),
+                            holder_cpp_ty_name: cpp_type.cpp_name().clone(),
                             parameters: m_params.clone(),
                             is_constexpr: false,
                             template: template.clone(),
@@ -493,6 +505,69 @@ pub trait CSType: Sized {
                 cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, int_ty, true);
             cpp_type.inherit.push(inherit_type);
         }
+    }
+
+    fn make_nested_types(
+        &mut self,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        ctx_collection: &mut CppContextCollection,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = metadata
+            .metadata
+            .type_definitions
+            .get(tdi as usize)
+            .unwrap();
+        let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
+        let name = metadata.metadata.get_str(t.name_index).unwrap();
+
+        if t.nested_type_count == 0 {
+            return;
+        }
+
+        let mut nested_types: Vec<CppType> = Vec::with_capacity(t.nested_type_count as usize);
+
+        for nested_type_index in
+            t.nested_types_start..t.nested_types_start + (t.nested_type_count as u32)
+        {
+            let nt_ty = metadata
+                .metadata_registration
+                .types
+                .get(nested_type_index as usize)
+                .unwrap();
+
+            match nt_ty.data {
+                TypeData::TypeDefinitionIndex(_) => (),
+                _ => {
+                    println!(
+                        "Found {:?} in nested type, skipping for now {nt_ty:?}",
+                        nt_ty.data
+                    );
+                    continue;
+                }
+            }
+
+            // We have a parent, lets do something with it
+            let nested_type = CppType::make_cpp_type(metadata, config, nt_ty.data);
+
+            match nested_type {
+                Some(unwrapped) => nested_types.push(unwrapped),
+                None => println!("Failed to make nested CppType {nt_ty:?}"),
+            };
+        }
+
+        nested_types.iter_mut().for_each(|n| {
+            n.fill_from_il2cpp(
+                metadata,
+                config,
+                ctx_collection,
+                Self::get_tag_tdi(n.self_tag),
+            )
+        });
+
+        cpp_type.nested_types = nested_types
     }
 
     fn make_properties(

@@ -42,6 +42,8 @@ pub struct CppType {
 
     pub inherit: Vec<String>,
     pub generic_args: CppTemplate, // Names of templates e.g T, TKey etc.
+
+    pub nested_types: Vec<CppType>,
 }
 
 impl CppTypeRequirements {
@@ -92,6 +94,21 @@ impl CppType {
     }
 
     pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        self.write_impl_internal(writer, Some(self.cpp_namespace()))
+    }
+
+    pub fn write_def(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        self.write_def_internal(writer, Some(self.cpp_namespace()))
+    }
+
+    pub fn write_impl_internal(
+        &self,
+        writer: &mut super::writer::CppWriter,
+        namespace: Option<&str>,
+    ) -> color_eyre::Result<()> {
+        if let Some(namespace) = namespace {
+            writeln!(writer, "namespace {} {{", namespace)?;
+        }
         // Write all declarations within the type here
         self.implementations
             .iter()
@@ -100,10 +117,23 @@ impl CppType {
             .iter()
             .try_for_each(|d| d.write(writer))?;
 
+        // TODO: Figure out
+        self.nested_types
+            .iter()
+            .try_for_each(|n| n.write_impl_internal(writer, Some(self.cpp_name())))?;
+
+        if let Some(namespace) = namespace {
+            writeln!(writer, "}} // end namespace {}", namespace)?;
+        }
+
         Ok(())
     }
 
-    pub fn write_def(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+    fn write_def_internal(
+        &self,
+        writer: &mut super::writer::CppWriter,
+        namespace: Option<&str>,
+    ) -> color_eyre::Result<()> {
         self.prefix_comments.iter().for_each(|pc| {
             writeln!(writer, "// {pc}")
                 .context("Prefix comment")
@@ -116,8 +146,12 @@ impl CppType {
             self.cpp_namespace(),
             self.name()
         )?;
-        writeln!(writer, "namespace {} {{", self.cpp_namespace())?;
-        writer.indent();
+
+        if let Some(n) = &namespace {
+            writeln!(writer, "namespace {n} {{",)?;
+            writer.indent();
+        }
+
         self.generic_args.write(writer)?;
         writeln!(writer, "struct {};", self.name())?;
 
@@ -139,10 +173,20 @@ impl CppType {
         }
 
         writer.indent();
+
+        self.nested_types
+            .iter()
+            .try_for_each(|n| writeln!(writer, "struct {};", n.cpp_name))?;
+
         // Write all declarations within the type here
         self.declarations.iter().for_each(|d| {
             d.write(writer).unwrap();
         });
+
+        self.nested_types
+            .iter()
+            .try_for_each(|n| n.write_def_internal(writer, None))?;
+
         // Type complete
         writer.dedent();
         writeln!(writer, "}};")?;
@@ -153,8 +197,10 @@ impl CppType {
             .try_for_each(|d| d.write(writer))?;
 
         // Namespace complete
-        writer.dedent();
-        writeln!(writer, "}} // namespace {}", self.cpp_namespace())?;
+        if let Some(n) = namespace {
+            writer.dedent();
+            writeln!(writer, "}} // namespace {}", self.cpp_namespace())?;
+        }
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
         Ok(())
     }
