@@ -157,7 +157,7 @@ pub struct CppConstructorDecl {
 }
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppConstructorImpl {
-    pub holder_cpp_ty: String,
+    pub holder_cpp_ty_name: String,
 
     pub parameters: Vec<CppParam>,
     pub is_constexpr: bool,
@@ -400,9 +400,8 @@ impl Writable for CppMethodImpl {
         // Start
         writeln!(
             writer,
-            "{} {}::{}::{}({}){{",
+            "{} {}::{}({}){{",
             self.return_type,
-            self.holder_cpp_namespaze,
             self.holder_cpp_name,
             self.cpp_method_name,
             CppParam::params_as_args_no_default(&self.parameters)
@@ -469,14 +468,14 @@ impl Writable for CppConstructorImpl {
             write!(
                 writer,
                 "inline {}({})",
-                self.holder_cpp_ty,
+                self.holder_cpp_ty_name,
                 CppParam::params_as_args(&self.parameters)
             )?;
         } else {
             write!(
                 writer,
                 "{}({})",
-                self.holder_cpp_ty,
+                self.holder_cpp_ty_name,
                 CppParam::params_as_args_no_default(&self.parameters)
             )?;
         }
@@ -497,7 +496,7 @@ impl Writable for CppConstructorImpl {
             writeln!(
             writer,
             " : ::bs_hook::Il2CppWrapperType(::il2cpp_utils::New<Il2CppObject*>(classof({}), {})) {{",
-            self.holder_cpp_ty,
+            self.holder_cpp_ty_name,
             CppParam::params_names(&self.parameters)
         )?;
         }

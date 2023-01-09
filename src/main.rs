@@ -120,6 +120,18 @@ fn main() -> color_eyre::Result<()> {
         .unwrap()
         .1
         .write()?;
+    println!("Nested type");
+    cpp_context_collection
+        .get()
+        .iter()
+        .find(|(_, c)| {
+            c.get_types()
+                .iter()
+                .any(|(_, t)| !t.nested_types.is_empty())
+        })
+        .unwrap()
+        .1
+        .write()?;
     println!("AlignmentUnion type");
     cpp_context_collection
         .get()

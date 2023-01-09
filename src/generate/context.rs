@@ -83,11 +83,12 @@ impl CppContext {
         &self.typedef_types
     }
 
+    // TODO: Move out, this is CSContext
     fn make(
         metadata: &Metadata,
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
-        tag: impl Into<TypeTag>
+        tag: impl Into<TypeTag>,
     ) -> CppContext {
         let t = metadata
             .metadata
@@ -121,7 +122,7 @@ impl CppContext {
             )),
             typedef_types: Default::default(),
         };
-        match CppType::make_cpp_type(metadata, config, tdi, tag) {
+        match CppType::make_cpp_type(metadata, config, tag) {
             Some(cpptype) => {
                 x.typedef_types
                     .insert(TypeTag::TypeDefinition(tdi), cpptype);
@@ -265,9 +266,9 @@ impl CppContextCollection {
             panic!("Currently filling type {tag:?}, cannot fill")
         }
 
-        self.all_contexts.entry(tag).or_insert_with(|| match tag {
-            TypeTag::TypeDefinition(tdi) => CppContext::make(metadata, config, tdi, tag),
-            _ => panic!("Unsupported type: {tag:?}"),
+        self.all_contexts.entry(tag).or_insert_with(|| {
+            let tdi = CppType::get_tag_tdi(tag);
+            CppContext::make(metadata, config, tdi, tag)
         })
     }
 
