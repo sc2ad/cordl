@@ -38,6 +38,30 @@ pub trait CSType: Sized {
         }
     }
 
+    fn parent_joined_cpp_name(
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        tdi: TypeDefinitionIndex,
+    ) -> String {
+        let parent = metadata.child_to_parent_map.get(&tdi);
+        let ty = metadata
+            .metadata
+            .type_definitions
+            .get(tdi as usize)
+            .unwrap();
+        let self_name = metadata.metadata.get_str(ty.name_index).unwrap();
+
+        match parent {
+            Some(parent_ty_cpp_name) => {
+                let parent_name =
+                    Self::parent_joined_cpp_name(metadata, config, parent_ty_cpp_name.tdi);
+
+                format!("{parent_name}::{self_name}")
+            }
+            None => self_name.to_string(),
+        }
+    }
+
     fn make_cpp_type(
         metadata: &Metadata,
         config: &GenerationConfig,
@@ -52,6 +76,7 @@ pub trait CSType: Sized {
 
         let tag_copy = tag.into();
         let tdi = Self::get_tag_tdi(tag_copy);
+        let parent_pair = metadata.child_to_parent_map.get(&tdi);
 
         let t = metadata
             .metadata
@@ -112,6 +137,9 @@ pub trait CSType: Sized {
             inherit: Default::default(),
             generic_args: cpp_template,
             requirements: Default::default(),
+            parent_ty_tdi: parent_pair.map(|p| p.tdi),
+            parent_ty_cpp_name: parent_pair
+                .map(|p| Self::parent_joined_cpp_name(metadata, config, p.tdi)),
 
             declarations: Default::default(),
             implementations: Default::default(),
@@ -125,7 +153,7 @@ pub trait CSType: Sized {
         };
 
         if t.parent_index == u32::MAX {
-            if t.flags & 0x00000020 == 0 {
+            if t.flags & TYPE_ATTRIBUTE_INTERFACE == 0 {
                 println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
                 return None;
             }
@@ -370,7 +398,10 @@ pub trait CSType: Sized {
                         cpp_method_name: config.name_cpp(m_name),
                         cs_method_name: m_name.to_string(),
                         holder_cpp_namespaze: cpp_type.cpp_namespace().to_string(),
-                        holder_cpp_name: cpp_type.cpp_name().clone(),
+                        holder_cpp_name: match &cpp_type.parent_ty_cpp_name {
+                            Some(p) => format!("{p}::{}", cpp_type.cpp_name().clone()),
+                            None => cpp_type.cpp_name().clone(),
+                        },
                         return_type: m_ret_cpp_type_name.clone(),
                         parameters: m_params.clone(),
                         instance: !method.is_static_method(),
@@ -532,10 +563,11 @@ pub trait CSType: Sized {
         for nested_type_index in
             t.nested_types_start..t.nested_types_start + (t.nested_type_count as u32)
         {
+            let nt_ti = metadata.metadata.nested_types.get(nested_type_index as usize).unwrap().clone();
             let nt_ty = metadata
                 .metadata_registration
                 .types
-                .get(nested_type_index as usize)
+                .get(nt_ti as usize)
                 .unwrap();
 
             match nt_ty.data {

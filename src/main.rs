@@ -62,6 +62,8 @@ fn main() -> color_eyre::Result<()> {
         code_registration: &code_registration,
         metadata_registration: &metadata_registration,
         method_calculations: Default::default(),
+        parent_to_child_map: Default::default(),
+        child_to_parent_map: Default::default(),
     };
     let t = time::Instant::now();
     println!("Parsing metadata methods");
