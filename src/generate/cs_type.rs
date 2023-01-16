@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::{Cursor, Read},
     rc::Rc,
 };
@@ -130,25 +131,26 @@ pub trait CSType: Sized {
 
         let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
         let name = metadata.metadata.get_str(t.name_index).unwrap();
-        let cpptype = CppType {
+        let mut cpptype = CppType {
+            self_tag: tag_copy,
+            nested: parent_pair.is_some(),
             prefix_comments: vec![format!("Type: {ns}::{name}")],
             namespace: config.namespace_cpp(ns),
+            cpp_namespace: config.namespace_cpp(ns),
             name: config.name_cpp(name),
-            inherit: Default::default(),
-            generic_args: cpp_template,
-            requirements: Default::default(),
+            cpp_name: config.name_cpp(name),
             parent_ty_tdi: parent_pair.map(|p| p.tdi),
             parent_ty_cpp_name: parent_pair
                 .map(|p| Self::parent_joined_cpp_name(metadata, config, p.tdi)),
 
             declarations: Default::default(),
             implementations: Default::default(),
-            nonmember_declarations: Default::default(),
             nonmember_implementations: Default::default(),
+            nonmember_declarations: Default::default(),
             is_value_type: t.is_value_type(),
-            self_tag: tag_copy,
-            cpp_namespace: config.namespace_cpp(ns),
-            cpp_name: config.name_cpp(name),
+            requirements: Default::default(),
+            inherit: Default::default(),
+            generic_args: cpp_template,
             nested_types: Default::default(),
         };
 
@@ -166,6 +168,8 @@ pub trait CSType: Sized {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
         }
 
+        cpptype.make_nested_types(metadata, config, tdi);
+
         Some(cpptype)
     }
 
@@ -180,7 +184,6 @@ pub trait CSType: Sized {
         self.make_fields(metadata, config, ctx_collection, tdi);
         self.make_properties(metadata, config, ctx_collection, tdi);
         self.make_methods(metadata, config, ctx_collection, tdi);
-        self.make_nested_types(metadata, config, ctx_collection, tdi);
     }
 
     fn make_methods(
@@ -365,8 +368,8 @@ pub trait CSType: Sized {
                     Some(cpp_type)
                 } else {
                     ctx_collection
-                        .make_from(metadata, config, tag)
-                        .get_cpp_type(tag)
+                        .get_cpp_type(metadata, config, tag)
+                        .map(|c| &*c) // &mut -> &
                 };
 
                 cpp_type
@@ -542,7 +545,6 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
@@ -551,8 +553,6 @@ pub trait CSType: Sized {
             .type_definitions
             .get(tdi as usize)
             .unwrap();
-        let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
-        let name = metadata.metadata.get_str(t.name_index).unwrap();
 
         if t.nested_type_count == 0 {
             return;
@@ -563,41 +563,27 @@ pub trait CSType: Sized {
         for nested_type_index in
             t.nested_types_start..t.nested_types_start + (t.nested_type_count as u32)
         {
-            let nt_ti = metadata.metadata.nested_types.get(nested_type_index as usize).unwrap().clone();
+            let nt_tdi = metadata
+                .metadata
+                .nested_types
+                .get(nested_type_index as usize)
+                .unwrap()
+                .clone();
             let nt_ty = metadata
-                .metadata_registration
-                .types
-                .get(nt_ti as usize)
+                .metadata
+                .type_definitions
+                .get(nt_tdi as usize)
                 .unwrap();
 
-            match nt_ty.data {
-                TypeData::TypeDefinitionIndex(_) => (),
-                _ => {
-                    println!(
-                        "Found {:?} in nested type, skipping for now {nt_ty:?}",
-                        nt_ty.data
-                    );
-                    continue;
-                }
-            }
-
             // We have a parent, lets do something with it
-            let nested_type = CppType::make_cpp_type(metadata, config, nt_ty.data);
+            let nested_type =
+                CppType::make_cpp_type(metadata, config, TypeTag::TypeDefinition(nt_tdi));
 
             match nested_type {
                 Some(unwrapped) => nested_types.push(unwrapped),
                 None => println!("Failed to make nested CppType {nt_ty:?}"),
             };
         }
-
-        nested_types.iter_mut().for_each(|n| {
-            n.fill_from_il2cpp(
-                metadata,
-                config,
-                ctx_collection,
-                Self::get_tag_tdi(n.self_tag),
-            )
-        });
 
         cpp_type.nested_types = nested_types
     }
@@ -801,7 +787,16 @@ pub trait CSType: Sized {
         typ: &Type,
         add_include: bool,
     ) -> String {
+        let tag = TypeTag::from(typ.data);
+
+        let context_tag = ctx_collection.get_context_tag(tag);
         let cpp_type = self.get_mut_cpp_type();
+        let mut nested_types: HashMap<TypeTag, String> = cpp_type
+            .nested_types_flattened()
+            .into_iter()
+            .map(|(t, c)| (t, c.formatted_complete_cpp_name()))
+            .collect();
+
         let requirements = &mut cpp_type.requirements;
         match typ.ty {
             TypeEnum::I1
@@ -828,9 +823,14 @@ pub trait CSType: Sized {
             }
             TypeEnum::Valuetype | TypeEnum::Class => {
                 // Self
-                if TypeTag::from(typ.data) == cpp_type.self_tag {
+                if tag == cpp_type.self_tag {
                     // TODO: println!("Warning! This is self referencing, handle this better in the future");
                     return cpp_type.formatted_complete_cpp_name();
+                }
+
+                // Skip nested classes
+                if let Some(nested) = nested_types.remove(&tag) {
+                    return nested;
                 }
 
                 // In this case, just inherit the type
@@ -845,7 +845,9 @@ pub trait CSType: Sized {
                         .insert(CppInclude::new_context(to_incl));
                 }
                 let inc = CppInclude::new_context(to_incl);
-                let to_incl_ty = to_incl.get_cpp_type(typ.data.into()).unwrap();
+                let to_incl_ty = ctx_collection
+                    .get_cpp_type(metadata, config, typ.data)
+                    .unwrap();
 
                 // Forward declare it
                 if !add_include {

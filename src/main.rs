@@ -129,7 +129,7 @@ fn main() -> color_eyre::Result<()> {
         .find(|(_, c)| {
             c.get_types()
                 .iter()
-                .any(|(_, t)| !t.nested_types.is_empty())
+                .any(|(_, t)| t.nested_types.iter().any(|n| !n.declarations.is_empty()))
         })
         .unwrap()
         .1

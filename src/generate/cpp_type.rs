@@ -1,4 +1,8 @@
-use std::{collections::HashSet, io::Write, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Write,
+    rc::Rc,
+};
 
 use color_eyre::eyre::Context;
 
@@ -24,6 +28,7 @@ pub struct CppTypeRequirements {
 #[derive(Debug, Clone)]
 pub struct CppType {
     pub self_tag: TypeTag,
+    pub nested: bool,
 
     pub(crate) prefix_comments: Vec<String>,
     pub(crate) namespace: String,
@@ -87,6 +92,32 @@ impl CppType {
 
     pub fn cpp_name(&self) -> &String {
         &self.cpp_name
+    }
+
+    pub fn nested_types_flattened<'a>(&'a self) -> HashMap<TypeTag, &'a CppType> {
+        self.nested_types
+            .iter()
+            .flat_map(|n| n.nested_types_flattened())
+            .chain(self.nested_types.iter().map(|n| (n.self_tag.clone(), n)))
+            .collect()
+    }
+    pub fn get_nested_type_mut<'a>(
+        &'a mut self,
+        into_tag: impl Into<TypeTag>,
+    ) -> Option<&'a mut CppType> {
+        let tag = into_tag.into();
+
+        for n in &mut self.nested_types {
+            if n.self_tag == tag {
+                return Some(n);
+            }
+
+            let opt = n.get_nested_type_mut(tag);
+            if let Some(found) = opt {
+                return Some(found);
+            }
+        }
+        None
     }
 
     pub fn formatted_complete_cpp_name(&self) -> String {

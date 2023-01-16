@@ -55,21 +55,7 @@ impl<'a> Metadata<'a> {
                     Vec::with_capacity(td.nested_type_count as usize);
                 for i in td.nested_types_start..td.nested_types_start + td.nested_type_count as u32
                 {
-                    let nested_ti = self.metadata.nested_types.get(i as usize).unwrap().clone();
-                    let nested_t = self
-                        .metadata_registration
-                        .types
-                        .get(nested_ti as usize)
-                        .unwrap();
-
-                    match nested_t.data {
-                        TypeData::TypeDefinitionIndex(_) => (),
-                        _ => {
-                            // TODO: handle
-                            continue;
-                        }
-                    }
-                    let nested_tdi = CppType::get_tag_tdi(nested_t.data);
+                    let nested_tdi = self.metadata.nested_types.get(i as usize).unwrap().clone();
                     let nested_td = self
                         .metadata
                         .type_definitions
