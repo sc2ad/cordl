@@ -299,7 +299,8 @@ impl CppContextCollection {
 
                 nested_type.fill_from_il2cpp(metadata, config, self, tdi);
 
-                self.fill_nested_types(metadata, config, nested_tag);
+                // DO not recurse
+                // self.fill_nested_types(metadata, config, nested_tag);
                 nested_types.insert(index, nested_type);
             }
             self.filled_types.insert(nested_tag);

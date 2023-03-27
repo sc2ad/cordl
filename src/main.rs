@@ -83,10 +83,17 @@ fn main() -> color_eyre::Result<()> {
         );
     }
     // Fill children
-    for (parent, child) in &metadata.parent_to_child_map {
+    for (parent, _children) in &metadata.parent_to_child_map {
         let owner = cpp_context_collection
             .get_cpp_type(&metadata, &config, TypeData::TypeDefinitionIndex(*parent))
             .unwrap();
+
+        // **Ignore this, we no longer recurse:**
+        // skip children of children
+        // only fill first grade children of types
+        // if owner.nested {
+        //     continue;
+        // }
 
         let owner_ty = owner.self_tag;
 
