@@ -257,6 +257,7 @@ impl CppContextCollection {
 
             assert!(!cpp_type.nested, "Cannot fill a nested type!");
             // self.fill_nested_types(metadata, config, type_tag, &mut cpp_type);
+            self.alias_nested_types(&cpp_type);
 
             self.all_contexts
                 .get_mut(&context_tag)
@@ -267,6 +268,14 @@ impl CppContextCollection {
 
         self.filled_types.insert(type_tag);
         self.filling_types.remove(&type_tag);
+    }
+
+    fn alias_nested_types(&mut self, owner: &CppType) {
+        for nested_type in &owner.nested_types {
+            self.alias_context
+                .insert(nested_type.self_tag, owner.self_tag);
+            self.alias_nested_types(nested_type);
+        }
     }
 
     pub fn fill_nested_types(
@@ -287,7 +296,7 @@ impl CppContextCollection {
 
         nested_tags.into_iter().for_each(|nested_tag| {
             self.filling_types.insert(nested_tag);
-            self.alias_context.insert(nested_tag, owner_type_tag);
+            // self.alias_context.insert(nested_tag, owner_type_tag);
 
             {
                 let index = nested_types
