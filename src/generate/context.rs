@@ -227,6 +227,10 @@ pub struct CppContextCollection {
 impl CppContextCollection {
     pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, ty: impl Into<TypeTag>) {
         let type_tag: TypeTag = ty.into();
+        let tdi = CppType::get_tag_tdi(type_tag);
+
+        assert!(!metadata.child_to_parent_map.contains_key(&tdi), "Do not fill a child");
+
         let context_tag = self.get_context_tag(type_tag);
 
         if self.filled_types.contains(&type_tag) {
@@ -234,8 +238,6 @@ impl CppContextCollection {
         }
 
         self.make_from(metadata, config, type_tag);
-
-        let tdi = CppType::get_tag_tdi(type_tag);
 
         let cpp_type_entry = self
             .all_contexts
@@ -250,7 +252,8 @@ impl CppContextCollection {
 
             // Now do children
 
-            self.fill_nested_types(metadata, config, type_tag, &mut cpp_type);
+            assert!(!cpp_type.nested, "Cannot fill a nested type!");
+            // self.fill_nested_types(metadata, config, type_tag, &mut cpp_type);
 
             self.all_contexts
                 .get_mut(&context_tag)
@@ -272,11 +275,7 @@ impl CppContextCollection {
     ) {
         let type_tag = ty.into();
 
-        let nested_tags = owner
-            .nested_types
-            .iter()
-            .map(|n| n.self_tag.clone())
-            .collect_vec();
+        let nested_tags = owner.nested_types.iter().map(|n| n.self_tag).collect_vec();
 
         nested_tags.into_iter().for_each(|nested_tag| {
             self.filling_types.insert(nested_tag);

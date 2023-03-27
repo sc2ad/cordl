@@ -73,6 +73,9 @@ fn main() -> color_eyre::Result<()> {
 
     // First, make all the contexts
     for tdi in 0..metadata.metadata.type_definitions.len() {
+        if metadata.child_to_parent_map.contains_key(&tdi.try_into()?) {
+            continue;
+        }
         cpp_context_collection.fill(
             &metadata,
             &config,
@@ -85,13 +88,13 @@ fn main() -> color_eyre::Result<()> {
     //     write_type(&metadata, &config, &t, &dest);
     // }
     cpp_context_collection.get()[&TypeTag::TypeDefinition(123)].write()?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(342)].write()?;
+    // cpp_context_collection.get()[&TypeTag::TypeDefinition(342)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(512)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(1024)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(600)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(1000)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(420)].write()?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(69)].write()?;
+    // cpp_context_collection.get()[&TypeTag::TypeDefinition(69)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(531)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(532)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(533)].write()?;
