@@ -82,6 +82,17 @@ fn main() -> color_eyre::Result<()> {
             TypeData::TypeDefinitionIndex(tdi.try_into()?),
         );
     }
+    // Fill children
+    for (parent, child) in &metadata.parent_to_child_map {
+        let owner = cpp_context_collection
+            .get_cpp_type(&metadata, &config, TypeData::TypeDefinitionIndex(*parent))
+            .unwrap();
+
+        let owner_ty = owner.self_tag;
+
+        cpp_context_collection.fill_nested_types(&metadata, &config, owner_ty);
+    }
+
     // for t in &metadata.type_definitions {
     //     // Handle the generation for a single type
     //     let dest = open_writer(&metadata, &config, &t);

@@ -229,7 +229,10 @@ impl CppContextCollection {
         let type_tag: TypeTag = ty.into();
         let tdi = CppType::get_tag_tdi(type_tag);
 
-        assert!(!metadata.child_to_parent_map.contains_key(&tdi), "Do not fill a child");
+        assert!(
+            !metadata.child_to_parent_map.contains_key(&tdi),
+            "Do not fill a child"
+        );
 
         let context_tag = self.get_context_tag(type_tag);
 
@@ -266,38 +269,46 @@ impl CppContextCollection {
         self.filling_types.remove(&type_tag);
     }
 
-    fn fill_nested_types(
+    pub fn fill_nested_types(
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        ty: impl Into<TypeTag>,
-        owner: &mut CppType,
+        owner_ty: impl Into<TypeTag>,
     ) {
-        let type_tag = ty.into();
+        let owner_type_tag = owner_ty.into();
+        let owner = self
+            .get_cpp_type(metadata, config, owner_type_tag)
+            .unwrap_or_else(|| panic!("Owner does not exist {owner_type_tag:?}"));
 
         let nested_tags = owner.nested_types.iter().map(|n| n.self_tag).collect_vec();
+        // own it now
+        let mut nested_types = owner.nested_types.clone();
+        owner.nested_types = vec![];
 
         nested_tags.into_iter().for_each(|nested_tag| {
             self.filling_types.insert(nested_tag);
-            self.alias_context.insert(nested_tag, type_tag);
+            self.alias_context.insert(nested_tag, owner_type_tag);
 
             {
-                let index = owner
-                    .nested_types
+                let index = nested_types
                     .iter()
                     .position(|n| n.self_tag == nested_tag)
                     .unwrap();
-                let mut nested_type = owner.nested_types.remove(index);
+                let mut nested_type = nested_types.remove(index);
                 let tdi = CppType::get_tag_tdi(nested_tag);
 
                 nested_type.fill_from_il2cpp(metadata, config, self, tdi);
 
-                self.fill_nested_types(metadata, config, nested_tag, &mut nested_type);
-                owner.nested_types.insert(index, nested_type);
+                self.fill_nested_types(metadata, config, nested_tag);
+                nested_types.insert(index, nested_type);
             }
             self.filled_types.insert(nested_tag);
             self.filling_types.remove(&nested_tag);
         });
+
+        self.get_cpp_type(metadata, config, owner_type_tag)
+            .unwrap()
+            .nested_types = nested_types;
     }
 
     pub fn get_context_tag(&self, ty: impl Into<TypeTag>) -> TypeTag {
