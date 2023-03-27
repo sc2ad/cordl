@@ -72,6 +72,7 @@ fn main() -> color_eyre::Result<()> {
     let mut cpp_context_collection = CppContextCollection::new();
 
     // First, make all the contexts
+    println!("Filling root types");
     for tdi in 0..metadata.metadata.type_definitions.len() {
         if metadata.child_to_parent_map.contains_key(&tdi.try_into()?) {
             continue;
@@ -83,6 +84,7 @@ fn main() -> color_eyre::Result<()> {
         );
     }
     // Fill children
+    println!("Nested types pass");
     for (parent, _children) in &metadata.parent_to_child_map {
         let owner = cpp_context_collection
             .get_cpp_type(&metadata, &config, TypeData::TypeDefinitionIndex(*parent))

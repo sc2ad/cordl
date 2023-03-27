@@ -234,7 +234,7 @@ impl CppContextCollection {
             "Do not fill a child"
         );
 
-        let context_tag = self.get_context_tag(type_tag);
+        let context_tag = self.get_context_root_tag(type_tag);
 
         if self.filled_types.contains(&type_tag) {
             return;
@@ -272,6 +272,10 @@ impl CppContextCollection {
 
     fn alias_nested_types(&mut self, owner: &CppType) {
         for nested_type in &owner.nested_types {
+            // println!(
+            //     "Aliasing {:?} to {:?}",
+            //     nested_type.self_tag, owner.self_tag
+            // );
             self.alias_context
                 .insert(nested_type.self_tag, owner.self_tag);
             self.alias_nested_types(nested_type);
@@ -292,7 +296,6 @@ impl CppContextCollection {
         let nested_tags = owner.nested_types.iter().map(|n| n.self_tag).collect_vec();
         // own it now
         let mut nested_types = owner.nested_types.clone();
-        owner.nested_types = vec![];
 
         nested_tags.into_iter().for_each(|nested_tag| {
             self.filling_types.insert(nested_tag);
@@ -321,11 +324,11 @@ impl CppContextCollection {
             .nested_types = nested_types;
     }
 
-    pub fn get_context_tag(&self, ty: impl Into<TypeTag>) -> TypeTag {
+    pub fn get_context_root_tag(&self, ty: impl Into<TypeTag>) -> TypeTag {
         let tag = ty.into();
         self.alias_context
             .get(&tag)
-            .map(|t| self.get_context_tag(*t))
+            .map(|t| self.get_context_root_tag(*t))
             .unwrap_or(tag)
     }
 
@@ -336,7 +339,7 @@ impl CppContextCollection {
         ty: impl Into<TypeTag>,
     ) -> &mut CppContext {
         let type_tag = ty.into();
-        let context_tag = self.get_context_tag(type_tag);
+        let context_tag = self.get_context_root_tag(type_tag);
 
         if self.filling_types.contains(&context_tag) {
             panic!("Currently filling type {context_tag:?}, cannot fill")
@@ -355,10 +358,10 @@ impl CppContextCollection {
         ty: impl Into<TypeTag>,
     ) -> Option<&mut CppType> {
         let tag = ty.into();
-        let context_tag = self.get_context_tag(tag);
-        let context = self.make_from(metadata, config, tag);
+        let context_root_tag = self.get_context_root_tag(tag);
+        let context = self.make_from(metadata, config, context_root_tag);
 
-        match context.typedef_types.get_mut(&context_tag) {
+        match context.typedef_types.get_mut(&context_root_tag) {
             Some(context_ty) => {
                 if context_ty.self_tag == tag {
                     return Some(context_ty);

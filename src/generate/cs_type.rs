@@ -789,7 +789,7 @@ pub trait CSType: Sized {
     ) -> String {
         let tag = TypeTag::from(typ.data);
 
-        let context_tag = ctx_collection.get_context_tag(tag);
+        let context_tag = ctx_collection.get_context_root_tag(tag);
         let cpp_type = self.get_mut_cpp_type();
         let mut nested_types: HashMap<TypeTag, String> = cpp_type
             .nested_types_flattened()
@@ -847,7 +847,7 @@ pub trait CSType: Sized {
                 let inc = CppInclude::new_context(to_incl);
                 let to_incl_ty = ctx_collection
                     .get_cpp_type(metadata, config, typ.data)
-                    .unwrap();
+                    .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));
 
                 // Forward declare it
                 if !add_include {
