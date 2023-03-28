@@ -68,8 +68,17 @@ impl From<TypeTag> for TypeData {
 }
 
 impl CppContext {
-    pub fn get_cpp_type_mut(&mut self, t: TypeTag) -> Option<&mut CppType> {
-        self.typedef_types.get_mut(&t)
+    pub fn get_cpp_type_recursive_mut(
+        &mut self,
+        root_tag: TypeTag,
+        child_tag: TypeTag,
+    ) -> Option<&mut CppType> {
+        let ty = self.typedef_types.get_mut(&root_tag);
+        if root_tag == child_tag {
+            return ty;
+        }
+
+        ty.and_then(|ty| ty.get_nested_type_mut(child_tag))
     }
     // pub fn get_cpp_type(&mut self, t: TypeTag) -> Option<&CppType> {
     //     self.typedef_types.get(&t)
@@ -295,25 +304,24 @@ impl CppContextCollection {
 
         let nested_tags = owner.nested_types.iter().map(|n| n.self_tag).collect_vec();
         // own it now
+        // we clone, then write later
+        // potentially bad
         let mut nested_types = owner.nested_types.clone();
 
         nested_tags.into_iter().for_each(|nested_tag| {
             self.filling_types.insert(nested_tag);
-            // self.alias_context.insert(nested_tag, owner_type_tag);
 
             {
-                let index = nested_types
-                    .iter()
-                    .position(|n| n.self_tag == nested_tag)
+                let nested_type = nested_types
+                    .iter_mut()
+                    .find(|n| n.self_tag == nested_tag)
                     .unwrap();
-                let mut nested_type = nested_types.remove(index);
                 let tdi = CppType::get_tag_tdi(nested_tag);
 
                 nested_type.fill_from_il2cpp(metadata, config, self, tdi);
 
                 // DO not recurse
                 // self.fill_nested_types(metadata, config, nested_tag);
-                nested_types.insert(index, nested_type);
             }
             self.filled_types.insert(nested_tag);
             self.filling_types.remove(&nested_tag);
@@ -361,16 +369,7 @@ impl CppContextCollection {
         let context_root_tag = self.get_context_root_tag(tag);
         let context = self.make_from(metadata, config, context_root_tag);
 
-        match context.typedef_types.get_mut(&context_root_tag) {
-            Some(context_ty) => {
-                if context_ty.self_tag == tag {
-                    return Some(context_ty);
-                }
-
-                context_ty.get_nested_type_mut(tag)
-            }
-            None => None,
-        }
+        context.get_cpp_type_recursive_mut(context_root_tag, tag)
     }
 
     pub fn get_context(&self, type_tag: TypeTag) -> Option<&CppContext> {

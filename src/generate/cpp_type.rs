@@ -94,30 +94,24 @@ impl CppType {
         &self.cpp_name
     }
 
-    pub fn nested_types_flattened<'a>(&'a self) -> HashMap<TypeTag, &'a CppType> {
+    pub fn nested_types_flattened(&self) -> HashMap<TypeTag, &CppType> {
         self.nested_types
             .iter()
             .flat_map(|n| n.nested_types_flattened())
-            .chain(self.nested_types.iter().map(|n| (n.self_tag.clone(), n)))
+            .chain(self.nested_types.iter().map(|n| (n.self_tag, n)))
             .collect()
     }
-    pub fn get_nested_type_mut<'a>(
-        &'a mut self,
-        into_tag: impl Into<TypeTag>,
-    ) -> Option<&'a mut CppType> {
+    pub fn get_nested_type_mut(&mut self, into_tag: impl Into<TypeTag>) -> Option<&mut CppType> {
         let tag = into_tag.into();
 
-        for n in &mut self.nested_types {
+        self.nested_types.iter_mut().find_map(|n| {
             if n.self_tag == tag {
                 return Some(n);
             }
 
-            let opt = n.get_nested_type_mut(tag);
-            if let Some(found) = opt {
-                return Some(found);
-            }
-        }
-        None
+            // Recurse
+            n.get_nested_type_mut(tag)
+        })
     }
 
     pub fn formatted_complete_cpp_name(&self) -> String {
