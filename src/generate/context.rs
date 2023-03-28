@@ -14,7 +14,7 @@ use crate::generate::members::CppInclude;
 
 use super::{
     config::GenerationConfig,
-    cpp_type::CppType,
+    cpp_type::{self, CppType},
     cs_type::CSType,
     metadata::Metadata,
     writer::{CppWriter, Writable},
@@ -68,12 +68,21 @@ impl From<TypeTag> for TypeData {
 }
 
 impl CppContext {
-    pub fn get_cpp_type_mut(&mut self, t: TypeTag) -> Option<&mut CppType> {
-        self.typedef_types.get_mut(&t)
+    pub fn get_cpp_type_recursive_mut(
+        &mut self,
+        root_tag: TypeTag,
+        child_tag: TypeTag,
+    ) -> Option<&mut CppType> {
+        let ty = self.typedef_types.get_mut(&root_tag);
+        if root_tag == child_tag {
+            return ty;
+        }
+
+        ty.and_then(|ty| ty.get_nested_type_mut(child_tag))
     }
-    pub fn get_cpp_type(&mut self, t: TypeTag) -> Option<&CppType> {
-        self.typedef_types.get(&t)
-    }
+    // pub fn get_cpp_type(&mut self, t: TypeTag) -> Option<&CppType> {
+    //     self.typedef_types.get(&t)
+    // }
 
     pub fn get_include_path(&self) -> &PathBuf {
         &self.typedef_path
@@ -83,11 +92,12 @@ impl CppContext {
         &self.typedef_types
     }
 
+    // TODO: Move out, this is CSContext
     fn make(
         metadata: &Metadata,
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
-        tag: impl Into<TypeTag>
+        tag: impl Into<TypeTag>,
     ) -> CppContext {
         let t = metadata
             .metadata
@@ -121,7 +131,7 @@ impl CppContext {
             )),
             typedef_types: Default::default(),
         };
-        match CppType::make_cpp_type(metadata, config, tdi, tag) {
+        match CppType::make_cpp_type(metadata, config, tag) {
             Some(cpptype) => {
                 x.typedef_types
                     .insert(TypeTag::TypeDefinition(tdi), cpptype);
@@ -180,24 +190,30 @@ impl CppContext {
             .try_for_each(|i| i.write(&mut typedef_writer))?;
 
         // write forward declares
-        self.typedef_types
-            .values()
-            .flat_map(|t| &t.requirements.forward_declares)
-            .map(|(d, _)| d)
-            .unique()
-            // TODO: Check forward declare is not of own type
-            .try_for_each(|i| i.write(&mut typedef_writer))?;
+        {
+            self.typedef_types
+                .values()
+                .flat_map(|t| &t.requirements.forward_declares)
+                .map(|(d, _)| d)
+                .unique()
+                // TODO: Check forward declare is not of own type
+                .try_for_each(|i| i.write(&mut typedef_writer))?;
 
-        CppInclude::new(self.type_impl_path.to_path_buf()).write(&mut typeimpl_writer)?;
-        self.typedef_types
-            .values()
-            .flat_map(|t| &t.requirements.forward_declares)
-            .map(|(_, i)| i)
-            .unique()
-            // TODO: Check forward declare is not of own type
-            .try_for_each(|i| i.write(&mut typeimpl_writer))?;
+            CppInclude::new(self.type_impl_path.to_path_buf()).write(&mut typeimpl_writer)?;
+            // This is likely not necessary
+            // self.typedef_types
+            //     .values()
+            //     .flat_map(|t| &t.requirements.forward_declares)
+            //     .map(|(_, i)| i)
+            //     .unique()
+            //     // TODO: Check forward declare is not of own type
+            //     .try_for_each(|i| i.write(&mut typeimpl_writer))?;
+        }
 
         for t in self.typedef_types.values() {
+            if t.nested {
+                continue;
+            }
             t.write_def(&mut typedef_writer)?;
             t.write_impl(&mut typeimpl_writer)?;
         }
@@ -212,45 +228,117 @@ impl CppContext {
 
 pub struct CppContextCollection {
     all_contexts: HashMap<TypeTag, CppContext>,
+    alias_context: HashMap<TypeTag, TypeTag>,
     filled_types: HashSet<TypeTag>,
     filling_types: HashSet<TypeTag>,
 }
 
 impl CppContextCollection {
     pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, ty: impl Into<TypeTag>) {
-        let tag: TypeTag = ty.into();
+        let type_tag: TypeTag = ty.into();
+        let tdi = CppType::get_tag_tdi(type_tag);
 
-        if self.filled_types.contains(&tag) {
+        assert!(
+            !metadata.child_to_parent_map.contains_key(&tdi),
+            "Do not fill a child"
+        );
+
+        let context_tag = self.get_context_root_tag(type_tag);
+
+        if self.filled_types.contains(&type_tag) {
             return;
         }
 
-        self.make_from(metadata, config, tag);
-
-        let tdi = match tag {
-            TypeTag::TypeDefinition(tdi) => tdi,
-            _ => panic!("What {tag:?}"),
-        };
+        self.make_from(metadata, config, type_tag);
 
         let cpp_type_entry = self
             .all_contexts
-            .get_mut(&tag)
+            .get_mut(&context_tag)
             .expect("No cpp context")
             .typedef_types
-            .remove_entry(&tag);
-        self.filling_types.insert(tag);
+            .remove_entry(&type_tag);
+        self.filling_types.insert(type_tag);
 
         if let Some((t, mut cpp_type)) = cpp_type_entry {
             cpp_type.fill_from_il2cpp(metadata, config, self, tdi);
 
+            // Now do children
+
+            assert!(!cpp_type.nested, "Cannot fill a nested type!");
+            // self.fill_nested_types(metadata, config, type_tag, &mut cpp_type);
+            self.alias_nested_types(&cpp_type, cpp_type.self_tag);
+
             self.all_contexts
-                .get_mut(&tag)
+                .get_mut(&context_tag)
                 .expect("No cpp context")
                 .typedef_types
                 .insert(t, cpp_type);
         }
 
-        self.filled_types.insert(tag);
-        self.filling_types.remove(&tag);
+        self.filled_types.insert(type_tag);
+        self.filling_types.remove(&type_tag);
+    }
+
+    fn alias_nested_types(&mut self, owner: &CppType, root_tag: TypeTag) {
+        for nested_type in &owner.nested_types {
+            // println!(
+            //     "Aliasing {:?} to {:?}",
+            //     nested_type.self_tag, owner.self_tag
+            // );
+            self.alias_context
+                .insert(nested_type.self_tag, root_tag);
+            self.alias_nested_types(nested_type, root_tag);
+        }
+    }
+
+    pub fn fill_nested_types(
+        &mut self,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        owner_ty: impl Into<TypeTag>,
+    ) {
+        let owner_type_tag = owner_ty.into();
+        let owner = self
+            .get_cpp_type(metadata, config, owner_type_tag)
+            .unwrap_or_else(|| panic!("Owner does not exist {owner_type_tag:?}"));
+
+        let nested_tags = owner.nested_types.iter().map(|n| n.self_tag).collect_vec();
+        // own it now
+        // we clone, then write later
+        // potentially bad
+        let mut nested_types = owner.nested_types.clone();
+
+        nested_tags.into_iter().for_each(|nested_tag| {
+            self.filling_types.insert(nested_tag);
+
+            {
+                let nested_type = nested_types
+                    .iter_mut()
+                    .find(|n| n.self_tag == nested_tag)
+                    .unwrap();
+                let tdi = CppType::get_tag_tdi(nested_tag);
+
+                nested_type.fill_from_il2cpp(metadata, config, self, tdi);
+
+                // DO not recurse
+                // self.fill_nested_types(metadata, config, nested_tag);
+            }
+            self.filled_types.insert(nested_tag);
+            self.filling_types.remove(&nested_tag);
+        });
+
+        self.get_cpp_type(metadata, config, owner_type_tag)
+            .unwrap()
+            .nested_types = nested_types;
+    }
+
+    pub fn get_context_root_tag(&self, ty: impl Into<TypeTag>) -> TypeTag {
+        let tag = ty.into();
+        self.alias_context
+            .get(&tag)
+            .cloned()
+            // .map(|t| self.get_context_root_tag(*t))
+            .unwrap_or(tag)
     }
 
     pub fn make_from(
@@ -259,15 +347,16 @@ impl CppContextCollection {
         config: &GenerationConfig,
         ty: impl Into<TypeTag>,
     ) -> &mut CppContext {
-        let tag = ty.into();
+        let type_tag = ty.into();
+        let context_tag = self.get_context_root_tag(type_tag);
 
-        if self.filling_types.contains(&tag) {
-            panic!("Currently filling type {tag:?}, cannot fill")
+        if self.filling_types.contains(&context_tag) {
+            panic!("Currently filling type {context_tag:?}, cannot fill")
         }
 
-        self.all_contexts.entry(tag).or_insert_with(|| match tag {
-            TypeTag::TypeDefinition(tdi) => CppContext::make(metadata, config, tdi, tag),
-            _ => panic!("Unsupported type: {tag:?}"),
+        self.all_contexts.entry(context_tag).or_insert_with(|| {
+            let tdi = CppType::get_tag_tdi(context_tag);
+            CppContext::make(metadata, config, tdi, context_tag)
         })
     }
 
@@ -278,9 +367,10 @@ impl CppContextCollection {
         ty: impl Into<TypeTag>,
     ) -> Option<&mut CppType> {
         let tag = ty.into();
-        let context = self.make_from(metadata, config, tag);
+        let context_root_tag = self.get_context_root_tag(tag);
+        let context = self.make_from(metadata, config, context_root_tag);
 
-        context.typedef_types.get_mut(&tag)
+        context.get_cpp_type_recursive_mut(context_root_tag, tag)
     }
 
     pub fn get_context(&self, type_tag: TypeTag) -> Option<&CppContext> {
@@ -292,6 +382,7 @@ impl CppContextCollection {
             all_contexts: Default::default(),
             filled_types: Default::default(),
             filling_types: Default::default(),
+            alias_context: Default::default(),
         }
     }
     pub fn get(&self) -> &HashMap<TypeTag, CppContext> {

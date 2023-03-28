@@ -1,11 +1,30 @@
 use std::collections::HashMap;
 
-use il2cpp_binary::{CodeRegistration, MetadataRegistration};
-use il2cpp_metadata_raw::MethodIndex;
+use il2cpp_binary::{CodeRegistration, MetadataRegistration, Type, TypeData};
+use il2cpp_metadata_raw::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex};
+use itertools::Itertools;
+
+use super::{
+    constants::{TYPE_ATTRIBUTE_INTERFACE, TYPE_ATTRIBUTE_NESTED_PUBLIC},
+    cpp_type::CppType,
+    cs_type::CSType,
+};
 
 pub struct MethodCalculations {
     pub estimated_size: usize,
     pub addrs: u64,
+}
+
+#[derive(Clone)]
+pub struct TypeDefinitionPair<'a> {
+    pub ty: &'a Il2CppTypeDefinition,
+    pub tdi: TypeDefinitionIndex,
+}
+
+impl<'a> TypeDefinitionPair<'a> {
+    fn new(ty: &'a Il2CppTypeDefinition, tdi: TypeDefinitionIndex) -> TypeDefinitionPair {
+        TypeDefinitionPair { ty, tdi }
+    }
 }
 
 pub struct Metadata<'a> {
@@ -15,10 +34,74 @@ pub struct Metadata<'a> {
 
     // Method index in metadata
     pub method_calculations: HashMap<MethodIndex, MethodCalculations>,
+    pub parent_to_child_map: HashMap<TypeDefinitionIndex, Vec<TypeDefinitionPair<'a>>>,
+    pub child_to_parent_map: HashMap<TypeDefinitionIndex, TypeDefinitionPair<'a>>,
 }
 
 impl<'a> Metadata<'a> {
     pub fn parse(&mut self) {
+        // child -> parent
+        let parent_to_child_map: Vec<(TypeDefinitionPair<'a>, Vec<TypeDefinitionPair<'a>>)> = self
+            .metadata
+            .type_definitions
+            .iter()
+            .enumerate()
+            .filter_map(|(tdi, td)| {
+                if td.nested_type_count == 0 {
+                    return None;
+                }
+
+                let mut nested_types: Vec<TypeDefinitionPair> =
+                    Vec::with_capacity(td.nested_type_count as usize);
+                for i in td.nested_types_start..td.nested_types_start + td.nested_type_count as u32
+                {
+                    let nested_tdi = self.metadata.nested_types.get(i as usize).unwrap().clone();
+                    let nested_td = self
+                        .metadata
+                        .type_definitions
+                        .get(nested_tdi as usize)
+                        .unwrap();
+
+                    nested_types.push(TypeDefinitionPair::new(nested_td, nested_tdi));
+                }
+
+                if nested_types.len() == 0 {
+                    return None;
+                }
+
+                Some((
+                    TypeDefinitionPair::new(td, tdi as TypeDefinitionIndex),
+                    nested_types,
+                ))
+            })
+            .collect();
+
+        let child_to_parent_map: Vec<(&TypeDefinitionPair<'a>, &TypeDefinitionPair<'a>)> =
+            parent_to_child_map
+                .iter()
+                .map(|(p, children)| {
+                    let reverse = children.iter().map(|c| (c, p)).collect_vec();
+
+                    reverse
+                })
+                .flatten()
+                .collect();
+
+        self.child_to_parent_map = child_to_parent_map
+            .into_iter()
+            .map(|(c, p)| (c.tdi, p.clone()))
+            .collect();
+
+        self.parent_to_child_map = parent_to_child_map
+            .into_iter()
+            .map(|(p, c)| (p.tdi, c.into_iter().map(|c| c).collect_vec()))
+            .collect();
+
+        // self.parentToChildMap = childToParent
+        //     .into_iter()
+        //     .map(|(p, p_tdi, c)| (p_tdi, c))
+        //     .collect();
+
         // method index -> address
         // sorted by address
         let mut method_addresses_sorted: Vec<u64> = self

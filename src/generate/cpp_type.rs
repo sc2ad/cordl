@@ -1,7 +1,12 @@
-use std::{collections::HashSet, io::Write, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Write,
+    rc::Rc,
+};
 
 use color_eyre::eyre::Context;
 
+use il2cpp_metadata_raw::TypeDefinitionIndex;
 use itertools::Itertools;
 
 use super::{
@@ -23,12 +28,16 @@ pub struct CppTypeRequirements {
 #[derive(Debug, Clone)]
 pub struct CppType {
     pub self_tag: TypeTag,
+    pub nested: bool,
 
     pub(crate) prefix_comments: Vec<String>,
     pub(crate) namespace: String,
     pub(crate) cpp_namespace: String,
     pub(crate) name: String,
     pub(crate) cpp_name: String,
+
+    pub(crate) parent_ty_tdi: Option<TypeDefinitionIndex>,
+    pub(crate) parent_ty_cpp_name: Option<String>,
 
     pub declarations: Vec<CppMember>,
     pub implementations: Vec<CppMember>,
@@ -42,6 +51,8 @@ pub struct CppType {
 
     pub inherit: Vec<String>,
     pub generic_args: CppTemplate, // Names of templates e.g T, TKey etc.
+
+    pub nested_types: Vec<CppType>,
 }
 
 impl CppTypeRequirements {
@@ -83,15 +94,55 @@ impl CppType {
         &self.cpp_name
     }
 
+    pub fn nested_types_flattened(&self) -> HashMap<TypeTag, &CppType> {
+        self.nested_types
+            .iter()
+            .flat_map(|n| n.nested_types_flattened())
+            .chain(self.nested_types.iter().map(|n| (n.self_tag, n)))
+            .collect()
+    }
+    pub fn get_nested_type_mut(&mut self, into_tag: impl Into<TypeTag>) -> Option<&mut CppType> {
+        let tag = into_tag.into();
+
+        self.nested_types.iter_mut().find_map(|n| {
+            if n.self_tag == tag {
+                return Some(n);
+            }
+
+            // Recurse
+            n.get_nested_type_mut(tag)
+        })
+    }
+
     pub fn formatted_complete_cpp_name(&self) -> String {
         // We found a valid type that we have defined for this idx!
         // TODO: We should convert it here.
         // Ex, if it is a generic, convert it to a template specialization
         // If it is a normal type, handle it accordingly, etc.
-        format!("{}::{}", self.cpp_namespace(), self.cpp_name())
+        match &self.parent_ty_cpp_name {
+            Some(parent_ty) => {
+                format!("{}::{parent_ty}::{}", self.cpp_namespace(), self.cpp_name())
+            }
+            None => format!("{}::{}", self.cpp_namespace(), self.cpp_name()),
+        }
     }
 
     pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        self.write_impl_internal(writer, Some(self.cpp_namespace()))
+    }
+
+    pub fn write_def(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        self.write_def_internal(writer, Some(self.cpp_namespace()), true)
+    }
+
+    pub fn write_impl_internal(
+        &self,
+        writer: &mut super::writer::CppWriter,
+        namespace: Option<&str>,
+    ) -> color_eyre::Result<()> {
+        if let Some(namespace) = namespace {
+            writeln!(writer, "namespace {} {{", namespace)?;
+        }
         // Write all declarations within the type here
         self.implementations
             .iter()
@@ -100,26 +151,52 @@ impl CppType {
             .iter()
             .try_for_each(|d| d.write(writer))?;
 
+        // TODO: Figure out
+        self.nested_types
+            .iter()
+            .try_for_each(|n| n.write_impl_internal(writer, None))?;
+
+        if let Some(namespace) = namespace {
+            writeln!(writer, "}} // end namespace {}", namespace)?;
+        }
+
         Ok(())
     }
 
-    pub fn write_def(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+    fn write_def_internal(
+        &self,
+        writer: &mut super::writer::CppWriter,
+        namespace: Option<&str>,
+        fd: bool,
+    ) -> color_eyre::Result<()> {
         self.prefix_comments.iter().for_each(|pc| {
             writeln!(writer, "// {pc}")
                 .context("Prefix comment")
                 .unwrap();
         });
-        // Forward declare
-        writeln!(
-            writer,
-            "// Forward declaring type: {}::{}",
-            self.cpp_namespace(),
-            self.name()
-        )?;
-        writeln!(writer, "namespace {} {{", self.cpp_namespace())?;
-        writer.indent();
-        self.generic_args.write(writer)?;
-        writeln!(writer, "struct {};", self.name())?;
+
+        // forward declare self
+        {
+            if fd {
+                writeln!(
+                    writer,
+                    "// Forward declaring type: {}::{}",
+                    namespace.unwrap_or(""),
+                    self.name()
+                )?;
+            }
+
+            if let Some(n) = &namespace {
+                writeln!(writer, "namespace {n} {{",)?;
+                writer.indent();
+            }
+
+            if fd {
+                // template<...>
+                self.generic_args.write(writer)?;
+                writeln!(writer, "struct {};", self.name())?;
+            }
+        }
 
         // Write type definition
         self.generic_args.write(writer)?;
@@ -139,10 +216,23 @@ impl CppType {
         }
 
         writer.indent();
+
+        self.nested_types.iter().try_for_each(|n| {
+            writeln!(
+                writer,
+                "// Forward declare nested type\nstruct {};",
+                n.cpp_name
+            )
+        })?;
+
+        self.nested_types
+            .iter()
+            .try_for_each(|n| n.write_def_internal(writer, None, false))?;
         // Write all declarations within the type here
         self.declarations.iter().for_each(|d| {
             d.write(writer).unwrap();
         });
+
         // Type complete
         writer.dedent();
         writeln!(writer, "}};")?;
@@ -153,8 +243,10 @@ impl CppType {
             .try_for_each(|d| d.write(writer))?;
 
         // Namespace complete
-        writer.dedent();
-        writeln!(writer, "}} // namespace {}", self.cpp_namespace())?;
+        if let Some(n) = namespace {
+            writer.dedent();
+            writeln!(writer, "}} // namespace {}", n)?;
+        }
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
         Ok(())
     }

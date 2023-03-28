@@ -62,6 +62,8 @@ fn main() -> color_eyre::Result<()> {
         code_registration: &code_registration,
         metadata_registration: &metadata_registration,
         method_calculations: Default::default(),
+        parent_to_child_map: Default::default(),
+        child_to_parent_map: Default::default(),
     };
     let t = time::Instant::now();
     println!("Parsing metadata methods");
@@ -70,26 +72,49 @@ fn main() -> color_eyre::Result<()> {
     let mut cpp_context_collection = CppContextCollection::new();
 
     // First, make all the contexts
+    println!("Filling root types");
     for tdi in 0..metadata.metadata.type_definitions.len() {
+        if metadata.child_to_parent_map.contains_key(&tdi.try_into()?) {
+            continue;
+        }
         cpp_context_collection.fill(
             &metadata,
             &config,
             TypeData::TypeDefinitionIndex(tdi.try_into()?),
         );
     }
+    // Fill children
+    println!("Nested types pass");
+    for (parent, _children) in &metadata.parent_to_child_map {
+        let owner = cpp_context_collection
+            .get_cpp_type(&metadata, &config, TypeData::TypeDefinitionIndex(*parent))
+            .unwrap();
+
+        // **Ignore this, we no longer recurse:**
+        // skip children of children
+        // only fill first grade children of types
+        // if owner.nested {
+        //     continue;
+        // }
+
+        let owner_ty = owner.self_tag;
+
+        cpp_context_collection.fill_nested_types(&metadata, &config, owner_ty);
+    }
+
     // for t in &metadata.type_definitions {
     //     // Handle the generation for a single type
     //     let dest = open_writer(&metadata, &config, &t);
     //     write_type(&metadata, &config, &t, &dest);
     // }
     cpp_context_collection.get()[&TypeTag::TypeDefinition(123)].write()?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(342)].write()?;
+    // cpp_context_collection.get()[&TypeTag::TypeDefinition(342)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(512)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(1024)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(600)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(1000)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(420)].write()?;
-    cpp_context_collection.get()[&TypeTag::TypeDefinition(69)].write()?;
+    // cpp_context_collection.get()[&TypeTag::TypeDefinition(69)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(531)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(532)].write()?;
     cpp_context_collection.get()[&TypeTag::TypeDefinition(533)].write()?;
@@ -116,6 +141,18 @@ fn main() -> color_eyre::Result<()> {
             c.get_types()
                 .iter()
                 .any(|(_, t)| t.is_value_type && t.name == "Color" && t.namespace == "UnityEngine")
+        })
+        .unwrap()
+        .1
+        .write()?;
+    println!("Nested type");
+    cpp_context_collection
+        .get()
+        .iter()
+        .find(|(_, c)| {
+            c.get_types()
+                .iter()
+                .any(|(_, t)| t.nested_types.iter().any(|n| !n.declarations.is_empty()))
         })
         .unwrap()
         .1
