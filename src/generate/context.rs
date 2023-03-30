@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fs::{create_dir_all, remove_file, File},
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}, mem::{swap, take},
 };
 
 use color_eyre::eyre::ContextCompat;
@@ -305,33 +305,39 @@ impl CppContextCollection {
     ) {
         let owner_type_tag = owner_ty.into();
         let owner = self
-            .get_cpp_type(owner_type_tag)
+            .get_cpp_type_mut(owner_type_tag)
             .unwrap_or_else(|| panic!("Owner does not exist {owner_type_tag:?}"));
 
-        let nested_tags = owner.nested_types.iter().map(|n| n.self_tag).collect_vec();
-        // own it now
         // we clone, then write later
-        // potentially bad
+        // since we're modifying only 1 type exclusively
+        // and we don't rely on any other type at this time
+        // we can clone
+        // sad inefficient memory usage but oh well
         let mut nested_types = owner.nested_types.clone();
-
-        nested_tags.into_iter().for_each(|nested_tag| {
+        nested_types.iter_mut().for_each(|nested_type| {
+            let nested_tag = nested_type.self_tag;
             self.filling_types.insert(nested_tag);
+            let tdi = CppType::get_tag_tdi(nested_tag);
 
-            {
-                let nested_type = nested_types
-                    .iter_mut()
-                    .find(|n| n.self_tag == nested_tag)
-                    .unwrap();
-                let tdi = CppType::get_tag_tdi(nested_tag);
+            nested_type.fill_from_il2cpp(metadata, config, self, tdi);
 
-                nested_type.fill_from_il2cpp(metadata, config, self, tdi);
-
-                // DO not recurse
-                // self.fill_nested_types(metadata, config, nested_tag);
-            }
             self.filled_types.insert(nested_tag);
             self.filling_types.remove(&nested_tag);
         });
+        // nested_tags.into_iter().for_each(|nested_tag| {
+        //     self.filling_types.insert(nested_tag);
+
+        //     let nested_type = nested_types
+        //         .iter_mut()
+        //         .find(|n| n.self_tag == nested_tag)
+        //         .unwrap();
+        //     let tdi = CppType::get_tag_tdi(nested_tag);
+
+        //     nested_type.fill_from_il2cpp(metadata, config, self, tdi);
+
+        //     self.filled_types.insert(nested_tag);
+        //     self.filling_types.remove(&nested_tag);
+        // });
 
         self.get_cpp_type_mut(owner_type_tag).unwrap().nested_types = nested_types;
     }
@@ -373,8 +379,8 @@ impl CppContextCollection {
         let tdi = CppType::get_tag_tdi(context_root_tag);
         let context = CppContext::make(metadata, config, tdi, context_root_tag);
         // Now do children
-        for (_tag, cpp_type) in &context.typedef_types {
-            self.alias_nested_types(&cpp_type, cpp_type.self_tag);
+        for cpp_type in context.typedef_types.values() {
+            self.alias_nested_types(cpp_type, cpp_type.self_tag);
         }
         self.all_contexts.insert(context_root_tag, context);
         self.all_contexts.get_mut(&context_root_tag).unwrap()
