@@ -240,6 +240,8 @@ pub trait CSType: Sized {
                     data: "".to_string(),
                     comment: Some("Methods".to_string()),
                 }));
+
+            cpp_type.declarations.reserve(5 * t.method_count as usize);
             // Then, for each method, write it out
             for i in 0..t.method_count {
                 let method = metadata
@@ -367,9 +369,7 @@ pub trait CSType: Sized {
                 let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
                     Some(cpp_type)
                 } else {
-                    ctx_collection
-                        .get_cpp_type(tag)
-                        .map(|c| &*c) // &mut -> &
+                    ctx_collection.get_cpp_type(tag).map(|c| &*c) // &mut -> &
                 };
 
                 cpp_type
@@ -454,6 +454,7 @@ pub trait CSType: Sized {
                 comment: Some("Fields".to_string()),
             }));
         // Then, for each field, write it out
+        cpp_type.declarations.reserve(t.field_count as usize);
         for i in 0..t.field_count {
             let field_index = (t.field_start + i as u32) as usize;
             let field = metadata.metadata.fields.get(field_index).unwrap();
@@ -608,6 +609,7 @@ pub trait CSType: Sized {
                 data: "".to_string(),
                 comment: Some("Properties".to_string()),
             }));
+        cpp_type.declarations.reserve(t.property_count as usize);
         // Then, for each field, write it out
         for i in 0..t.property_count {
             let prop = metadata
