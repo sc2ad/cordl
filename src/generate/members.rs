@@ -185,7 +185,7 @@ impl Writable for CppTemplate {
                 "template<{}>",
                 self.names
                     .iter()
-                    .map(|s| format!("typename {}", s))
+                    .map(|s| format!("typename {s}"))
                     .collect::<Vec<_>>()
                     .join(",")
             )?;
@@ -209,7 +209,7 @@ impl CppForwardDeclare {
 impl Writable for CppForwardDeclare {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
         if let Some(namespace) = &self.namespace {
-            writeln!(writer, "namespace {} {{", namespace)?;
+            writeln!(writer, "namespace {namespace} {{")?;
         }
 
         self.templates.write(writer)?;
@@ -429,7 +429,7 @@ impl Writable for CppMethodImpl {
         let param_names = CppParam::params_names(&self.parameters);
 
         if !param_names.is_empty() {
-            write!(writer, ", {}", param_names)?;
+            write!(writer, ", {param_names}")?;
         }
 
         writeln!(writer, ");")?;

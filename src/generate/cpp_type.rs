@@ -141,7 +141,7 @@ impl CppType {
         namespace: Option<&str>,
     ) -> color_eyre::Result<()> {
         if let Some(namespace) = namespace {
-            writeln!(writer, "namespace {} {{", namespace)?;
+            writeln!(writer, "namespace {namespace} {{")?;
         }
         // Write all declarations within the type here
         self.implementations
@@ -157,7 +157,7 @@ impl CppType {
             .try_for_each(|n| n.write_impl_internal(writer, None))?;
 
         if let Some(namespace) = namespace {
-            writeln!(writer, "}} // end namespace {}", namespace)?;
+            writeln!(writer, "}} // end namespace {namespace}")?;
         }
 
         Ok(())
@@ -210,7 +210,7 @@ impl CppType {
                 self.cpp_name(),
                 self.inherit
                     .iter()
-                    .map(|s| format!("public {}", s))
+                    .map(|s| format!("public {s}"))
                     .join(", ")
             )?,
         }
@@ -245,7 +245,7 @@ impl CppType {
         // Namespace complete
         if let Some(n) = namespace {
             writer.dedent();
-            writeln!(writer, "}} // namespace {}", n)?;
+            writeln!(writer, "}} // namespace {n}")?;
         }
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
         Ok(())

@@ -85,7 +85,7 @@ fn main() -> color_eyre::Result<()> {
     }
     // Fill children
     println!("Nested types pass");
-    for (parent, _children) in &metadata.parent_to_child_map {
+    for parent in metadata.parent_to_child_map.keys() {
         let owner = cpp_context_collection
             .get_cpp_type(&metadata, &config, TypeData::TypeDefinitionIndex(*parent))
             .unwrap();

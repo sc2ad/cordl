@@ -14,7 +14,7 @@ use crate::generate::members::CppInclude;
 
 use super::{
     config::GenerationConfig,
-    cpp_type::{self, CppType},
+    cpp_type::{CppType},
     cs_type::CSType,
     metadata::Metadata,
     writer::{CppWriter, Writable},
@@ -138,8 +138,7 @@ impl CppContext {
             }
             None => {
                 println!(
-                    "Unable to create valid CppContext for type: {}::{}!",
-                    ns, name
+                    "Unable to create valid CppContext for type: {ns}::{name}!"
                 );
             }
         }

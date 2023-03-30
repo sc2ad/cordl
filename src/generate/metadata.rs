@@ -1,14 +1,10 @@
 use std::collections::HashMap;
 
-use il2cpp_binary::{CodeRegistration, MetadataRegistration, Type, TypeData};
+use il2cpp_binary::{CodeRegistration, MetadataRegistration};
 use il2cpp_metadata_raw::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex};
 use itertools::Itertools;
 
-use super::{
-    constants::{TYPE_ATTRIBUTE_INTERFACE, TYPE_ATTRIBUTE_NESTED_PUBLIC},
-    cpp_type::CppType,
-    cs_type::CSType,
-};
+
 
 pub struct MethodCalculations {
     pub estimated_size: usize,
@@ -55,7 +51,7 @@ impl<'a> Metadata<'a> {
                     Vec::with_capacity(td.nested_type_count as usize);
                 for i in td.nested_types_start..td.nested_types_start + td.nested_type_count as u32
                 {
-                    let nested_tdi = self.metadata.nested_types.get(i as usize).unwrap().clone();
+                    let nested_tdi = *self.metadata.nested_types.get(i as usize).unwrap();
                     let nested_td = self
                         .metadata
                         .type_definitions
@@ -65,7 +61,7 @@ impl<'a> Metadata<'a> {
                     nested_types.push(TypeDefinitionPair::new(nested_td, nested_tdi));
                 }
 
-                if nested_types.len() == 0 {
+                if nested_types.is_empty() {
                     return None;
                 }
 
@@ -79,12 +75,11 @@ impl<'a> Metadata<'a> {
         let child_to_parent_map: Vec<(&TypeDefinitionPair<'a>, &TypeDefinitionPair<'a>)> =
             parent_to_child_map
                 .iter()
-                .map(|(p, children)| {
+                .flat_map(|(p, children)| {
                     let reverse = children.iter().map(|c| (c, p)).collect_vec();
 
                     reverse
                 })
-                .flatten()
                 .collect();
 
         self.child_to_parent_map = child_to_parent_map
@@ -94,7 +89,7 @@ impl<'a> Metadata<'a> {
 
         self.parent_to_child_map = parent_to_child_map
             .into_iter()
-            .map(|(p, c)| (p.tdi, c.into_iter().map(|c| c).collect_vec()))
+            .map(|(p, c)| (p.tdi, c.into_iter().collect_vec()))
             .collect();
 
         // self.parentToChildMap = childToParent

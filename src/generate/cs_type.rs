@@ -59,7 +59,7 @@ pub trait CSType: Sized {
 
                 format!("{parent_name}::{self_name}")
             }
-            None => self_name.to_string(),
+            None => config.name_cpp(self_name),
         }
     }
 
@@ -387,7 +387,7 @@ pub trait CSType: Sized {
                         },
                         interface_clazz_of: declaring_cpp_type
                             .map(|d| d.classof_cpp_name())
-                            .unwrap_or_else(|| format!("Bad stuff happened {:?}", declaring_type)),
+                            .unwrap_or_else(|| format!("Bad stuff happened {declaring_type:?}")),
                         is_final: method.is_final_method(),
                         slot: if method.slot != u16::MAX {
                             Some(method.slot)
@@ -563,12 +563,11 @@ pub trait CSType: Sized {
         for nested_type_index in
             t.nested_types_start..t.nested_types_start + (t.nested_type_count as u32)
         {
-            let nt_tdi = metadata
+            let nt_tdi = *metadata
                 .metadata
                 .nested_types
                 .get(nested_type_index as usize)
-                .unwrap()
-                .clone();
+                .unwrap();
             let nt_ty = metadata
                 .metadata
                 .type_definitions
@@ -789,7 +788,7 @@ pub trait CSType: Sized {
     ) -> String {
         let tag = TypeTag::from(typ.data);
 
-        let context_tag = ctx_collection.get_context_root_tag(tag);
+        let _context_tag = ctx_collection.get_context_root_tag(tag);
         let cpp_type = self.get_mut_cpp_type();
         let mut nested_types: HashMap<TypeTag, String> = cpp_type
             .nested_types_flattened()
@@ -871,7 +870,7 @@ pub trait CSType: Sized {
                     _ => panic!("Unknown type data for array {typ:?}!"),
                 };
 
-                format!("::ArrayW<{}>", generic)
+                format!("::ArrayW<{generic}>")
             }
             TypeEnum::Mvar | TypeEnum::Var => match typ.data {
                 // TODO: Alias to actual generic
@@ -960,7 +959,7 @@ pub trait CSType: Sized {
             }
             TypeEnum::Ptr => "void*".to_owned(),
             // TODO: Void and the other primitives
-            _ => format!("/* UNKNOWN TYPE! {:?} */", typ),
+            _ => format!("/* UNKNOWN TYPE! {typ:?} */"),
         }
     }
 
