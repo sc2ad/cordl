@@ -72,6 +72,20 @@ fn main() -> color_eyre::Result<()> {
     let mut cpp_context_collection = CppContextCollection::new();
 
     // First, make all the contexts
+    println!("Making types");
+    for tdi in 0..metadata.metadata.type_definitions.len() {
+        // Skip children, creating the parents creates them too
+        if metadata.child_to_parent_map.contains_key(&tdi.try_into()?) {
+            continue;
+        }
+        cpp_context_collection.make_from(
+            &metadata,
+            &config,
+            TypeData::TypeDefinitionIndex(tdi.try_into()?),
+        );
+    }
+
+    // Fill them now
     println!("Filling root types");
     for tdi in 0..metadata.metadata.type_definitions.len() {
         if metadata.child_to_parent_map.contains_key(&tdi.try_into()?) {
@@ -87,7 +101,7 @@ fn main() -> color_eyre::Result<()> {
     println!("Nested types pass");
     for parent in metadata.parent_to_child_map.keys() {
         let owner = cpp_context_collection
-            .get_cpp_type(&metadata, &config, TypeData::TypeDefinitionIndex(*parent))
+            .get_cpp_type(TypeData::TypeDefinitionIndex(*parent))
             .unwrap();
 
         // **Ignore this, we no longer recurse:**

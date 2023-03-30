@@ -177,7 +177,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
+        ctx_collection: &CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
         self.make_parents(metadata, config, ctx_collection, tdi);
@@ -190,7 +190,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
+        ctx_collection: &CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
@@ -368,7 +368,7 @@ pub trait CSType: Sized {
                     Some(cpp_type)
                 } else {
                     ctx_collection
-                        .get_cpp_type(metadata, config, tag)
+                        .get_cpp_type(tag)
                         .map(|c| &*c) // &mut -> &
                 };
 
@@ -436,7 +436,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
+        ctx_collection: &CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
@@ -496,7 +496,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
+        ctx_collection: &CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
@@ -591,7 +591,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        ctx_collection: &mut CppContextCollection,
+        ctx_collection: &CppContextCollection,
         tdi: u32,
     ) {
         let cpp_type = self.get_mut_cpp_type();
@@ -780,7 +780,7 @@ pub trait CSType: Sized {
 
     fn cppify_name_il2cpp(
         &mut self,
-        ctx_collection: &mut CppContextCollection,
+        ctx_collection: &CppContextCollection,
         metadata: &Metadata,
         config: &GenerationConfig,
         typ: &Type,
@@ -835,7 +835,9 @@ pub trait CSType: Sized {
                 // In this case, just inherit the type
                 // But we have to:
                 // - Determine where to include it from
-                let to_incl = ctx_collection.make_from(metadata, config, typ.data);
+                let to_incl = ctx_collection
+                    .get_context(typ.data)
+                    .unwrap_or_else(|| panic!("no context for type {typ:?}"));
 
                 // - Include it
                 if add_include {
@@ -845,7 +847,7 @@ pub trait CSType: Sized {
                 }
                 let inc = CppInclude::new_context(to_incl);
                 let to_incl_ty = ctx_collection
-                    .get_cpp_type(metadata, config, typ.data)
+                    .get_cpp_type(typ.data)
                     .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));
 
                 // Forward declare it

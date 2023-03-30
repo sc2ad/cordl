@@ -113,6 +113,18 @@ impl CppType {
             n.get_nested_type_mut(tag)
         })
     }
+    pub fn get_nested_type(&self, into_tag: impl Into<TypeTag>) -> Option<&CppType> {
+        let tag = into_tag.into();
+
+        self.nested_types.iter().find_map(|n| {
+            if n.self_tag == tag {
+                return Some(n);
+            }
+
+            // Recurse
+            n.get_nested_type(tag)
+        })
+    }
 
     pub fn formatted_complete_cpp_name(&self) -> String {
         // We found a valid type that we have defined for this idx!
