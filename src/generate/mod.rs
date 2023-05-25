@@ -4,5 +4,6 @@ pub mod context;
 pub mod cpp_type;
 pub mod cs_type;
 pub mod members;
+pub mod members_serialize;
 pub mod metadata;
 pub mod writer;
