@@ -207,8 +207,7 @@ pub trait CSType: Sized {
                     .get(field.type_index as usize)
                     .unwrap();
 
-                let cpp_name =
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+                let cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
                 fields.push(CppParam {
                     name: metadata
@@ -276,12 +275,8 @@ pub trait CSType: Sized {
                         .get(param.type_index as usize)
                         .unwrap();
 
-                    let param_cpp_name = cpp_type.cppify_name_il2cpp(
-                        ctx_collection,
-                        metadata,
-                        param_type,
-                        false,
-                    );
+                    let param_cpp_name =
+                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, false);
 
                     let def_value = Self::param_default_value(metadata, param_index as u32);
 
@@ -328,12 +323,8 @@ pub trait CSType: Sized {
                 let template = CppTemplate { names: generics };
 
                 // Need to include this type
-                let m_ret_cpp_type_name = cpp_type.cppify_name_il2cpp(
-                    ctx_collection,
-                    metadata,
-                    m_ret_type,
-                    false,
-                );
+                let m_ret_cpp_type_name =
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false);
 
                 let method_calc = metadata
                     .method_calculations
@@ -471,8 +462,7 @@ pub trait CSType: Sized {
 
             let _f_type_data = TypeTag::from(f_type.data);
 
-            let cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+            let cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
             let def_value = Self::field_default_value(metadata, field_index as u32);
 
@@ -532,8 +522,7 @@ pub trait CSType: Sized {
                 .unwrap();
 
             // We have a parent, lets do something with it
-            let inherit_type =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, true);
+            let inherit_type = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, true);
             cpp_type.inherit.push(inherit_type);
         }
     }
@@ -649,8 +638,7 @@ pub trait CSType: Sized {
                 .get(p_type_index)
                 .unwrap();
 
-            let p_cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
+            let p_cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
 
             let method_map = |p: u32| {
                 let method_calc = metadata.method_calculations.get(&p).unwrap();
@@ -667,7 +655,8 @@ pub trait CSType: Sized {
                 classof_call: cpp_type.classof_cpp_name(),
                 setter: p_setter.map(|_| method_map(prop.set)),
                 getter: p_getter.map(|_| method_map(prop.get)),
-                abstr: p_getter.or(p_setter).unwrap().is_abstract_method(),
+                abstr: p_getter.is_some_and(|p| p.is_abstract_method())
+                    || p_setter.is_some_and(|p| p.is_abstract_method()),
                 instance: !p_getter.or(p_setter).unwrap().is_static_method(),
             }));
         }
@@ -902,9 +891,7 @@ pub trait CSType: Sized {
                         .types
                         .iter()
                         .map(|t| metadata.metadata_registration.types.get(*t).unwrap())
-                        .map(|t| {
-                            self.cppify_name_il2cpp(ctx_collection, metadata, t, false)
-                        });
+                        .map(|t| self.cppify_name_il2cpp(ctx_collection, metadata, t, false));
 
                     let generic_types = types.collect_vec();
 
@@ -919,12 +906,8 @@ pub trait CSType: Sized {
                         .types
                         .get(generic_type_def.byval_type_index as usize)
                         .unwrap();
-                    let owner_name = self.cppify_name_il2cpp(
-                        ctx_collection,
-                        metadata,
-                        generic_type,
-                        false,
-                    );
+                    let owner_name =
+                        self.cppify_name_il2cpp(ctx_collection, metadata, generic_type, false);
 
                     format!("{owner_name}<{}>", generic_types.join(","))
                 }

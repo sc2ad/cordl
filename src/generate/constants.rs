@@ -41,7 +41,7 @@ impl MethodDefintionExtensions for Il2CppMethodDefinition {
     }
 
     fn is_abstract_method(&self) -> bool {
-        (self.flags & METHOD_ATTRIBUTE_VIRTUAL) != 0
+        (self.flags & METHOD_ATTRIBUTE_ABSTRACT) != 0
     }
 
     fn is_hidden_sig(&self) -> bool {
