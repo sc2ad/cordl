@@ -87,7 +87,7 @@ impl Writable for CppField {
         };
 
         match self.use_wrapper {
-            // no wrapper
+            // no wrapper/is C++ literal
             false => writeln!(
                 writer,
                 "{}{} {} = {}",
@@ -98,6 +98,7 @@ impl Writable for CppField {
             )?,
             // wrapper
             true => {
+                // literal il2cpp value
                 if let Some(literal) = &self.literal_value {
                     writeln!(writer, "constexpr {} {} = {literal};", self.ty, self.name)?;
                 }
@@ -105,13 +106,13 @@ impl Writable for CppField {
                     writeln!(
                         writer,
                         "::bs_hook::InstanceField<{}, 0x{:x},{}> {cpp_name};",
-                        self.ty, self.offset, !self.readonly
+                        self.ty, self.offset, self.readonly
                     )?;
                 } else {
                     writeln!(
                         writer,
-                        "static inline ::bs_hook::StaticField<{},\"{}\",{},&{}> {cpp_name};",
-                        self.ty, self.name, !self.readonly, self.classof_call
+                        "static inline ::bs_hook::StaticField<{},\"{}\",&{},{}> {cpp_name};",
+                        self.ty, self.name, self.classof_call, self.readonly
                     )?;
                 }
             }
@@ -292,9 +293,9 @@ impl Writable for CppProperty {
         if self.instance {
             writeln!(
                 writer,
-                "::bs_hook::InstanceProperty<{},\"{}\",{},{}> {};",
-                self.ty,
+                "::bs_hook::InstanceProperty<\"{}\",{},{},{}> {};",
                 self.name,
+                self.ty,
                 self.getter.is_some(),
                 self.setter.is_some(),
                 self.name
