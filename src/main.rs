@@ -87,14 +87,14 @@ fn main() -> color_eyre::Result<()> {
 
     // Fill them now
     println!("Filling root types");
-    for tdi in 0..metadata.metadata.type_definitions.len() {
-        if metadata.child_to_parent_map.contains_key(&tdi.try_into()?) {
+    for tdi in metadata.parent_to_child_map.keys() {
+        if metadata.child_to_parent_map.contains_key(tdi) {
             continue;
         }
         cpp_context_collection.fill(
             &metadata,
             &config,
-            TypeData::TypeDefinitionIndex(tdi.try_into()?),
+            TypeData::TypeDefinitionIndex(*tdi),
         );
     }
     // Fill children
