@@ -180,9 +180,9 @@ pub trait CSType: Sized {
         ctx_collection: &CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
-        self.make_parents(metadata, config, ctx_collection, tdi);
-        self.make_fields(metadata, config, ctx_collection, tdi);
-        self.make_properties(metadata, config, ctx_collection, tdi);
+        self.make_parents(metadata, ctx_collection, tdi);
+        self.make_fields(metadata, ctx_collection, tdi);
+        self.make_properties(metadata, ctx_collection, tdi);
         self.make_methods(metadata, config, ctx_collection, tdi);
     }
 
@@ -208,7 +208,7 @@ pub trait CSType: Sized {
                     .unwrap();
 
                 let cpp_name =
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, f_type, false);
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
                 fields.push(CppParam {
                     name: metadata
@@ -279,7 +279,6 @@ pub trait CSType: Sized {
                     let param_cpp_name = cpp_type.cppify_name_il2cpp(
                         ctx_collection,
                         metadata,
-                        config,
                         param_type,
                         false,
                     );
@@ -332,7 +331,6 @@ pub trait CSType: Sized {
                 let m_ret_cpp_type_name = cpp_type.cppify_name_il2cpp(
                     ctx_collection,
                     metadata,
-                    config,
                     m_ret_type,
                     false,
                 );
@@ -369,7 +367,7 @@ pub trait CSType: Sized {
                 let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
                     Some(cpp_type)
                 } else {
-                    ctx_collection.get_cpp_type(tag).map(|c| &*c) // &mut -> &
+                    ctx_collection.get_cpp_type(tag)
                 };
 
                 cpp_type
@@ -435,7 +433,6 @@ pub trait CSType: Sized {
     fn make_fields(
         &mut self,
         metadata: &Metadata,
-        config: &GenerationConfig,
         ctx_collection: &CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
@@ -475,7 +472,7 @@ pub trait CSType: Sized {
             let _f_type_data = TypeTag::from(f_type.data);
 
             let cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, f_type, false);
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
             let def_value = Self::field_default_value(metadata, field_index as u32);
 
@@ -496,7 +493,6 @@ pub trait CSType: Sized {
     fn make_parents(
         &mut self,
         metadata: &Metadata,
-        config: &GenerationConfig,
         ctx_collection: &CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
@@ -521,7 +517,7 @@ pub trait CSType: Sized {
         {
             // We have a parent, lets do something with it
             let inherit_type =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, parent_type, true);
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, true);
             cpp_type.inherit.push(inherit_type);
         } else {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
@@ -537,7 +533,7 @@ pub trait CSType: Sized {
 
             // We have a parent, lets do something with it
             let inherit_type =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, int_ty, true);
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, true);
             cpp_type.inherit.push(inherit_type);
         }
     }
@@ -591,7 +587,6 @@ pub trait CSType: Sized {
     fn make_properties(
         &mut self,
         metadata: &Metadata,
-        config: &GenerationConfig,
         ctx_collection: &CppContextCollection,
         tdi: u32,
     ) {
@@ -655,7 +650,7 @@ pub trait CSType: Sized {
                 .unwrap();
 
             let p_cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, config, p_type, false);
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
 
             let method_map = |p: u32| {
                 let method_calc = metadata.method_calculations.get(&p).unwrap();
@@ -784,7 +779,6 @@ pub trait CSType: Sized {
         &mut self,
         ctx_collection: &CppContextCollection,
         metadata: &Metadata,
-        config: &GenerationConfig,
         typ: &Type,
         add_include: bool,
     ) -> String {
@@ -868,7 +862,7 @@ pub trait CSType: Sized {
                 let generic: String = match typ.data.into() {
                     TypeTag::Type(e) => {
                         let ty = metadata.metadata_registration.types.get(e).unwrap();
-                        self.cppify_name_il2cpp(ctx_collection, metadata, config, ty, false)
+                        self.cppify_name_il2cpp(ctx_collection, metadata, ty, false)
                     }
 
                     _ => panic!("Unknown type data for array {typ:?}!"),
@@ -909,7 +903,7 @@ pub trait CSType: Sized {
                         .iter()
                         .map(|t| metadata.metadata_registration.types.get(*t).unwrap())
                         .map(|t| {
-                            self.cppify_name_il2cpp(ctx_collection, metadata, config, t, false)
+                            self.cppify_name_il2cpp(ctx_collection, metadata, t, false)
                         });
 
                     let generic_types = types.collect_vec();
@@ -928,7 +922,6 @@ pub trait CSType: Sized {
                     let owner_name = self.cppify_name_il2cpp(
                         ctx_collection,
                         metadata,
-                        config,
                         generic_type,
                         false,
                     );

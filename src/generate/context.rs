@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fs::{create_dir_all, remove_file, File},
-    path::{Path, PathBuf}, mem::{swap, take},
+    path::{Path, PathBuf},
 };
 
 use color_eyre::eyre::ContextCompat;
