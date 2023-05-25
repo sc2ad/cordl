@@ -245,6 +245,7 @@ impl CppType {
             d.write(writer).unwrap();
         });
 
+        writeln!(writer, "static constexpr bool __CORDL_IS_VALUE_TYPE = {};", self.is_value_type)?;
         // Type complete
         writer.dedent();
         writeln!(writer, "}};")?;
