@@ -73,29 +73,24 @@ fn main() -> color_eyre::Result<()> {
 
     // First, make all the contexts
     println!("Making types");
-    for tdi in 0..metadata.metadata.type_definitions.len() {
+    for tdi_u64 in 0..metadata.metadata.type_definitions.len() {
+        let tdi: u32 = tdi_u64 as u32;
         // Skip children, creating the parents creates them too
-        if metadata.child_to_parent_map.contains_key(&tdi.try_into()?) {
+        if metadata.child_to_parent_map.contains_key(&tdi) {
             continue;
         }
-        cpp_context_collection.make_from(
-            &metadata,
-            &config,
-            TypeData::TypeDefinitionIndex(tdi.try_into()?),
-        );
+        cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi));
     }
 
     // Fill them now
     println!("Filling root types");
-    for tdi in metadata.parent_to_child_map.keys() {
-        if metadata.child_to_parent_map.contains_key(tdi) {
+    for tdi_u64 in 0..metadata.metadata.type_definitions.len() {
+        let tdi = tdi_u64 as u32;
+
+        if metadata.child_to_parent_map.contains_key(&tdi) {
             continue;
         }
-        cpp_context_collection.fill(
-            &metadata,
-            &config,
-            TypeData::TypeDefinitionIndex(*tdi),
-        );
+        cpp_context_collection.fill(&metadata, &config, TypeData::TypeDefinitionIndex(tdi));
     }
     // Fill children
     println!("Nested types pass");
