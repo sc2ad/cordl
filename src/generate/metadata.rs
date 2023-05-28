@@ -46,7 +46,7 @@ impl<'a> Metadata<'a> {
                 }
 
                 let nested_types: Vec<TypeDefinitionPair> = td
-                    .nested_types(&self.metadata)
+                    .nested_types(self.metadata)
                     .iter()
                     .map(|&nested_tdi| {
                         let nested_td = &gm.type_definitions[nested_tdi];
@@ -117,12 +117,12 @@ impl<'a> Metadata<'a> {
                     .images
                     .as_vec()
                     .iter()
-                    .find(|i| cgm.name == i.name(&self.metadata))
+                    .find(|i| cgm.name == i.name(self.metadata))
                     .unwrap();
                 let mut method_calculations: HashMap<MethodIndex, MethodCalculations> =
                     HashMap::new();
-                for ty in img.types(&self.metadata) {
-                    for (i, method) in ty.methods(&self.metadata).iter().enumerate() {
+                for ty in img.types(self.metadata) {
+                    for (i, method) in ty.methods(self.metadata).iter().enumerate() {
                         let method_index = MethodIndex::new(ty.method_start.index() + i as u32);
                         let method_pointer_index = method.token.rid() as usize - 1;
                         let method_pointer =

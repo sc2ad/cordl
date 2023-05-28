@@ -79,8 +79,8 @@ impl CppContext {
         tag: TypeData,
     ) -> CppContext {
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
-        let ns = t.namespace(&metadata.metadata);
-        let name = t.name(&metadata.metadata);
+        let ns = t.namespace(metadata.metadata);
+        let name = t.name(metadata.metadata);
 
         let ns_path = config.namespace_path(ns);
         let path = if ns_path.is_empty() {
@@ -207,7 +207,7 @@ pub struct CppContextCollection {
 
 impl CppContextCollection {
     pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, ty: TypeData) {
-        let type_tag: TypeData = ty.into();
+        let type_tag: TypeData = ty;
         let tdi = CppType::get_tag_tdi(type_tag);
 
         assert!(
@@ -266,7 +266,7 @@ impl CppContextCollection {
         config: &GenerationConfig,
         owner_ty: TypeData,
     ) {
-        let owner_type_tag = owner_ty.into();
+        let owner_type_tag = owner_ty;
         let owner = self
             .get_cpp_type_mut(owner_type_tag)
             .unwrap_or_else(|| panic!("Owner does not exist {owner_type_tag:?}"));
@@ -306,7 +306,7 @@ impl CppContextCollection {
     }
 
     pub fn get_context_root_tag(&self, ty: TypeData) -> TypeData {
-        let tag = ty.into();
+        let tag = ty;
         self.alias_context
             .get(&tag)
             .cloned()
@@ -320,7 +320,7 @@ impl CppContextCollection {
         config: &GenerationConfig,
         ty: TypeData,
     ) -> &mut CppContext {
-        let type_tag = ty.into();
+        let type_tag = ty;
         assert!(
             !metadata
                 .child_to_parent_map
@@ -361,13 +361,13 @@ impl CppContextCollection {
     }
 
     pub fn get_cpp_type(&self, ty: TypeData) -> Option<&CppType> {
-        let tag = ty.into();
+        let tag = ty;
         let context_root_tag = self.get_context_root_tag(tag);
         self.get_context(context_root_tag)
             .and_then(|c| c.get_cpp_type_recursive(context_root_tag, tag))
     }
     pub fn get_cpp_type_mut(&mut self, ty: TypeData) -> Option<&mut CppType> {
-        let tag = ty.into();
+        let tag = ty;
         let context_root_tag = self.get_context_root_tag(tag);
         self.get_context_mut(context_root_tag)
             .and_then(|c| c.get_cpp_type_recursive_mut(context_root_tag, tag))
