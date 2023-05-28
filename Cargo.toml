@@ -5,8 +5,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-il2cpp_metadata_raw = { git = "https://github.com/StackDoubleFlow/brocolib.git" }
-il2cpp_binary = { git = "https://github.com/StackDoubleFlow/brocolib.git" }
+brocolib = { git = "https://github.com/StackDoubleFlow/brocolib.git", branch = "il2cpp_v29" }
 clap = { version = "3.1.8", features = ["derive"] }
 anyhow = { version = "*" }
 indent_write = { version = "*" }

@@ -1,5 +1,7 @@
-use il2cpp_binary::Type;
-use il2cpp_metadata_raw::{Il2CppMethodDefinition, Il2CppTypeDefinition};
+use brocolib::{
+    global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition},
+    runtime_metadata::Il2CppType,
+};
 
 pub const TYPE_ATTRIBUTE_INTERFACE: u32 = 0x00000020;
 pub const TYPE_ATTRIBUTE_NESTED_PUBLIC: u32 = 0x00000002;
@@ -67,7 +69,7 @@ pub trait TypeExtentions {
     fn is_byref(&self) -> bool;
 }
 
-impl TypeExtentions for Type {
+impl TypeExtentions for Il2CppType {
     fn is_static(&self) -> bool {
         (self.attrs & FIELD_ATTRIBUTE_STATIC) != 0
     }

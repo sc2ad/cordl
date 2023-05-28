@@ -4,9 +4,13 @@ use std::{
     rc::Rc,
 };
 
+use brocolib::{
+    global_metadata::{
+        FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex, TypeDefinitionIndex,
+    },
+    runtime_metadata::{Il2CppType, Il2CppTypeEnum, TypeData},
+};
 use byteorder::{LittleEndian, ReadBytesExt};
-use il2cpp_binary::{Type, TypeData, TypeEnum};
-use il2cpp_metadata_raw::{Il2CppGenericParameter, TypeDefinitionIndex};
 use itertools::Itertools;
 
 use super::{
@@ -15,7 +19,7 @@ use super::{
         MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions,
         TYPE_ATTRIBUTE_INTERFACE,
     },
-    context::{CppContextCollection, TypeTag},
+    context::CppContextCollection,
     cpp_type::CppType,
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppField, CppForwardDeclare,
@@ -31,11 +35,10 @@ pub trait CSType: Sized {
     fn get_mut_cpp_type(&mut self) -> &mut CppType; // idk how else to do this
     fn get_cpp_type(&self) -> &CppType; // idk how else to do this
 
-    fn get_tag_tdi(tag: impl Into<TypeTag>) -> u32 {
-        let tag_convert = tag.into();
-        match tag_convert {
-            TypeTag::TypeDefinition(tdi) => tdi,
-            _ => panic!("Unsupported type: {tag_convert:?}"),
+    fn get_tag_tdi(tag: TypeData) -> TypeDefinitionIndex {
+        match tag {
+            TypeData::TypeDefinitionIndex(tdi) => tdi,
+            _ => panic!("Unsupported type: {tag:?}"),
         }
     }
 
@@ -45,12 +48,9 @@ pub trait CSType: Sized {
         tdi: TypeDefinitionIndex,
     ) -> String {
         let parent = metadata.child_to_parent_map.get(&tdi);
-        let ty = metadata
-            .metadata
-            .type_definitions
-            .get(tdi as usize)
-            .unwrap();
-        let self_name = metadata.metadata.get_str(ty.name_index).unwrap();
+        let ty = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+        let self_name = ty.name(&metadata.metadata);
 
         match parent {
             Some(parent_ty_cpp_name) => {
@@ -66,7 +66,7 @@ pub trait CSType: Sized {
     fn make_cpp_type(
         metadata: &Metadata,
         config: &GenerationConfig,
-        tag: impl Into<TypeTag>,
+        tag: TypeData,
     ) -> Option<CppType> {
         // let iface = metadata.interfaces.get(t.interfaces_start);
         // Then, handle interfaces
@@ -75,64 +75,32 @@ pub trait CSType: Sized {
         // - This includes constructors
         // inherited methods will be inherited
 
-        let tag_copy = tag.into();
-        let tdi = Self::get_tag_tdi(tag_copy);
+        let tdi = Self::get_tag_tdi(tag);
         let parent_pair = metadata.child_to_parent_map.get(&tdi);
 
-        let t = metadata
-            .metadata
-            .type_definitions
-            .get(tdi as usize)
-            .unwrap();
+        let t = &metadata.metadata.global_metadata.type_definitions[tdi];
 
         // Generics
-        let generics = metadata
-            .metadata
-            .generic_containers
-            .get(t.generic_container_index as usize)
-            .map(|container| {
-                let mut generics: Vec<(&Il2CppGenericParameter, Vec<u32>)> =
-                    Vec::with_capacity(container.type_argc as usize);
-
-                for i in 0..container.type_argc {
-                    let generic_param_index = i + container.generic_parameter_start;
-                    let generic_param = metadata
-                        .metadata
-                        .generic_parameters
-                        .get(generic_param_index as usize)
-                        .unwrap();
-
-                    let mut generic_constraints: Vec<u32> =
-                        Vec::with_capacity(generic_param.constraints_count as usize);
-                    for j in 0..generic_param.constraints_count {
-                        let generic_constraint_index = j + generic_param.constraints_start;
-                        let generic_constraint = metadata
-                            .metadata
-                            .generic_parameter_constraints
-                            .get(generic_constraint_index as usize)
-                            .unwrap();
-
-                        // TODO: figure out
-                        generic_constraints.push(*generic_constraint);
-                    }
-
-                    generics.push((generic_param, generic_constraints));
-                }
-                generics
-            });
+        let generics = t.generic_container_index.is_valid().then(|| {
+            t.generic_container(&metadata.metadata)
+                .generic_parameters(&metadata.metadata)
+                .iter()
+                .map(|param| (param, param.constraints(&metadata.metadata)))
+                .collect_vec()
+        });
 
         let cpp_template = CppTemplate {
             names: generics
                 .unwrap_or_default()
                 .iter()
-                .map(|(g, _)| metadata.metadata.get_str(g.name_index).unwrap().to_string())
+                .map(|(g, _)| g.name(&metadata.metadata).to_string())
                 .collect(),
         };
 
-        let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
-        let name = metadata.metadata.get_str(t.name_index).unwrap();
+        let ns = t.namespace(&metadata.metadata);
+        let name = t.name(&metadata.metadata);
         let mut cpptype = CppType {
-            self_tag: tag_copy,
+            self_tag: tag.clone(),
             nested: parent_pair.is_some(),
             prefix_comments: vec![format!("Type: {ns}::{name}")],
             namespace: config.namespace_cpp(ns),
@@ -198,28 +166,27 @@ pub trait CSType: Sized {
 
         // default ctor
         if t.is_value_type() {
-            let mut fields: Vec<CppParam> = Vec::with_capacity(t.field_count as usize);
-            for field_index in t.field_start..t.field_start + t.field_count as u32 {
-                let field = metadata.metadata.fields.get(field_index as usize).unwrap();
-                let f_type = metadata
-                    .metadata_registration
-                    .types
-                    .get(field.type_index as usize)
-                    .unwrap();
+            let fields = t
+                .fields(&metadata.metadata)
+                .iter()
+                .map(|field| {
+                    let f_type = metadata
+                        .metadata_registration
+                        .types
+                        .get(field.type_index as usize)
+                        .unwrap();
 
-                let cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+                    let cpp_name =
+                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
-                fields.push(CppParam {
-                    name: metadata
-                        .metadata
-                        .get_str(field.name_index)
-                        .unwrap()
-                        .to_owned(),
-                    ty: cpp_name,
-                    modifiers: "".to_string(),
-                    def_value: Some("{}".to_string()),
-                });
-            }
+                    CppParam {
+                        name: field.name(&metadata.metadata).to_string(),
+                        ty: cpp_name,
+                        modifiers: "".to_string(),
+                        def_value: Some("{}".to_string()),
+                    }
+                })
+                .collect_vec();
             cpp_type
                 .declarations
                 .push(CppMember::ConstructorImpl(CppConstructorImpl {
@@ -242,13 +209,9 @@ pub trait CSType: Sized {
 
             cpp_type.declarations.reserve(5 * t.method_count as usize);
             // Then, for each method, write it out
-            for i in 0..t.method_count {
-                let method = metadata
-                    .metadata
-                    .methods
-                    .get((t.method_start + i as u32) as usize)
-                    .unwrap();
-                let m_name = metadata.metadata.get_str(method.name_index).unwrap();
+            for (i, method) in t.methods(&metadata.metadata).iter().enumerate() {
+                let method_index = MethodIndex::new(t.method_start.index() + i as u32);
+                let m_name = method.name(&metadata.metadata);
 
                 // Skip class/static constructor
                 // if method.is_special_name()
@@ -265,10 +228,9 @@ pub trait CSType: Sized {
                 let mut m_params: Vec<CppParam> =
                     Vec::with_capacity(method.parameter_count as usize);
 
-                for p in 0..method.parameter_count {
-                    let param_index = (method.parameter_start + p as u32) as usize;
-                    let param = metadata.metadata.parameters.get(param_index).unwrap();
-
+                for (pi, param) in method.parameters(&metadata.metadata).iter().enumerate() {
+                    let param_index =
+                        ParameterIndex::new(method.parameter_start.index() + pi as u32);
                     let param_type = metadata
                         .metadata_registration
                         .types
@@ -278,14 +240,10 @@ pub trait CSType: Sized {
                     let param_cpp_name =
                         cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, false);
 
-                    let def_value = Self::param_default_value(metadata, param_index as u32);
+                    let def_value = Self::param_default_value(metadata, param_index);
 
                     m_params.push(CppParam {
-                        name: metadata
-                            .metadata
-                            .get_str(param.name_index as u32)
-                            .unwrap()
-                            .to_string(),
+                        name: param.name(&metadata.metadata).to_string(),
                         def_value,
                         ty: param_cpp_name,
                         modifiers: if param_type.is_byref() {
@@ -296,29 +254,16 @@ pub trait CSType: Sized {
                     });
                 }
 
-                let generic_container = metadata
-                    .metadata
-                    .generic_containers
-                    .get(method.generic_container_index as usize);
-
-                let mut generics: Vec<String> = vec![];
-
-                if let Some(generic_container) = generic_container {
-                    generics = Vec::with_capacity(generic_container.type_argc as usize);
-
-                    for param_index in generic_container.generic_parameter_start
-                        ..generic_container.generic_parameter_start + generic_container.type_argc
-                    {
-                        let param = metadata
-                            .metadata
-                            .generic_parameters
-                            .get(param_index as usize)
-                            .unwrap();
-
-                        let param_str = metadata.metadata.get_str(param.name_index).unwrap();
-                        generics.push(param_str.to_string());
-                    }
-                }
+                let generics = if method.generic_container_index.is_valid() {
+                    method
+                        .generic_container(&metadata.metadata)
+                        .generic_parameters(&metadata.metadata)
+                        .iter()
+                        .map(|param| param.name(&metadata.metadata).to_string())
+                        .collect_vec()
+                } else {
+                    vec![]
+                };
 
                 let template = CppTemplate { names: generics };
 
@@ -326,10 +271,7 @@ pub trait CSType: Sized {
                 let m_ret_cpp_type_name =
                     cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false);
 
-                let method_calc = metadata
-                    .method_calculations
-                    .get(&(t.method_start + i as u32))
-                    .unwrap();
+                let method_calc = &metadata.method_calculations[&method_index];
 
                 if m_name == ".ctor" && !t.is_value_type() {
                     cpp_type
@@ -349,12 +291,8 @@ pub trait CSType: Sized {
                         }));
                 }
 
-                let declaring_type = metadata
-                    .metadata
-                    .type_definitions
-                    .get(method.declaring_type as usize)
-                    .unwrap();
-                let tag = TypeTag::TypeDefinition(method.declaring_type);
+                let declaring_type = method.declaring_type(&metadata.metadata);
+                let tag = TypeData::TypeDefinitionIndex(method.declaring_type);
                 let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
                     Some(cpp_type)
                 } else {
@@ -443,34 +381,31 @@ pub trait CSType: Sized {
             }));
         // Then, for each field, write it out
         cpp_type.declarations.reserve(t.field_count as usize);
-        for i in 0..t.field_count {
-            let field_index = (t.field_start + i as u32) as usize;
-            let field = metadata.metadata.fields.get(field_index).unwrap();
-            let f_name = metadata.metadata.get_str(field.name_index).unwrap();
+        for (i, field) in t.fields(&metadata.metadata).iter().enumerate() {
+            let field_index = FieldIndex::new(t.field_start.index() + i as u32);
+            let f_name = field.name(&metadata.metadata);
             let f_offset = metadata
                 .metadata_registration
                 .field_offsets
-                .get(tdi as usize)
-                .unwrap()
-                .get(i as usize)
-                .unwrap();
+                .as_ref()
+                .unwrap()[tdi.index() as usize][i];
             let f_type = metadata
                 .metadata_registration
                 .types
                 .get(field.type_index as usize)
                 .unwrap();
 
-            let _f_type_data = TypeTag::from(f_type.data);
+            let _f_type_data = TypeData::from(f_type.data);
 
             let cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
-            let def_value = Self::field_default_value(metadata, field_index as u32);
+            let def_value = Self::field_default_value(metadata, field_index);
 
             // Need to include this type
             cpp_type.declarations.push(CppMember::Field(CppField {
                 name: f_name.to_owned(),
                 ty: cpp_name,
-                offset: *f_offset,
+                offset: f_offset,
                 instance: !f_type.is_static() && !f_type.is_const(),
                 readonly: f_type.is_const(),
                 classof_call: cpp_type.classof_cpp_name(),
@@ -487,13 +422,10 @@ pub trait CSType: Sized {
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
-        let t = metadata
-            .metadata
-            .type_definitions
-            .get(tdi as usize)
-            .unwrap();
-        let ns = metadata.metadata.get_str(t.namespace_index).unwrap();
-        let name = metadata.metadata.get_str(t.name_index).unwrap();
+        let t = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+        let ns = t.namespace(&metadata.metadata);
+        let name = t.name(&metadata.metadata);
 
         if t.parent_index == u32::MAX {
             // TYPE_ATTRIBUTE_INTERFACE = 0x00000020
@@ -513,13 +445,8 @@ pub trait CSType: Sized {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
         }
 
-        for interface_index in t.interfaces_start..t.interfaces_start + (t.interfaces_count as u32)
-        {
-            let int_ty = metadata
-                .metadata_registration
-                .types
-                .get(interface_index as usize)
-                .unwrap();
+        for &interface_index in t.interfaces(&metadata.metadata) {
+            let int_ty = &metadata.metadata_registration.types[interface_index as usize];
 
             // We have a parent, lets do something with it
             let inherit_type = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, true);
@@ -534,11 +461,7 @@ pub trait CSType: Sized {
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
-        let t = metadata
-            .metadata
-            .type_definitions
-            .get(tdi as usize)
-            .unwrap();
+        let t = &metadata.metadata.global_metadata.type_definitions[tdi];
 
         if t.nested_type_count == 0 {
             return;
@@ -546,23 +469,15 @@ pub trait CSType: Sized {
 
         let mut nested_types: Vec<CppType> = Vec::with_capacity(t.nested_type_count as usize);
 
-        for nested_type_index in
-            t.nested_types_start..t.nested_types_start + (t.nested_type_count as u32)
-        {
-            let nt_tdi = *metadata
-                .metadata
-                .nested_types
-                .get(nested_type_index as usize)
-                .unwrap();
-            let nt_ty = metadata
-                .metadata
-                .type_definitions
-                .get(nt_tdi as usize)
-                .unwrap();
+        for &nested_type_index in t.nested_types(&metadata.metadata) {
+            let nt_ty = &metadata.metadata.global_metadata.type_definitions[nested_type_index];
 
             // We have a parent, lets do something with it
-            let nested_type =
-                CppType::make_cpp_type(metadata, config, TypeTag::TypeDefinition(nt_tdi));
+            let nested_type = CppType::make_cpp_type(
+                metadata,
+                config,
+                TypeData::TypeDefinitionIndex(nested_type_index),
+            );
 
             match nested_type {
                 Some(unwrapped) => nested_types.push(unwrapped),
@@ -577,7 +492,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         ctx_collection: &CppContextCollection,
-        tdi: u32,
+        tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
         let t = Self::get_type_definition(metadata, tdi);
@@ -595,41 +510,14 @@ pub trait CSType: Sized {
             }));
         cpp_type.declarations.reserve(t.property_count as usize);
         // Then, for each field, write it out
-        for i in 0..t.property_count {
-            let prop = metadata
-                .metadata
-                .properties
-                .get((t.property_start + i as u32) as usize)
-                .unwrap();
-            let p_name = metadata.metadata.get_str(prop.name_index).unwrap();
-            let p_setter = if prop.set != u32::MAX {
-                metadata
-                    .metadata
-                    .methods
-                    .get((t.method_start + prop.set) as usize)
-            } else {
-                None
-            };
-
-            let p_getter = if prop.get != u32::MAX {
-                metadata
-                    .metadata
-                    .methods
-                    .get((t.method_start + prop.get) as usize)
-            } else {
-                None
-            };
+        for prop in t.properties(&metadata.metadata) {
+            let p_name = prop.name(&metadata.metadata);
+            let p_setter = (prop.set != u32::MAX).then(|| prop.set_method(&t, &metadata.metadata));
+            let p_getter = (prop.get != u32::MAX).then(|| prop.get_method(&t, &metadata.metadata));
 
             let p_type_index = match p_getter {
                 Some(g) => g.return_type as usize,
-                None => {
-                    metadata
-                        .metadata
-                        .parameters
-                        .get(p_setter.unwrap().parameter_start as usize)
-                        .unwrap()
-                        .type_index as usize
-                }
+                None => p_setter.unwrap().parameters(&metadata.metadata)[0].type_index as usize,
             };
 
             let p_type = metadata
@@ -640,7 +528,7 @@ pub trait CSType: Sized {
 
             let p_cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
 
-            let method_map = |p: u32| {
+            let method_map = |p: MethodIndex| {
                 let method_calc = metadata.method_calculations.get(&p).unwrap();
                 CppMethodData {
                     estimated_size: method_calc.estimated_size,
@@ -653,8 +541,8 @@ pub trait CSType: Sized {
                 name: p_name.to_owned(),
                 ty: p_cpp_name.clone(),
                 classof_call: cpp_type.classof_cpp_name(),
-                setter: p_setter.map(|_| method_map(prop.set)),
-                getter: p_getter.map(|_| method_map(prop.get)),
+                setter: p_setter.map(|_| method_map(prop.set_method_index(&t))),
+                getter: p_getter.map(|_| method_map(prop.get_method_index(&t))),
                 abstr: p_getter.is_some_and(|p| p.is_abstract_method())
                     || p_setter.is_some_and(|p| p.is_abstract_method()),
                 instance: !p_getter.or(p_setter).unwrap().is_static_method(),
@@ -662,30 +550,42 @@ pub trait CSType: Sized {
         }
     }
 
-    fn default_value_blob(metadata: &Metadata, ty: TypeEnum, data_index: usize) -> String {
-        let data = &metadata.metadata.field_and_parameter_default_value_data[data_index..];
+    fn default_value_blob(metadata: &Metadata, ty: Il2CppTypeEnum, data_index: usize) -> String {
+        let data = &metadata
+            .metadata
+            .global_metadata
+            .field_and_parameter_default_value_data
+            .as_vec()[data_index..];
 
         let mut cursor = Cursor::new(data);
 
         match ty {
-            TypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
-            TypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
-            TypeEnum::I2 => cursor.read_i16::<Endian>().unwrap().to_string(),
-            TypeEnum::Valuetype | TypeEnum::I4 => cursor.read_i32::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
+            Il2CppTypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
+            Il2CppTypeEnum::I2 => cursor.read_i16::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::I4 => {
+                cursor.read_i32::<Endian>().unwrap().to_string()
+            }
             // TODO: We assume 64 bit
-            TypeEnum::I | TypeEnum::I8 => cursor.read_i64::<Endian>().unwrap().to_string(),
-            TypeEnum::U1 => cursor.read_u8().unwrap().to_string(),
-            TypeEnum::U2 => cursor.read_u16::<Endian>().unwrap().to_string(),
-            TypeEnum::U4 => cursor.read_u32::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::I | Il2CppTypeEnum::I8 => {
+                cursor.read_i64::<Endian>().unwrap().to_string()
+            }
+            Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string(),
+            Il2CppTypeEnum::U2 => cursor.read_u16::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::U4 => cursor.read_u32::<Endian>().unwrap().to_string(),
             // TODO: We assume 64 bit
-            TypeEnum::U | TypeEnum::U8 => cursor.read_u64::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => {
+                cursor.read_u64::<Endian>().unwrap().to_string()
+            }
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point
-            TypeEnum::R4 => cursor.read_f32::<Endian>().unwrap().to_string(),
-            TypeEnum::R8 => cursor.read_f64::<Endian>().unwrap().to_string(),
-            TypeEnum::Char => String::from_utf16_lossy(&[cursor.read_u16::<Endian>().unwrap()]),
-            TypeEnum::String => {
+            Il2CppTypeEnum::R4 => cursor.read_f32::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::R8 => cursor.read_f64::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::Char => {
+                String::from_utf16_lossy(&[cursor.read_u16::<Endian>().unwrap()])
+            }
+            Il2CppTypeEnum::String => {
                 let size = cursor.read_u32::<Endian>().unwrap();
                 let mut str = String::with_capacity(size as usize);
                 unsafe {
@@ -693,18 +593,21 @@ pub trait CSType: Sized {
                 }
                 str
             }
-            TypeEnum::Genericinst | TypeEnum::Object | TypeEnum::Class | TypeEnum::Szarray => {
-                "nullptr".to_string()
-            }
+            Il2CppTypeEnum::Genericinst
+            | Il2CppTypeEnum::Object
+            | Il2CppTypeEnum::Class
+            | Il2CppTypeEnum::Szarray => "nullptr".to_string(),
 
             _ => "unknown".to_string(),
         }
     }
 
-    fn field_default_value(metadata: &Metadata, field_index: u32) -> Option<String> {
+    fn field_default_value(metadata: &Metadata, field_index: FieldIndex) -> Option<String> {
         metadata
             .metadata
+            .global_metadata
             .field_default_values
+            .as_vec()
             .iter()
             .find(|f| f.field_index == field_index)
             .map(|def| {
@@ -714,13 +617,15 @@ pub trait CSType: Sized {
                     .get(def.type_index as usize)
                     .unwrap();
 
-                Self::default_value_blob(metadata, ty.ty, def.data_index as usize)
+                Self::default_value_blob(metadata, ty.ty, def.data_index.index() as usize)
             })
     }
-    fn param_default_value(metadata: &Metadata, parameter_index: u32) -> Option<String> {
+    fn param_default_value(metadata: &Metadata, parameter_index: ParameterIndex) -> Option<String> {
         metadata
             .metadata
+            .global_metadata
             .parameter_default_values
+            .as_vec()
             .iter()
             .find(|p| p.parameter_index == parameter_index)
             .map(|def| {
@@ -730,24 +635,18 @@ pub trait CSType: Sized {
                     .get(def.type_index as usize)
                     .unwrap();
 
-                if def.data_index as i64 == -1 || def.data_index == u32::MAX {
+                if !def.data_index.is_valid() {
                     return "nullptr".to_string();
                 }
 
-                if let TypeEnum::Valuetype = ty.ty {
+                if let Il2CppTypeEnum::Valuetype = ty.ty {
                     match ty.data {
                         TypeData::TypeDefinitionIndex(tdi) => {
-                            let type_def = metadata
-                                .metadata
-                                .type_definitions
-                                .get(tdi as usize)
-                                .unwrap();
+                            let type_def = &metadata.metadata.global_metadata.type_definitions[tdi];
 
                             // System.Nullable`1
-                            if metadata.metadata.get_str(type_def.name_index).unwrap()
-                                == "Nullable`1"
-                                && metadata.metadata.get_str(type_def.namespace_index).unwrap()
-                                    == "System"
+                            if type_def.name(&metadata.metadata) == "Nullable`1"
+                                && type_def.namespace(&metadata.metadata) == "System"
                             {
                                 ty = metadata
                                     .metadata_registration
@@ -760,7 +659,7 @@ pub trait CSType: Sized {
                     }
                 }
 
-                Self::default_value_blob(metadata, ty.ty, def.data_index as usize)
+                Self::default_value_blob(metadata, ty.ty, def.data_index.index() as usize)
             })
     }
 
@@ -768,14 +667,14 @@ pub trait CSType: Sized {
         &mut self,
         ctx_collection: &CppContextCollection,
         metadata: &Metadata,
-        typ: &Type,
+        typ: &Il2CppType,
         add_include: bool,
     ) -> String {
-        let tag = TypeTag::from(typ.data);
+        let tag = TypeData::from(typ.data);
 
         let _context_tag = ctx_collection.get_context_root_tag(tag);
         let cpp_type = self.get_mut_cpp_type();
-        let mut nested_types: HashMap<TypeTag, String> = cpp_type
+        let mut nested_types: HashMap<TypeData, String> = cpp_type
             .nested_types_flattened()
             .into_iter()
             .map(|(t, c)| (t, c.formatted_complete_cpp_name()))
@@ -783,29 +682,29 @@ pub trait CSType: Sized {
 
         let requirements = &mut cpp_type.requirements;
         match typ.ty {
-            TypeEnum::I1
-            | TypeEnum::U1
-            | TypeEnum::I2
-            | TypeEnum::U2
-            | TypeEnum::I4
-            | TypeEnum::U4
-            | TypeEnum::I8
-            | TypeEnum::U8
-            | TypeEnum::I
-            | TypeEnum::U
-            | TypeEnum::R4
-            | TypeEnum::R8 => {
+            Il2CppTypeEnum::I1
+            | Il2CppTypeEnum::U1
+            | Il2CppTypeEnum::I2
+            | Il2CppTypeEnum::U2
+            | Il2CppTypeEnum::I4
+            | Il2CppTypeEnum::U4
+            | Il2CppTypeEnum::I8
+            | Il2CppTypeEnum::U8
+            | Il2CppTypeEnum::I
+            | Il2CppTypeEnum::U
+            | Il2CppTypeEnum::R4
+            | Il2CppTypeEnum::R8 => {
                 requirements.needs_int_include();
             }
             _ => (),
         };
 
         match typ.ty {
-            TypeEnum::Object => {
+            Il2CppTypeEnum::Object => {
                 requirements.need_wrapper();
                 "::bs_hook::Il2CppWrapperType".to_string()
             }
-            TypeEnum::Valuetype | TypeEnum::Class => {
+            Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class => {
                 // Self
                 if tag == cpp_type.self_tag {
                     // TODO: println!("Warning! This is self referencing, handle this better in the future");
@@ -845,12 +744,12 @@ pub trait CSType: Sized {
                 to_incl_ty.formatted_complete_cpp_name()
             }
             // TODO: MVAR and VAR
-            TypeEnum::Szarray => {
+            Il2CppTypeEnum::Szarray => {
                 requirements.needs_arrayw_include();
 
                 let generic: String = match typ.data.into() {
-                    TypeTag::Type(e) => {
-                        let ty = metadata.metadata_registration.types.get(e).unwrap();
+                    TypeData::TypeIndex(e) => {
+                        let ty = &metadata.metadata_registration.types[e];
                         self.cppify_name_il2cpp(ctx_collection, metadata, ty, false)
                     }
 
@@ -859,30 +758,23 @@ pub trait CSType: Sized {
 
                 format!("::ArrayW<{generic}>")
             }
-            TypeEnum::Mvar | TypeEnum::Var => match typ.data {
+            Il2CppTypeEnum::Mvar | Il2CppTypeEnum::Var => match typ.data {
                 // TODO: Alias to actual generic
                 TypeData::GenericParameterIndex(index) => {
-                    let generic_param = metadata
-                        .metadata
-                        .generic_parameters
-                        .get(index as usize)
-                        .unwrap();
+                    let generic_param =
+                        &metadata.metadata.global_metadata.generic_parameters[index];
 
-                    let name = metadata.metadata.get_str(generic_param.name_index).unwrap();
+                    let name = generic_param.name(&metadata.metadata);
 
                     name.to_string()
                 }
                 _ => todo!(),
             },
-            TypeEnum::Genericinst => match typ.data.into() {
-                TypeTag::GenericClass(e) => {
-                    let generic_class = metadata
-                        .metadata_registration
-                        .generic_classes
-                        .get(e)
-                        .unwrap();
-                    let generic_inst = metadata
-                        .metadata_registration
+            Il2CppTypeEnum::Genericinst => match typ.data.into() {
+                TypeData::GenericClassIndex(e) => {
+                    let mr = &metadata.metadata_registration;
+                    let generic_class = mr.generic_classes.get(e).unwrap();
+                    let generic_inst = mr
                         .generic_insts
                         .get(generic_class.context.class_inst_idx.unwrap())
                         .unwrap();
@@ -890,22 +782,12 @@ pub trait CSType: Sized {
                     let types = generic_inst
                         .types
                         .iter()
-                        .map(|t| metadata.metadata_registration.types.get(*t).unwrap())
+                        .map(|t| mr.types.get(*t).unwrap())
                         .map(|t| self.cppify_name_il2cpp(ctx_collection, metadata, t, false));
 
                     let generic_types = types.collect_vec();
 
-                    let generic_type_def = metadata
-                        .metadata
-                        .type_definitions
-                        .get(generic_class.type_definition_index as usize)
-                        .unwrap();
-
-                    let generic_type = metadata
-                        .metadata_registration
-                        .types
-                        .get(generic_type_def.byval_type_index as usize)
-                        .unwrap();
+                    let generic_type = &mr.types[generic_class.type_index];
                     let owner_name =
                         self.cppify_name_il2cpp(ctx_collection, metadata, generic_type, false);
 
@@ -914,30 +796,30 @@ pub trait CSType: Sized {
 
                 _ => panic!("Unknown type data for generic inst {typ:?}!"),
             },
-            TypeEnum::I1 => "int8_t".to_string(),
-            TypeEnum::I2 => "int16_t".to_string(),
-            TypeEnum::I4 => "int32_t".to_string(),
+            Il2CppTypeEnum::I1 => "int8_t".to_string(),
+            Il2CppTypeEnum::I2 => "int16_t".to_string(),
+            Il2CppTypeEnum::I4 => "int32_t".to_string(),
             // TODO: We assume 64 bit
-            TypeEnum::I | TypeEnum::I8 => "int64_t".to_string(),
-            TypeEnum::U1 => "uint8_t".to_string(),
-            TypeEnum::U2 => "uint16_t".to_string(),
-            TypeEnum::U4 => "uint32_t".to_string(),
+            Il2CppTypeEnum::I | Il2CppTypeEnum::I8 => "int64_t".to_string(),
+            Il2CppTypeEnum::U1 => "uint8_t".to_string(),
+            Il2CppTypeEnum::U2 => "uint16_t".to_string(),
+            Il2CppTypeEnum::U4 => "uint32_t".to_string(),
             // TODO: We assume 64 bit
-            TypeEnum::U | TypeEnum::U8 => "uint64_t".to_string(),
+            Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => "uint64_t".to_string(),
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point
-            TypeEnum::R4 => "float32_t".to_string(),
-            TypeEnum::R8 => "float64_t".to_string(),
+            Il2CppTypeEnum::R4 => "float32_t".to_string(),
+            Il2CppTypeEnum::R8 => "float64_t".to_string(),
 
-            TypeEnum::Void => "void".to_string(),
-            TypeEnum::Boolean => "bool".to_string(),
-            TypeEnum::Char => "char16_t".to_string(),
-            TypeEnum::String => {
+            Il2CppTypeEnum::Void => "void".to_string(),
+            Il2CppTypeEnum::Boolean => "bool".to_string(),
+            Il2CppTypeEnum::Char => "char16_t".to_string(),
+            Il2CppTypeEnum::String => {
                 requirements.needs_stringw_include();
                 "::StringW".to_string()
             }
-            TypeEnum::Ptr => "void*".to_owned(),
+            Il2CppTypeEnum::Ptr => "void*".to_owned(),
             // TODO: Void and the other primitives
             _ => format!("/* UNKNOWN TYPE! {typ:?} */"),
         }
@@ -953,12 +835,8 @@ pub trait CSType: Sized {
     fn get_type_definition<'a>(
         metadata: &'a Metadata,
         tdi: TypeDefinitionIndex,
-    ) -> &'a il2cpp_metadata_raw::Il2CppTypeDefinition {
-        metadata
-            .metadata
-            .type_definitions
-            .get(tdi as usize)
-            .unwrap()
+    ) -> &'a Il2CppTypeDefinition {
+        &metadata.metadata.global_metadata.type_definitions[tdi]
     }
 }
 

@@ -1,7 +1,9 @@
-use super::{members::*, writer::{Writable, CppWriter}};
-use std::io::Write;
+use super::{
+    members::*,
+    writer::{CppWriter, Writable},
+};
 use itertools::Itertools;
-
+use std::io::Write;
 
 impl Writable for CppTemplate {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
@@ -20,7 +22,6 @@ impl Writable for CppTemplate {
         Ok(())
     }
 }
-
 
 impl Writable for CppForwardDeclare {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
@@ -58,7 +59,6 @@ impl Writable for CppCommentedString {
     }
 }
 
-
 impl Writable for CppInclude {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
         if self.system {
@@ -69,8 +69,6 @@ impl Writable for CppInclude {
         Ok(())
     }
 }
-
-
 
 impl Writable for CppField {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -157,7 +155,7 @@ impl Writable for CppMethodImpl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         self.template.write(writer)?;
-        
+
         if !self.instance {
             write!(writer, "static ")?;
         }
@@ -326,9 +324,7 @@ impl Writable for CppMethodSizeStruct {
         )?;
         let params_format = CppParam::params_types(&self.params);
 
-        let method_info_rhs = 
-
-        if let Some(slot) = self.slot && !self.is_final {
+        let method_info_rhs = if let Some(slot) = self.slot && !self.is_final {
             format!("THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot((*reinterpret_cast<Il2CppObject**>(this))->klass, {}(), {slot}))", 
               self.interface_clazz_of
             )
@@ -337,7 +333,6 @@ impl Writable for CppMethodSizeStruct {
                 self.cpp_method_name
             )
         };
-
 
         writeln!(
             writer,

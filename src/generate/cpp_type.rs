@@ -6,11 +6,10 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use il2cpp_metadata_raw::TypeDefinitionIndex;
+use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use itertools::Itertools;
 
 use super::{
-    context::TypeTag,
     members::{CppForwardDeclare, CppInclude, CppMember, CppTemplate},
     writer::Writable,
 };
@@ -27,7 +26,7 @@ pub struct CppTypeRequirements {
 // A C# type will be TURNED INTO this
 #[derive(Debug, Clone)]
 pub struct CppType {
-    pub self_tag: TypeTag,
+    pub self_tag: TypeData,
     pub nested: bool,
 
     pub(crate) prefix_comments: Vec<String>,
@@ -94,14 +93,14 @@ impl CppType {
         &self.cpp_name
     }
 
-    pub fn nested_types_flattened(&self) -> HashMap<TypeTag, &CppType> {
+    pub fn nested_types_flattened(&self) -> HashMap<TypeData, &CppType> {
         self.nested_types
             .iter()
             .flat_map(|n| n.nested_types_flattened())
             .chain(self.nested_types.iter().map(|n| (n.self_tag, n)))
             .collect()
     }
-    pub fn get_nested_type_mut(&mut self, into_tag: impl Into<TypeTag>) -> Option<&mut CppType> {
+    pub fn get_nested_type_mut(&mut self, into_tag: TypeData) -> Option<&mut CppType> {
         let tag = into_tag.into();
 
         self.nested_types.iter_mut().find_map(|n| {
@@ -113,7 +112,7 @@ impl CppType {
             n.get_nested_type_mut(tag)
         })
     }
-    pub fn get_nested_type(&self, into_tag: impl Into<TypeTag>) -> Option<&CppType> {
+    pub fn get_nested_type(&self, into_tag: TypeData) -> Option<&CppType> {
         let tag = into_tag.into();
 
         self.nested_types.iter().find_map(|n| {
@@ -245,7 +244,11 @@ impl CppType {
             d.write(writer).unwrap();
         });
 
-        writeln!(writer, "static constexpr bool __CORDL_IS_VALUE_TYPE = {};", self.is_value_type)?;
+        writeln!(
+            writer,
+            "static constexpr bool __CORDL_IS_VALUE_TYPE = {};",
+            self.is_value_type
+        )?;
         // Type complete
         writer.dedent();
         writeln!(writer, "}};")?;

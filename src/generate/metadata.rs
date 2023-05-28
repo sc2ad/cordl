@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
-use il2cpp_binary::{CodeRegistration, MetadataRegistration};
-use il2cpp_metadata_raw::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex};
+use brocolib::global_metadata::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex};
 use itertools::Itertools;
-
-
 
 pub struct MethodCalculations {
     pub estimated_size: usize,
@@ -24,9 +21,9 @@ impl<'a> TypeDefinitionPair<'a> {
 }
 
 pub struct Metadata<'a> {
-    pub metadata: &'a il2cpp_metadata_raw::Metadata<'a>,
-    pub metadata_registration: &'a MetadataRegistration,
-    pub code_registration: &'a CodeRegistration<'a>,
+    pub metadata: &'a brocolib::Metadata<'a, 'a>,
+    pub metadata_registration: &'a brocolib::runtime_metadata::Il2CppMetadataRegistration,
+    pub code_registration: &'a brocolib::runtime_metadata::Il2CppCodeRegistration<'a>,
 
     // Method index in metadata
     pub method_calculations: HashMap<MethodIndex, MethodCalculations>,
@@ -36,10 +33,11 @@ pub struct Metadata<'a> {
 
 impl<'a> Metadata<'a> {
     pub fn parse(&mut self) {
+        let gm = &self.metadata.global_metadata;
         // child -> parent
-        let parent_to_child_map: Vec<(TypeDefinitionPair<'a>, Vec<TypeDefinitionPair<'a>>)> = self
-            .metadata
+        let parent_to_child_map: Vec<(TypeDefinitionPair<'a>, Vec<TypeDefinitionPair<'a>>)> = gm
             .type_definitions
+            .as_vec()
             .iter()
             .enumerate()
             .filter_map(|(tdi, td)| {
@@ -47,26 +45,20 @@ impl<'a> Metadata<'a> {
                     return None;
                 }
 
-                let mut nested_types: Vec<TypeDefinitionPair> =
-                    Vec::with_capacity(td.nested_type_count as usize);
-                for i in td.nested_types_start..td.nested_types_start + td.nested_type_count as u32
-                {
-                    let nested_tdi = *self.metadata.nested_types.get(i as usize).unwrap();
-                    let nested_td = self
-                        .metadata
-                        .type_definitions
-                        .get(nested_tdi as usize)
-                        .unwrap();
-
-                    nested_types.push(TypeDefinitionPair::new(nested_td, nested_tdi));
-                }
+                let nested_types: Vec<TypeDefinitionPair> = td
+                    .nested_types(&self.metadata)
+                    .iter()
+                    .map(|&nested_tdi| {
+                        let nested_td = &gm.type_definitions[nested_tdi];
+                        TypeDefinitionPair::new(nested_td, nested_tdi)
+                    })
+                    .collect();
 
                 if nested_types.is_empty() {
                     return None;
                 }
-
                 Some((
-                    TypeDefinitionPair::new(td, tdi as TypeDefinitionIndex),
+                    TypeDefinitionPair::new(td, TypeDefinitionIndex::new(tdi as u32)),
                     nested_types,
                 ))
             })
@@ -115,30 +107,24 @@ impl<'a> Metadata<'a> {
             .collect();
 
         self.method_calculations = self
+            .metadata
+            .runtime_metadata
             .code_registration
             .code_gen_modules
             .iter()
             .flat_map(|cgm| {
-                let img = self
-                    .metadata
+                let img = gm
                     .images
+                    .as_vec()
                     .iter()
-                    .find(|i| cgm.name == self.metadata.get_str(i.name_index).unwrap())
+                    .find(|i| cgm.name == i.name(&self.metadata))
                     .unwrap();
                 let mut method_calculations: HashMap<MethodIndex, MethodCalculations> =
                     HashMap::new();
-                for i in 0..img.type_count {
-                    let ty = self
-                        .metadata
-                        .type_definitions
-                        .get((img.type_start + i) as usize)
-                        .unwrap();
-
-                    for m in 0..ty.method_count {
-                        let method_index = ty.method_start + m as u32;
-                        let method = self.metadata.methods.get(method_index as usize).unwrap();
-
-                        let method_pointer_index = ((method.token & 0xFFFFFF) - 1) as usize;
+                for ty in img.types(&self.metadata) {
+                    for (i, method) in ty.methods(&self.metadata).iter().enumerate() {
+                        let method_index = MethodIndex::new(ty.method_start.index() + i as u32);
+                        let method_pointer_index = method.token.rid() as usize - 1;
                         let method_pointer =
                             *cgm.method_pointers.get(method_pointer_index).unwrap();
 
