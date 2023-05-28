@@ -100,9 +100,7 @@ impl CppType {
             .chain(self.nested_types.iter().map(|n| (n.self_tag, n)))
             .collect()
     }
-    pub fn get_nested_type_mut(&mut self, into_tag: TypeData) -> Option<&mut CppType> {
-        let tag = into_tag.into();
-
+    pub fn get_nested_type_mut(&mut self, tag: TypeData) -> Option<&mut CppType> {
         self.nested_types.iter_mut().find_map(|n| {
             if n.self_tag == tag {
                 return Some(n);
@@ -112,9 +110,7 @@ impl CppType {
             n.get_nested_type_mut(tag)
         })
     }
-    pub fn get_nested_type(&self, into_tag: TypeData) -> Option<&CppType> {
-        let tag = into_tag.into();
-
+    pub fn get_nested_type(&self, tag: TypeData) -> Option<&CppType> {
         self.nested_types.iter().find_map(|n| {
             if n.self_tag == tag {
                 return Some(n);

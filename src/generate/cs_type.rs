@@ -100,7 +100,7 @@ pub trait CSType: Sized {
         let ns = t.namespace(&metadata.metadata);
         let name = t.name(&metadata.metadata);
         let mut cpptype = CppType {
-            self_tag: tag.clone(),
+            self_tag: tag,
             nested: parent_pair.is_some(),
             prefix_comments: vec![format!("Type: {ns}::{name}")],
             namespace: config.namespace_cpp(ns),
