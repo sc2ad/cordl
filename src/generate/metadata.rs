@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use brocolib::global_metadata::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex};
 use itertools::Itertools;
 
+use super::cpp_type::CppType;
+
 pub struct MethodCalculations {
     pub estimated_size: usize,
     pub addrs: u64,
@@ -20,6 +22,8 @@ impl<'a> TypeDefinitionPair<'a> {
     }
 }
 
+type TypeHandlerFn = Box<dyn Fn(&mut CppType)>;
+
 pub struct Metadata<'a> {
     pub metadata: &'a brocolib::Metadata<'a, 'a>,
     pub metadata_registration: &'a brocolib::runtime_metadata::Il2CppMetadataRegistration,
@@ -29,6 +33,9 @@ pub struct Metadata<'a> {
     pub method_calculations: HashMap<MethodIndex, MethodCalculations>,
     pub parent_to_child_map: HashMap<TypeDefinitionIndex, Vec<TypeDefinitionPair<'a>>>,
     pub child_to_parent_map: HashMap<TypeDefinitionIndex, TypeDefinitionPair<'a>>,
+
+    //
+    pub custom_type_handler: HashMap<TypeDefinitionIndex, TypeHandlerFn>
 }
 
 impl<'a> Metadata<'a> {

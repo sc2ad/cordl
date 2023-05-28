@@ -10,8 +10,9 @@ use std::{fs, path::PathBuf, time};
 
 use clap::{Parser, Subcommand};
 
-use crate::generate::members::CppMember;
+use crate::{generate::members::CppMember, handlers::unity};
 mod generate;
+mod handlers;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -56,6 +57,7 @@ fn main() -> color_eyre::Result<()> {
         method_calculations: Default::default(),
         parent_to_child_map: Default::default(),
         child_to_parent_map: Default::default(),
+        custom_type_handler: Default::default(),
     };
     let t = time::Instant::now();
     println!("Parsing metadata methods");
@@ -79,6 +81,10 @@ fn main() -> color_eyre::Result<()> {
         }
         cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi));
     }
+
+    println!("Registering handlers!");
+    unity::register_unity(&cpp_context_collection, &mut metadata)?;
+    println!("Handlers registered!");
 
     // Fill them now
     println!("Filling root types");

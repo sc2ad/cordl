@@ -152,6 +152,10 @@ pub trait CSType: Sized {
         self.make_fields(metadata, ctx_collection, tdi);
         self.make_properties(metadata, ctx_collection, tdi);
         self.make_methods(metadata, config, ctx_collection, tdi);
+
+        if let Some(func) = metadata.custom_type_handler.get(&tdi) {
+            func(self.get_mut_cpp_type())
+        }
     }
 
     fn make_methods(
