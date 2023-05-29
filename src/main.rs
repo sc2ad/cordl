@@ -224,6 +224,18 @@ fn main() -> color_eyre::Result<()> {
         .unwrap()
         .1
         .write()?;
+    println!("UnityEngine.Object");
+    cpp_context_collection
+        .get()
+        .iter()
+        .find(|(_, c)| {
+            c.get_types()
+                .iter()
+                .any(|(_, t)| t.name == "Object" && t.namespace == "UnityEngine")
+        })
+        .unwrap()
+        .1
+        .write()?;
     // for (_, context) in cpp_context_collection.get() {
     //     context.write().unwrap();
     // }
