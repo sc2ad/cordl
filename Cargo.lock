@@ -147,7 +147,7 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 [[package]]
 name = "brocolib"
 version = "0.1.0"
-source = "git+https://github.com/StackDoubleFlow/brocolib.git?branch=il2cpp_v29#ff915b05684dad59ab4518a3310deced4f46cd8b"
+source = "git+https://github.com/StackDoubleFlow/brocolib.git?branch=il2cpp_v29#58e1448cf99173d6d4710988972e8909609c3716"
 dependencies = [
  "bad64",
  "binde",
@@ -508,9 +508,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.17.1"
+version = "1.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
+checksum = "9670a07f94779e00908f3e686eab508878ebb390ba6e604d3a284c00e8d0487b"
 
 [[package]]
 name = "os_str_bytes"
