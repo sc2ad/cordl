@@ -38,6 +38,8 @@ pub struct CppType {
     pub(crate) parent_ty_tdi: Option<TypeDefinitionIndex>,
     pub(crate) parent_ty_cpp_name: Option<String>,
 
+    pub cpp_full_name: String,
+
     pub declarations: Vec<CppMember>,
     pub implementations: Vec<CppMember>,
     /// Outside of the class declaration
@@ -121,17 +123,18 @@ impl CppType {
         })
     }
 
-    pub fn formatted_complete_cpp_name(&self) -> String {
+    pub fn formatted_complete_cpp_name(&self) -> &String {
+        return &self.cpp_full_name;
         // We found a valid type that we have defined for this idx!
         // TODO: We should convert it here.
         // Ex, if it is a generic, convert it to a template specialization
         // If it is a normal type, handle it accordingly, etc.
-        match &self.parent_ty_cpp_name {
-            Some(parent_ty) => {
-                format!("{}::{parent_ty}::{}", self.cpp_namespace(), self.cpp_name())
-            }
-            None => format!("{}::{}", self.cpp_namespace(), self.cpp_name()),
-        }
+        // match &self.parent_ty_cpp_name {
+        //     Some(parent_ty) => {
+        //         format!("{}::{parent_ty}::{}", self.cpp_namespace(), self.cpp_name())
+        //     }
+        //     None => format!("{}::{}", self.cpp_namespace(), self.cpp_name()),
+        // }
     }
 
     pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {

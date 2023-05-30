@@ -82,6 +82,12 @@ pub trait CSType: Sized {
 
         // Generics
         let generics = t.generic_container_index.is_valid().then(|| {
+            let generic_tdi = t.generic_container(metadata.metadata).owner_index;
+            let generic_t = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+            println!("Generic TDI {generic_tdi} vs TDI {tdi:?}");
+            println!("{generic_t:?}");
+
             t.generic_container(metadata.metadata)
                 .generic_parameters(metadata.metadata)
                 .iter()
@@ -99,6 +105,13 @@ pub trait CSType: Sized {
 
         let ns = t.namespace(metadata.metadata);
         let name = t.name(metadata.metadata);
+        let full_name = t.full_name(metadata.metadata, false);
+        let cpp_full_name = if ns.is_empty() {
+            format!("GlobalNamespace::{}", config.namespace_cpp(&full_name))
+        } else {
+            config.namespace_cpp(&full_name)
+        };
+
         let mut cpptype = CppType {
             self_tag: tag,
             nested: parent_pair.is_some(),
@@ -107,6 +120,8 @@ pub trait CSType: Sized {
             cpp_namespace: config.namespace_cpp(ns),
             name: config.name_cpp(name),
             cpp_name: config.name_cpp(name),
+            cpp_full_name,
+
             parent_ty_tdi: parent_pair.map(|p| p.tdi),
             parent_ty_cpp_name: parent_pair
                 .map(|p| Self::parent_joined_cpp_name(metadata, config, p.tdi)),
@@ -212,6 +227,7 @@ pub trait CSType: Sized {
                 }));
 
             cpp_type.declarations.reserve(5 * t.method_count as usize);
+
             // Then, for each method, write it out
             for (i, method) in t.methods(metadata.metadata).iter().enumerate() {
                 let method_index = MethodIndex::new(t.method_start.index() + i as u32);
@@ -224,6 +240,7 @@ pub trait CSType: Sized {
                     // println!("Skipping {}", m_name);
                     continue;
                 }
+
                 let m_ret_type = metadata
                     .metadata_registration
                     .types
@@ -261,6 +278,7 @@ pub trait CSType: Sized {
                 let generics = if method.generic_container_index.is_valid() {
                     method
                         .generic_container(metadata.metadata)
+                        .unwrap()
                         .generic_parameters(metadata.metadata)
                         .iter()
                         .map(|param| param.name(metadata.metadata).to_string())
@@ -289,7 +307,7 @@ pub trait CSType: Sized {
                     cpp_type
                         .declarations
                         .push(CppMember::ConstructorDecl(CppConstructorDecl {
-                            ty: cpp_type.formatted_complete_cpp_name(),
+                            ty: cpp_type.formatted_complete_cpp_name().clone(),
                             parameters: m_params.clone(),
                             template: template.clone(),
                         }));
@@ -308,7 +326,7 @@ pub trait CSType: Sized {
                     .push(Rc::new(CppMethodSizeStruct {
                         ret_ty: m_ret_cpp_type_name.clone(),
                         cpp_method_name: config.name_cpp(m_name),
-                        complete_type_name: cpp_type.formatted_complete_cpp_name(),
+                        complete_type_name: cpp_type.formatted_complete_cpp_name().clone(),
                         instance: !method.is_static_method(),
                         params: m_params.clone(),
                         template: template.clone(),
@@ -681,7 +699,7 @@ pub trait CSType: Sized {
         let mut nested_types: HashMap<TypeData, String> = cpp_type
             .nested_types_flattened()
             .into_iter()
-            .map(|(t, c)| (t, c.formatted_complete_cpp_name()))
+            .map(|(t, c)| (t, c.formatted_complete_cpp_name().clone()))
             .collect();
 
         let requirements = &mut cpp_type.requirements;
@@ -712,7 +730,7 @@ pub trait CSType: Sized {
                 // Self
                 if tag == cpp_type.self_tag {
                     // TODO: println!("Warning! This is self referencing, handle this better in the future");
-                    return cpp_type.formatted_complete_cpp_name();
+                    return cpp_type.formatted_complete_cpp_name().clone();
                 }
 
                 // Skip nested classes
@@ -745,7 +763,7 @@ pub trait CSType: Sized {
                         .insert((CppForwardDeclare::from_cpp_type(to_incl_ty), inc));
                 }
 
-                to_incl_ty.formatted_complete_cpp_name()
+                to_incl_ty.formatted_complete_cpp_name().clone()
             }
             // TODO: MVAR and VAR
             Il2CppTypeEnum::Szarray => {
