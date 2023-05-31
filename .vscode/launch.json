@@ -15,7 +15,12 @@
           "kind": "bin"
         }
       },
-      "args": [],
+      "args": [
+        "--metadata",
+        "./global-metadata.dat",
+        "--libil2cpp",
+        "./libil2cpp.so"
+      ],
       "cwd": "${workspaceFolder}"
     },
     {

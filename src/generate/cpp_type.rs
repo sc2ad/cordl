@@ -6,11 +6,10 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use il2cpp_metadata_raw::TypeDefinitionIndex;
+use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use itertools::Itertools;
 
 use super::{
-    context::TypeTag,
     members::{CppForwardDeclare, CppInclude, CppMember, CppTemplate},
     writer::Writable,
 };
@@ -27,7 +26,7 @@ pub struct CppTypeRequirements {
 // A C# type will be TURNED INTO this
 #[derive(Debug, Clone)]
 pub struct CppType {
-    pub self_tag: TypeTag,
+    pub self_tag: TypeData,
     pub nested: bool,
 
     pub(crate) prefix_comments: Vec<String>,
@@ -38,6 +37,8 @@ pub struct CppType {
 
     pub(crate) parent_ty_tdi: Option<TypeDefinitionIndex>,
     pub(crate) parent_ty_cpp_name: Option<String>,
+
+    pub cpp_full_name: String,
 
     pub declarations: Vec<CppMember>,
     pub implementations: Vec<CppMember>,
@@ -94,16 +95,14 @@ impl CppType {
         &self.cpp_name
     }
 
-    pub fn nested_types_flattened(&self) -> HashMap<TypeTag, &CppType> {
+    pub fn nested_types_flattened(&self) -> HashMap<TypeData, &CppType> {
         self.nested_types
             .iter()
             .flat_map(|n| n.nested_types_flattened())
             .chain(self.nested_types.iter().map(|n| (n.self_tag, n)))
             .collect()
     }
-    pub fn get_nested_type_mut(&mut self, into_tag: impl Into<TypeTag>) -> Option<&mut CppType> {
-        let tag = into_tag.into();
-
+    pub fn get_nested_type_mut(&mut self, tag: TypeData) -> Option<&mut CppType> {
         self.nested_types.iter_mut().find_map(|n| {
             if n.self_tag == tag {
                 return Some(n);
@@ -113,18 +112,29 @@ impl CppType {
             n.get_nested_type_mut(tag)
         })
     }
+    pub fn get_nested_type(&self, tag: TypeData) -> Option<&CppType> {
+        self.nested_types.iter().find_map(|n| {
+            if n.self_tag == tag {
+                return Some(n);
+            }
 
-    pub fn formatted_complete_cpp_name(&self) -> String {
+            // Recurse
+            n.get_nested_type(tag)
+        })
+    }
+
+    pub fn formatted_complete_cpp_name(&self) -> &String {
+        return &self.cpp_full_name;
         // We found a valid type that we have defined for this idx!
         // TODO: We should convert it here.
         // Ex, if it is a generic, convert it to a template specialization
         // If it is a normal type, handle it accordingly, etc.
-        match &self.parent_ty_cpp_name {
-            Some(parent_ty) => {
-                format!("{}::{parent_ty}::{}", self.cpp_namespace(), self.cpp_name())
-            }
-            None => format!("{}::{}", self.cpp_namespace(), self.cpp_name()),
-        }
+        // match &self.parent_ty_cpp_name {
+        //     Some(parent_ty) => {
+        //         format!("{}::{parent_ty}::{}", self.cpp_namespace(), self.cpp_name())
+        //     }
+        //     None => format!("{}::{}", self.cpp_namespace(), self.cpp_name()),
+        // }
     }
 
     pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -141,7 +151,7 @@ impl CppType {
         namespace: Option<&str>,
     ) -> color_eyre::Result<()> {
         if let Some(namespace) = namespace {
-            writeln!(writer, "namespace {} {{", namespace)?;
+            writeln!(writer, "namespace {namespace} {{")?;
         }
         // Write all declarations within the type here
         self.implementations
@@ -157,7 +167,7 @@ impl CppType {
             .try_for_each(|n| n.write_impl_internal(writer, None))?;
 
         if let Some(namespace) = namespace {
-            writeln!(writer, "}} // end namespace {}", namespace)?;
+            writeln!(writer, "}} // end namespace {namespace}")?;
         }
 
         Ok(())
@@ -210,7 +220,7 @@ impl CppType {
                 self.cpp_name(),
                 self.inherit
                     .iter()
-                    .map(|s| format!("public {}", s))
+                    .map(|s| format!("public {s}"))
                     .join(", ")
             )?,
         }
@@ -233,6 +243,11 @@ impl CppType {
             d.write(writer).unwrap();
         });
 
+        writeln!(
+            writer,
+            "static constexpr bool __CORDL_IS_VALUE_TYPE = {};",
+            self.is_value_type
+        )?;
         // Type complete
         writer.dedent();
         writeln!(writer, "}};")?;
@@ -245,7 +260,7 @@ impl CppType {
         // Namespace complete
         if let Some(n) = namespace {
             writer.dedent();
-            writeln!(writer, "}} // namespace {}", n)?;
+            writeln!(writer, "}} // namespace {n}")?;
         }
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
         Ok(())
