@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use brocolib::global_metadata::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex};
 use itertools::Itertools;
@@ -22,7 +22,12 @@ impl<'a> TypeDefinitionPair<'a> {
     }
 }
 
-type TypeHandlerFn = Box<dyn Fn(&mut CppType)>;
+pub type TypeHandlerFn = Box<dyn Fn(&mut CppType)>;
+pub type Il2cppNamespace<'a> = &'a str;
+pub type Il2cppName<'a> = &'a str;
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Il2cppFullName<'a>(pub Il2cppNamespace<'a>, pub Il2cppName<'a>);
 
 pub struct Metadata<'a> {
     pub metadata: &'a brocolib::Metadata<'a, 'a>,
@@ -35,12 +40,25 @@ pub struct Metadata<'a> {
     pub child_to_parent_map: HashMap<TypeDefinitionIndex, TypeDefinitionPair<'a>>,
 
     //
-    pub custom_type_handler: HashMap<TypeDefinitionIndex, TypeHandlerFn>
+    pub custom_type_handler: HashMap<TypeDefinitionIndex, TypeHandlerFn>,
+    pub name_to_tdi: HashMap<Il2cppFullName<'a>, TypeDefinitionIndex>,
+    pub blacklisted_types: HashSet<TypeDefinitionIndex>,
 }
 
 impl<'a> Metadata<'a> {
     pub fn parse(&mut self) {
         let gm = &self.metadata.global_metadata;
+        self.parse_name_tdi(gm);
+        self.parse_type_hierarchy(gm);
+        self.parse_method_size(gm);
+    }
+
+    fn parse_type_hierarchy(&mut self, gm: &'a brocolib::global_metadata::GlobalMetadata) {
+        // self.parentToChildMap = childToParent
+        //     .into_iter()
+        //     .map(|(p, p_tdi, c)| (p_tdi, c))
+        //     .collect();
+
         // child -> parent
         let parent_to_child_map: Vec<(TypeDefinitionPair<'a>, Vec<TypeDefinitionPair<'a>>)> = gm
             .type_definitions
@@ -90,12 +108,9 @@ impl<'a> Metadata<'a> {
             .into_iter()
             .map(|(p, c)| (p.tdi, c.into_iter().collect_vec()))
             .collect();
+    }
 
-        // self.parentToChildMap = childToParent
-        //     .into_iter()
-        //     .map(|(p, p_tdi, c)| (p_tdi, c))
-        //     .collect();
-
+    fn parse_method_size(&mut self, gm: &brocolib::global_metadata::GlobalMetadata) {
         // method index -> address
         // sorted by address
         let mut method_addresses_sorted: Vec<u64> = self
@@ -153,6 +168,21 @@ impl<'a> Metadata<'a> {
                     }
                 }
                 method_calculations
+            })
+            .collect();
+    }
+
+    fn parse_name_tdi(&mut self, gm: &brocolib::global_metadata::GlobalMetadata) {
+        self.name_to_tdi = gm
+            .type_definitions
+            .as_vec()
+            .iter()
+            .enumerate()
+            .map(|(tdi, td)| {
+                (
+                    Il2cppFullName(td.namespace(self.metadata), td.name(self.metadata)),
+                    TypeDefinitionIndex::new(tdi as u32),
+                )
             })
             .collect();
     }

@@ -58,6 +58,8 @@ fn main() -> color_eyre::Result<()> {
         parent_to_child_map: Default::default(),
         child_to_parent_map: Default::default(),
         custom_type_handler: Default::default(),
+        name_to_tdi: Default::default(),
+        blacklisted_types: Default::default(),
     };
     let t = time::Instant::now();
     println!("Parsing metadata methods");

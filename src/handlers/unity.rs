@@ -1,11 +1,14 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, collections::HashSet};
 
 use anyhow::anyhow;
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use color_eyre::Result;
 
 use crate::generate::{
-    context::CppContextCollection, cpp_type::CppType, members::CppInclude, metadata::Metadata,
+    context::CppContextCollection,
+    cpp_type::CppType,
+    members::CppInclude,
+    metadata::{Il2cppFullName, Metadata},
 };
 
 pub fn register_unity(
@@ -34,18 +37,21 @@ fn register_unity_object_type_handler(
         })
         .unwrap_or_else(|| panic!("No UnityEngine.Object type found!"));
 
-    if let TypeData::TypeDefinitionIndex(tdi) = tag {
-        metadata
-            .custom_type_handler
-            .insert(*tdi, Box::new(unity_object_handler));
-    }
+    let unity_object_tdi = metadata
+        .name_to_tdi
+        .get(&Il2cppFullName("UnityEngine", "Object"))
+        .expect("No UnityEngine.Object TDI found");
+
+    metadata
+        .custom_type_handler
+        .insert(*unity_object_tdi, Box::new(unity_object_handler));
 
     Ok(())
 }
 
 fn unity_object_handler(cpp_type: &mut CppType) {
     println!("Found UnityEngine.Object type, adding UnityW!");
-    cpp_type.inherit.push("::UnityW".to_owned());
+    cpp_type.inherit = vec!["::UnityW".to_owned()];
 
     let path = PathBuf::from(r"beatsaber-hook/shared/utils/unityw.hpp");
 
