@@ -69,6 +69,24 @@ impl Writable for CppInclude {
         Ok(())
     }
 }
+impl Writable for CppUsingAlias {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if let Some(template) = &self.template {
+            template.write(writer)?;
+        }
+
+        if let Some(namespaze) = &self.namespaze {
+            writeln!(writer, "namespace {namespaze} {{")?;
+        }
+
+        writeln!(writer, "using {} = {}", self.alias, self.result)?;
+
+        if let Some(namespaze) = &self.namespaze {
+            writeln!(writer, "}} // {namespaze}")?;
+        }
+        Ok(())
+    }
+}
 
 impl Writable for CppField {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {

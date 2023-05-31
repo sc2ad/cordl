@@ -37,6 +37,14 @@ pub struct CppInclude {
     pub system: bool,
 }
 
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct CppUsingAlias {
+    pub alias: String,
+    pub result: String,
+    pub namespaze: Option<String>,
+    pub template: Option<CppTemplate>
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum CppMember {
     Field(CppField),

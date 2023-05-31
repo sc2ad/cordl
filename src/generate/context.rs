@@ -10,12 +10,16 @@ use color_eyre::eyre::ContextCompat;
 use brocolib::runtime_metadata::TypeData;
 use itertools::Itertools;
 
-use crate::generate::members::CppInclude;
+use crate::generate::{
+    constants::{TypeDefinitionExtensions, OBJECT_WRAPPER_TYPE},
+    members::CppInclude,
+};
 
 use super::{
     config::GenerationConfig,
     cpp_type::CppType,
     cs_type::CSType,
+    members::CppUsingAlias,
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
@@ -32,6 +36,8 @@ pub struct CppContext {
 
     // Types to write, typedef
     typedef_types: HashMap<TypeData, CppType>,
+
+    typealias_types: HashSet<CppUsingAlias>,
 }
 
 impl CppContext {
@@ -105,10 +111,19 @@ impl CppContext {
                 &config.path_name(name)
             )),
             typedef_types: Default::default(),
+            typealias_types: Default::default(),
         };
 
         if metadata.blacklisted_types.contains(&tdi) {
             println!("Skipping {ns}::{name} ({tdi:?}) because it's blacklisted");
+            if !t.is_value_type() {
+                x.typealias_types.insert(CppUsingAlias {
+                    alias: name.to_string(),
+                    result: OBJECT_WRAPPER_TYPE.to_string(),
+                    namespaze: if ns.is_empty() { None } else { Some(ns.to_string()) },
+                    template: Default::default(),
+                });
+            }
             // TODO: Make this create a struct with matching size or a using statement appropiately
             return x;
         }

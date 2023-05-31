@@ -17,7 +17,7 @@ use super::{
     config::GenerationConfig,
     constants::{
         MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions,
-        TYPE_ATTRIBUTE_INTERFACE,
+        TYPE_ATTRIBUTE_INTERFACE, OBJECT_WRAPPER_TYPE,
     },
     context::CppContextCollection,
     cpp_type::CppType,
@@ -732,7 +732,7 @@ pub trait CSType: Sized {
         let ret = match typ.ty {
             Il2CppTypeEnum::Object => {
                 requirements.need_wrapper();
-                "::bs_hook::Il2CppWrapperType".to_string()
+                OBJECT_WRAPPER_TYPE.to_string()
             }
             Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class => {
                 // Self

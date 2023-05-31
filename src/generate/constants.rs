@@ -3,6 +3,8 @@ use brocolib::{
     runtime_metadata::Il2CppType,
 };
 
+pub const OBJECT_WRAPPER_TYPE: &&str = &"::bs_hook::Il2CppWrapperType";
+
 pub const TYPE_ATTRIBUTE_INTERFACE: u32 = 0x00000020;
 pub const TYPE_ATTRIBUTE_NESTED_PUBLIC: u32 = 0x00000002;
 
