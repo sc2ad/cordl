@@ -1,9 +1,13 @@
 use brocolib::{
-    global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition},
+    global_metadata::{Il2CppMethodDefinition, Il2CppParameterDefinition, Il2CppTypeDefinition},
     runtime_metadata::Il2CppType,
 };
 
-pub const OBJECT_WRAPPER_TYPE: &&str = &"::bs_hook::Il2CppWrapperType";
+pub const OBJECT_WRAPPER_TYPE: &str = "::bs_hook::Il2CppWrapperType";
+
+pub const PARAM_ATTRIBUTE_IN: u16 = 0x0001;
+pub const PARAM_ATTRIBUTE_OUT: u16 = 0x0002;
+pub const PARAM_ATTRIBUTE_OPTIONAL: u16 = 0x0010;
 
 pub const TYPE_ATTRIBUTE_INTERFACE: u32 = 0x00000020;
 pub const TYPE_ATTRIBUTE_NESTED_PUBLIC: u32 = 0x00000002;
@@ -63,6 +67,22 @@ impl MethodDefintionExtensions for Il2CppMethodDefinition {
 
 pub trait ParameterDefinitionExtensions {
     fn is_param_optional(&self) -> bool;
+    fn is_param_in(&self) -> bool;
+    fn is_param_out(&self) -> bool;
+}
+
+impl ParameterDefinitionExtensions for Il2CppType {
+    fn is_param_optional(&self) -> bool {
+        (self.attrs & PARAM_ATTRIBUTE_OPTIONAL) != 0
+    }
+
+    fn is_param_in(&self) -> bool {
+        (self.attrs & PARAM_ATTRIBUTE_IN) != 0
+    }
+
+    fn is_param_out(&self) -> bool {
+        (self.attrs & PARAM_ATTRIBUTE_OUT) != 0
+    }
 }
 
 pub trait TypeExtentions {

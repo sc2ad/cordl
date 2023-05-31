@@ -17,7 +17,7 @@ use super::{
     config::GenerationConfig,
     constants::{
         MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions,
-        TYPE_ATTRIBUTE_INTERFACE, OBJECT_WRAPPER_TYPE,
+        TYPE_ATTRIBUTE_INTERFACE, OBJECT_WRAPPER_TYPE, ParameterDefinitionExtensions,
     },
     context::CppContextCollection,
     cpp_type::CppType,
@@ -261,15 +261,10 @@ pub trait CSType: Sized {
                         .get(param.type_index as usize)
                         .unwrap();
 
-                    let mut param_cpp_name =
-                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, false);
+                    let param_cpp_name =
+                        cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, param_type, false);
 
-                // TODO: Fix, this causes all/most param types of a value type to be ByRef
-
-                    if param_type.byref && param_type.is_byref() {
-                        param_cpp_name = format!("ByRef<{param_cpp_name}>");
-                        cpp_type.requirements.needs_byref_include();
-                    }
+                
 
                     let def_value = Self::param_default_value(metadata, param_index);
 
@@ -297,13 +292,7 @@ pub trait CSType: Sized {
 
                 // Need to include this type
                 let m_ret_cpp_type_name =
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false);
-
-                // TODO: Fix, this causes all return types of a value type to be ByRef
-                // if m_ret_type.byref && m_ret_type.is_byref() {
-                //     cpp_type.requirements.needs_byref_include();
-                //     m_ret_cpp_type_name = format!("ByRef<{m_ret_cpp_type_name}>");
-                // }
+                    cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, m_ret_type, false);
 
                 let method_calc = &metadata.method_calculations[&method_index];
 
@@ -703,6 +692,30 @@ pub trait CSType: Sized {
                 Self::default_value_blob(metadata, ty.ty, def.data_index.index() as usize)
             })
     }
+
+    fn cppify_name_il2cpp_byref(        &mut self,
+        ctx_collection: &CppContextCollection,
+        metadata: &Metadata,
+        typ: &Il2CppType,
+        add_include: bool) -> String {
+            
+            let ret = self.cppify_name_il2cpp(ctx_collection, metadata, typ, add_include);
+            let requirements = &mut self.get_mut_cpp_type().requirements;
+            if typ.is_param_out() {
+                requirements.needs_byref_include();
+                return format!("ByRef<{ret}>")
+            } 
+
+            
+            
+            if typ.is_param_in() {
+                requirements.needs_byref_include();
+
+                return format!("ByRefConst<{ret}>")
+            } 
+
+            ret
+        }
 
     fn cppify_name_il2cpp(
         &mut self,
