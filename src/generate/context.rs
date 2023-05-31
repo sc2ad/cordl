@@ -106,6 +106,13 @@ impl CppContext {
             )),
             typedef_types: Default::default(),
         };
+
+        if metadata.blacklisted_types.contains(&tdi) {
+            println!("Skipping {ns}::{name} ({tdi:?}) because it's blacklisted");
+            // TODO: Make this create a struct with matching size or a using statement appropiately
+            return x;
+        }
+
         match CppType::make_cpp_type(metadata, config, tag) {
             Some(cpptype) => {
                 x.typedef_types

@@ -417,6 +417,13 @@ pub trait CSType: Sized {
                 .get(field.type_index as usize)
                 .unwrap();
 
+            if let TypeData::TypeDefinitionIndex(tdi) = f_type.data && metadata.blacklisted_types.contains(&tdi) {
+                if !cpp_type.is_value_type {
+                    continue;
+                }  
+                println!("Value type uses {tdi:?} which is blacklisted! TODO");
+            }
+
             let _f_type_data = f_type.data;
 
             let cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
