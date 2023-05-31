@@ -258,8 +258,13 @@ pub trait CSType: Sized {
                         .get(param.type_index as usize)
                         .unwrap();
 
-                    let param_cpp_name =
+                    let mut param_cpp_name =
                         cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, false);
+
+                    if param_type.byref {
+                        param_cpp_name = format!("ByRef<{param_cpp_name}>");
+                        cpp_type.requirements.needs_byref_include();
+                    }
 
                     let def_value = Self::param_default_value(metadata, param_index);
 
@@ -267,11 +272,7 @@ pub trait CSType: Sized {
                         name: param.name(metadata.metadata).to_string(),
                         def_value,
                         ty: param_cpp_name,
-                        modifiers: if param_type.is_byref() {
-                            String::from("byref")
-                        } else {
-                            String::from("")
-                        },
+                        modifiers: "".to_string(),
                     });
                 }
 
@@ -728,7 +729,7 @@ pub trait CSType: Sized {
             _ => (),
         };
 
-        match typ.ty {
+        let ret = match typ.ty {
             Il2CppTypeEnum::Object => {
                 requirements.need_wrapper();
                 "::bs_hook::Il2CppWrapperType".to_string()
@@ -851,7 +852,9 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::Ptr => "void*".to_owned(),
             // TODO: Void and the other primitives
             _ => format!("/* UNKNOWN TYPE! {typ:?} */"),
-        }
+        };
+
+        ret
     }
 
     fn classof_cpp_name(&self) -> String {

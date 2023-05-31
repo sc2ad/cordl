@@ -76,6 +76,11 @@ impl CppTypeRequirements {
             "beatsaber-hook/shared/utils/typedefs-array".into(),
         ));
     }
+
+    pub fn needs_byref_include(&mut self) {
+        self.required_includes
+            .insert(CppInclude::new("beatsaber-hook/shared/utils/byref".into()));
+    }
 }
 
 impl CppType {
