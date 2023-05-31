@@ -264,7 +264,9 @@ pub trait CSType: Sized {
                     let mut param_cpp_name =
                         cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, false);
 
-                    if param_type.byref {
+                // TODO: Fix, this causes all/most param types of a value type to be ByRef
+
+                    if param_type.byref && param_type.is_byref() {
                         param_cpp_name = format!("ByRef<{param_cpp_name}>");
                         cpp_type.requirements.needs_byref_include();
                     }
@@ -296,6 +298,12 @@ pub trait CSType: Sized {
                 // Need to include this type
                 let m_ret_cpp_type_name =
                     cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false);
+
+                // TODO: Fix, this causes all return types of a value type to be ByRef
+                // if m_ret_type.byref && m_ret_type.is_byref() {
+                //     cpp_type.requirements.needs_byref_include();
+                //     m_ret_cpp_type_name = format!("ByRef<{m_ret_cpp_type_name}>");
+                // }
 
                 let method_calc = &metadata.method_calculations[&method_index];
 
