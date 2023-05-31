@@ -226,7 +226,10 @@ pub trait CSType: Sized {
                     comment: Some("Methods".to_string()),
                 }));
 
-            cpp_type.declarations.reserve(5 * t.method_count as usize);
+            // 2 because each method gets a method struct and method decl
+            // a constructor will add an additional one for each
+            cpp_type.declarations.reserve(2 * (t.method_count as usize + 1));
+            cpp_type.implementations.reserve(t.method_count as usize + 1);
 
             // Then, for each method, write it out
             for (i, method) in t.methods(metadata.metadata).iter().enumerate() {
