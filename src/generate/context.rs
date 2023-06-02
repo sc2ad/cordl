@@ -120,7 +120,11 @@ impl CppContext {
                 x.typealias_types.insert(CppUsingAlias {
                     alias: name.to_string(),
                     result: OBJECT_WRAPPER_TYPE.to_string(),
-                    namespaze: if ns.is_empty() { None } else { Some(ns.to_string()) },
+                    namespaze: if ns.is_empty() {
+                        None
+                    } else {
+                        Some(ns.to_string())
+                    },
                     template: Default::default(),
                 });
             }

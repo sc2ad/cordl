@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    io::{Cursor, Read},
+    io::{BorrowedCursor, Cursor, Read},
     rc::Rc,
 };
 
@@ -11,13 +11,16 @@ use brocolib::{
     runtime_metadata::{Il2CppType, Il2CppTypeEnum, TypeData},
 };
 use byteorder::{LittleEndian, ReadBytesExt};
+
 use itertools::Itertools;
+
+use crate::helpers::cursor::ReadBytesExtensions;
 
 use super::{
     config::GenerationConfig,
     constants::{
-        MethodDefintionExtensions, TypeDefinitionExtensions, TypeExtentions,
-        TYPE_ATTRIBUTE_INTERFACE, OBJECT_WRAPPER_TYPE, ParameterDefinitionExtensions,
+        MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
+        TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
     },
     context::CppContextCollection,
     cpp_type::CppType,
@@ -228,8 +231,12 @@ pub trait CSType: Sized {
 
             // 2 because each method gets a method struct and method decl
             // a constructor will add an additional one for each
-            cpp_type.declarations.reserve(2 * (t.method_count as usize + 1));
-            cpp_type.implementations.reserve(t.method_count as usize + 1);
+            cpp_type
+                .declarations
+                .reserve(2 * (t.method_count as usize + 1));
+            cpp_type
+                .implementations
+                .reserve(t.method_count as usize + 1);
 
             // Then, for each method, write it out
             for (i, method) in t.methods(metadata.metadata).iter().enumerate() {
@@ -261,10 +268,12 @@ pub trait CSType: Sized {
                         .get(param.type_index as usize)
                         .unwrap();
 
-                    let param_cpp_name =
-                        cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, param_type, false);
-
-                
+                    let param_cpp_name = cpp_type.cppify_name_il2cpp_byref(
+                        ctx_collection,
+                        metadata,
+                        param_type,
+                        false,
+                    );
 
                     let def_value = Self::param_default_value(metadata, param_index);
 
@@ -421,7 +430,7 @@ pub trait CSType: Sized {
             if let TypeData::TypeDefinitionIndex(tdi) = f_type.data && metadata.blacklisted_types.contains(&tdi) {
                 if !cpp_type.is_value_type {
                     continue;
-                }  
+                }
                 println!("Value type uses {tdi:?} which is blacklisted! TODO");
             }
 
@@ -429,9 +438,18 @@ pub trait CSType: Sized {
 
             let cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
+            // TODO: Check a flag to look for default values to speed this u            p
             let def_value = Self::field_default_value(metadata, field_index);
 
             // Need to include this type
+            let literal_value = def_value.map(|l| {
+                if f_type.ty == Il2CppTypeEnum::String {
+                    format!("\"{l}\"")
+                } else {
+                    l
+                }
+            });
+
             cpp_type.declarations.push(CppMember::Field(CppField {
                 name: f_name.to_owned(),
                 ty: cpp_name,
@@ -439,7 +457,7 @@ pub trait CSType: Sized {
                 instance: !f_type.is_static() && !f_type.is_const(),
                 readonly: f_type.is_const(),
                 classof_call: cpp_type.classof_cpp_name(),
-                literal_value: def_value,
+                literal_value,
                 use_wrapper: !t.is_value_type(),
             }));
         }
@@ -602,7 +620,7 @@ pub trait CSType: Sized {
             }
             Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string(),
             Il2CppTypeEnum::U2 => cursor.read_u16::<Endian>().unwrap().to_string(),
-            Il2CppTypeEnum::U4 => cursor.read_u32::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::U4 => cursor.read_compressed_i32::<Endian>().unwrap().to_string(),
             // TODO: We assume 64 bit
             Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => {
                 cursor.read_u64::<Endian>().unwrap().to_string()
@@ -616,12 +634,18 @@ pub trait CSType: Sized {
                 String::from_utf16_lossy(&[cursor.read_u16::<Endian>().unwrap()])
             }
             Il2CppTypeEnum::String => {
-                let size = cursor.read_u32::<Endian>().unwrap();
-                let mut str = String::with_capacity(size as usize);
-                unsafe {
-                    cursor.read_exact(str.as_bytes_mut()).unwrap();
+                // UTF-16 byte array len
+                // which means the len is 2x the size of the string's len
+                let stru16_len = cursor.read_compressed_i32::<Endian>().unwrap();
+                if stru16_len == -1 {
+                    return "".to_string();
                 }
-                str
+
+                let mut buf = vec![0u8; stru16_len as usize];
+
+                cursor.read_exact(buf.as_mut_slice()).unwrap();
+
+                String::from_utf8(buf).unwrap()
             }
             Il2CppTypeEnum::Genericinst
             | Il2CppTypeEnum::Object
@@ -693,29 +717,28 @@ pub trait CSType: Sized {
             })
     }
 
-    fn cppify_name_il2cpp_byref(        &mut self,
+    fn cppify_name_il2cpp_byref(
+        &mut self,
         ctx_collection: &CppContextCollection,
         metadata: &Metadata,
         typ: &Il2CppType,
-        add_include: bool) -> String {
-            
-            let ret = self.cppify_name_il2cpp(ctx_collection, metadata, typ, add_include);
-            let requirements = &mut self.get_mut_cpp_type().requirements;
-            if typ.is_param_out() {
-                requirements.needs_byref_include();
-                return format!("ByRef<{ret}>")
-            } 
-
-            
-            
-            if typ.is_param_in() {
-                requirements.needs_byref_include();
-
-                return format!("ByRefConst<{ret}>")
-            } 
-
-            ret
+        add_include: bool,
+    ) -> String {
+        let ret = self.cppify_name_il2cpp(ctx_collection, metadata, typ, add_include);
+        let requirements = &mut self.get_mut_cpp_type().requirements;
+        if typ.is_param_out() {
+            requirements.needs_byref_include();
+            return format!("ByRef<{ret}>");
         }
+
+        if typ.is_param_in() {
+            requirements.needs_byref_include();
+
+            return format!("ByRefConst<{ret}>");
+        }
+
+        ret
+    }
 
     fn cppify_name_il2cpp(
         &mut self,

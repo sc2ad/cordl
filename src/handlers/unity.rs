@@ -1,7 +1,5 @@
-use std::{path::PathBuf, collections::HashSet};
+use std::path::PathBuf;
 
-use anyhow::anyhow;
-use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use color_eyre::Result;
 
 use crate::generate::{
@@ -27,7 +25,7 @@ fn register_unity_object_type_handler(
 ) -> Result<()> {
     println!("Registering UnityEngine.Object handler!");
 
-    let (tag, _unity_cpp_context) = cpp_context_collection
+    let (_tag, _unity_cpp_context) = cpp_context_collection
         .get()
         .iter()
         .find(|(_, c)| {

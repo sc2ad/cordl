@@ -1,5 +1,5 @@
 use brocolib::{
-    global_metadata::{Il2CppMethodDefinition, Il2CppParameterDefinition, Il2CppTypeDefinition},
+    global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition},
     runtime_metadata::Il2CppType,
 };
 

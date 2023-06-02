@@ -42,7 +42,7 @@ pub struct CppUsingAlias {
     pub alias: String,
     pub result: String,
     pub namespaze: Option<String>,
-    pub template: Option<CppTemplate>
+    pub template: Option<CppTemplate>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

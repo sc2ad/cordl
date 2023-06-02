@@ -2,6 +2,7 @@
 #![feature(let_chains)]
 #![feature(core_intrinsics)]
 #![feature(slice_as_chunks)]
+#![feature(read_buf)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use generate::{config::GenerationConfig, context::CppContextCollection, metadata::Metadata};
@@ -13,6 +14,7 @@ use clap::{Parser, Subcommand};
 use crate::{generate::members::CppMember, handlers::unity};
 mod generate;
 mod handlers;
+mod helpers;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
