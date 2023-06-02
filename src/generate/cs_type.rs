@@ -436,10 +436,14 @@ pub trait CSType: Sized {
 
             let _f_type_data = f_type.data;
 
-            let cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+            let mut cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
             // TODO: Check a flag to look for default values to speed this up
             let def_value = Self::field_default_value(metadata, field_index);
+
+            if f_type.ty == Il2CppTypeEnum::String && def_value.is_some() {
+                cpp_name = "ConstString".to_string();
+            }
 
             cpp_type.declarations.push(CppMember::Field(CppField {
                 name: f_name.to_owned(),
@@ -450,7 +454,6 @@ pub trait CSType: Sized {
                 classof_call: cpp_type.classof_cpp_name(),
                 literal_value: def_value,
                 use_wrapper: !t.is_value_type(),
-                is_const_string: f_type.ty == Il2CppTypeEnum::String,
             }));
         }
     }
@@ -643,10 +646,7 @@ pub trait CSType: Sized {
 
                 cursor.read_exact(buf.as_mut_slice()).unwrap();
 
-                let res = String::from_utf8(buf)
-                    .unwrap()
-                    .escape_default()
-                    .to_string();
+                let res = String::from_utf8(buf).unwrap().escape_default().to_string();
 
                 if string_quotes {
                     let literal_prefix = if string_as_u16 { "u" } else { "" };
