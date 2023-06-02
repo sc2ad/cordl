@@ -87,6 +87,7 @@ pub struct CppField {
     pub classof_call: String,
     pub literal_value: Option<String>,
     pub use_wrapper: bool,
+    pub is_const_string: bool,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]

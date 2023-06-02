@@ -103,7 +103,7 @@ impl Writable for CppField {
         };
 
         match self.use_wrapper {
-            // no wrapper/is C++ literal
+            // no wrapper/is C++ literal, like an int
             false => writeln!(
                 writer,
                 "{}{} {} = {}",
@@ -116,7 +116,13 @@ impl Writable for CppField {
             true => {
                 // literal il2cpp value
                 if let Some(literal) = &self.literal_value {
-                    writeln!(writer, "constexpr {} {} = {literal};", self.ty, self.name)?;
+                    let ty_str: &str = if self.is_const_string {
+                        "::ConstString"
+                    } else {
+                        &self.ty
+                    };
+
+                    writeln!(writer, "constexpr {} {} = {literal};", ty_str, self.name)?;
                 }
                 if self.instance {
                     writeln!(

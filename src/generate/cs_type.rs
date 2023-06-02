@@ -438,17 +438,8 @@ pub trait CSType: Sized {
 
             let cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
-            // TODO: Check a flag to look for default values to speed this u            p
+            // TODO: Check a flag to look for default values to speed this up
             let def_value = Self::field_default_value(metadata, field_index);
-
-            // Need to include this type
-            let literal_value = def_value.map(|l| {
-                if f_type.ty == Il2CppTypeEnum::String {
-                    format!("\"{l}\"")
-                } else {
-                    l
-                }
-            });
 
             cpp_type.declarations.push(CppMember::Field(CppField {
                 name: f_name.to_owned(),
@@ -457,8 +448,9 @@ pub trait CSType: Sized {
                 instance: !f_type.is_static() && !f_type.is_const(),
                 readonly: f_type.is_const(),
                 classof_call: cpp_type.classof_cpp_name(),
-                literal_value,
+                literal_value: def_value,
                 use_wrapper: !t.is_value_type(),
+                is_const_string: f_type.ty == Il2CppTypeEnum::String,
             }));
         }
     }
@@ -598,7 +590,13 @@ pub trait CSType: Sized {
         }
     }
 
-    fn default_value_blob(metadata: &Metadata, ty: Il2CppTypeEnum, data_index: usize) -> String {
+    fn default_value_blob(
+        metadata: &Metadata,
+        ty: Il2CppTypeEnum,
+        data_index: usize,
+        string_quotes: bool,
+        string_as_u16: bool,
+    ) -> String {
         let data = &metadata
             .metadata
             .global_metadata
@@ -645,7 +643,17 @@ pub trait CSType: Sized {
 
                 cursor.read_exact(buf.as_mut_slice()).unwrap();
 
-                String::from_utf8(buf).unwrap()
+                let res = String::from_utf8(buf)
+                    .unwrap()
+                    .escape_default()
+                    .to_string();
+
+                if string_quotes {
+                    let literal_prefix = if string_as_u16 { "u" } else { "" };
+                    return format!("{literal_prefix}\"{res}\"");
+                }
+
+                res
             }
             Il2CppTypeEnum::Genericinst
             | Il2CppTypeEnum::Object
@@ -671,7 +679,13 @@ pub trait CSType: Sized {
                     .get(def.type_index as usize)
                     .unwrap();
 
-                Self::default_value_blob(metadata, ty.ty, def.data_index.index() as usize)
+                Self::default_value_blob(
+                    metadata,
+                    ty.ty,
+                    def.data_index.index() as usize,
+                    true,
+                    true,
+                )
             })
     }
     fn param_default_value(metadata: &Metadata, parameter_index: ParameterIndex) -> Option<String> {
@@ -713,7 +727,13 @@ pub trait CSType: Sized {
                     }
                 }
 
-                Self::default_value_blob(metadata, ty.ty, def.data_index.index() as usize)
+                Self::default_value_blob(
+                    metadata,
+                    ty.ty,
+                    def.data_index.index() as usize,
+                    true,
+                    true,
+                )
             })
     }
 
