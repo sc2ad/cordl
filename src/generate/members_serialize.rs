@@ -79,7 +79,7 @@ impl Writable for CppUsingAlias {
             writeln!(writer, "namespace {namespaze} {{")?;
         }
 
-        writeln!(writer, "using {} = {}", self.alias, self.result)?;
+        writeln!(writer, "using {} = {};", self.alias, self.result)?;
 
         if let Some(namespaze) = &self.namespaze {
             writeln!(writer, "}} // {namespaze}")?;
