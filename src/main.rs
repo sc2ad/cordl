@@ -14,7 +14,7 @@ use std::{fs, path::PathBuf, time};
 use clap::{Parser, Subcommand};
 
 use crate::{
-    generate::{cpp_type::CppType, cs_type::CSType, members::CppMember},
+    generate::{cs_type::CSType, members::CppMember},
     handlers::unity,
 };
 mod generate;
@@ -117,20 +117,21 @@ fn main() -> color_eyre::Result<()> {
             .map(|t| metadata.metadata_registration.types.get(*t).unwrap())
             .collect_vec();
 
-        let new_generic_type = CppType::make_generic_inst(
-            &cpp_context_collection,
-            &metadata,
-            &config,
-            ty_def,
-            type_args,
-        );
-        // TODO: Fix for nested generic types
-        let cpp_context = cpp_context_collection
-            .get_context_mut(ty_def.data)
-            .expect("No context?");
-        cpp_context
-            .typedef_types
-            .insert(TypeData::GenericClassIndex(inst_idx), new_generic_type);
+        cpp_context_collection.borrow_cpp_type(ty_def.data, |collection, mut cpp_type| {
+            if cpp_type.cpp_name() == "IList_1" {
+                println!("{cpp_type:?}");
+            }
+            cpp_type.add_generic_inst(collection, &metadata, &type_args);
+            cpp_type
+        })
+
+        // // TODO: Fix for nested generic types
+        // let cpp_context = cpp_context_collection
+        //     .get_context_mut(ty_def.data)
+        //     .expect("No context?");
+        // cpp_context
+        //     .typedef_types
+        //     .insert(TypeData::GenericClassIndex(inst_idx), new_generic_type);
     }
 
     println!("Registering handlers!");
@@ -207,7 +208,11 @@ fn main() -> color_eyre::Result<()> {
     cpp_context_collection
         .get()
         .iter()
-        .find(|(_, c)| c.get_types().iter().any(|(_, t)| t.generic_args.is_some() && t.cpp_name() == "IList_1"))
+        .find(|(_, c)| {
+            c.get_types()
+                .iter()
+                .any(|(_, t)| t.generic_instantiation_args.is_some() && t.cpp_name() == "IList_1")
+        })
         .unwrap()
         .1
         .write()?;

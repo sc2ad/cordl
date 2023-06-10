@@ -1,13 +1,12 @@
 use std::{
     collections::HashMap,
-    io::{BorrowedCursor, Cursor, Read},
+    io::{Cursor, Read},
     rc::Rc,
 };
 
 use brocolib::{
     global_metadata::{
         FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex, TypeDefinitionIndex,
-        TypeIndex,
     },
     runtime_metadata::{Il2CppType, Il2CppTypeEnum, TypeData},
 };
@@ -67,19 +66,17 @@ pub trait CSType: Sized {
         }
     }
 
-    fn make_generic_inst(
+    fn add_generic_inst(
+        &mut self,
         ctx_collection: &CppContextCollection,
         metadata: &Metadata,
-        config: &GenerationConfig,
-        ty_def: &Il2CppType,
-        type_args: Vec<&Il2CppType>,
-    ) -> CppType {
-        let mut cpp_type =
-            Self::make_cpp_type(metadata, config, ty_def.data).expect("Unable to create cpp type");
+        type_args: &[&Il2CppType],
+    ) -> &mut CppType {
+        let cpp_type = self.get_mut_cpp_type();
 
         cpp_type.generic_instantiation_args = Some(
             type_args
-                .into_iter()
+                .iter()
                 .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true))
                 .collect(),
         );

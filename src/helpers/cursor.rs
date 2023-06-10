@@ -9,7 +9,7 @@ impl<R: ReadBytesExt> ReadBytesExtensions for R {
     // stolen from libil2cpp/utils/MemoryRead.cpp
     // thanks Stack
     fn read_compressed_u32<T: ByteOrder>(&mut self) -> Result<u32, std::io::Error> {
-        let mut val: u32 = 0;
+        let mut val: u32;
         let read = self.read_u8()?;
 
         if (read & 0x80) == 0 {

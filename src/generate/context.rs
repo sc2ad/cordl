@@ -1,10 +1,11 @@
+use core::panic;
 use std::{
     collections::{HashMap, HashSet},
     fs::{create_dir_all, remove_file, File},
     path::{Path, PathBuf},
 };
 
-use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::Il2CppType};
+use brocolib::global_metadata::TypeDefinitionIndex;
 use color_eyre::eyre::ContextCompat;
 
 use brocolib::runtime_metadata::TypeData;
@@ -19,7 +20,7 @@ use super::{
     config::GenerationConfig,
     cpp_type::CppType,
     cs_type::CSType,
-    members::{CppForwardDeclare, CppForwardDeclareGroup, CppStructSpecialization, CppUsingAlias},
+    members::{CppForwardDeclare, CppUsingAlias},
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
@@ -415,6 +416,50 @@ impl CppContextCollection {
         let context_root_tag = self.get_context_root_tag(tag);
         self.get_context_mut(context_root_tag)
             .and_then(|c| c.get_cpp_type_recursive_mut(context_root_tag, tag))
+    }
+
+    pub fn borrow_cpp_type<F>(&mut self, ty: TypeData, func: F)
+    where
+        F: Fn(&mut Self, CppType) -> CppType,
+    {
+        let context_ty = self.get_context_root_tag(ty);
+        let mut context = self
+            .all_contexts
+            .remove(&context_ty)
+            .expect("No context for ty");
+
+        // search in root
+        // clone to avoid failing il2cpp_name
+        let in_context_cpp_type = context.typedef_types.get(&context_ty).cloned();
+        match in_context_cpp_type {
+            Some(cpp_type) => {
+                context.typedef_types.insert(ty, func(self, cpp_type));
+            }
+            None => {
+                for nested_type in context.typedef_types.values_mut() {
+                    if nested_type.borrow_nested_type_mut(ty, self, &func) {
+                        break;
+                    }
+                }
+
+                panic!("No nested type found!");
+
+                // // search in nested
+                // let owner_ty = *context
+                //     .typedef_types
+                //     .iter()
+                //     .find(|(_, t)| t.borrow_nested_type_mut(ty, self, &func))
+                //     .unwrap().0;
+
+                // let mut owner_cpp_type = context.typedef_types.get(&owner_ty).cloned().unwrap();
+
+                // owner_cpp_type.borrow_nested_type_mut(ty, self, &func);
+
+                // context.typedef_types.insert(ty, owner_cpp_type);
+            }
+        }
+
+        self.all_contexts.insert(context_ty, context);
     }
 
     pub fn get_context(&self, type_tag: TypeData) -> Option<&CppContext> {

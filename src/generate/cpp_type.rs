@@ -6,13 +6,11 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use brocolib::{
-    global_metadata::{TypeDefinitionIndex, TypeIndex},
-    runtime_metadata::TypeData,
-};
+use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use itertools::Itertools;
 
 use super::{
+    context::CppContextCollection,
     members::{CppForwardDeclare, CppInclude, CppMember, CppTemplate},
     writer::Writable,
 };
@@ -131,6 +129,59 @@ impl CppType {
             // Recurse
             n.get_nested_type(tag)
         })
+    }
+
+    pub fn borrow_nested_type_mut<F>(
+        &mut self,
+        ty: TypeData,
+        context: &mut CppContextCollection,
+        func: &F,
+    ) -> bool
+    where
+        F: Fn(&mut CppContextCollection, CppType) -> CppType,
+    {
+        let nested_index = self.nested_types.iter().position(|n| n.self_tag == ty);
+
+        match nested_index {
+            None => {
+                for nested_ty in &mut self.nested_types {
+                    if nested_ty.borrow_nested_type_mut(ty, context, func) {
+                        return true;
+                    }
+                }
+
+                false
+            }
+            Some(index) => {
+                // clone to avoid breaking il2cpp
+                let nested_cpp_type = self.nested_types.get(index).unwrap().clone();
+                let new_cpp_type = func(context, nested_cpp_type);
+                self.nested_types.remove(index);
+                self.nested_types.insert(index, new_cpp_type);
+
+                true
+            }
+        }
+
+        // let (nested_owner, index) = self
+        //     .nested_types
+        //     .iter_mut()
+        //     .find_map(|n| {
+        //         let nested_ty_index = n.nested_types.iter().position(ty);
+        //         if let Some(i) = nested_ty_index {
+        //             return Some((n, i));
+        //         }
+
+        //         // Recurse
+        //         n.get_nested_type_mut(ty)
+        //     })
+        //     .unwrap();
+
+        // let index = self
+        //     .nested_types
+        //     .iter()
+        //     .position(|t| t.self_tag == ty)
+        //     .unwrap();
     }
 
     pub fn formatted_complete_cpp_name(&self) -> &String {
