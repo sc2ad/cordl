@@ -7,6 +7,7 @@ use std::{
 use brocolib::{
     global_metadata::{
         FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex, TypeDefinitionIndex,
+        TypeIndex,
     },
     runtime_metadata::{Il2CppType, Il2CppTypeEnum, TypeData},
 };
@@ -85,12 +86,6 @@ pub trait CSType: Sized {
 
         // Generics
         let generics = t.generic_container_index.is_valid().then(|| {
-            let generic_tdi = t.generic_container(metadata.metadata).owner_index;
-            let generic_t = &metadata.metadata.global_metadata.type_definitions[tdi];
-
-            println!("Generic TDI {generic_tdi} vs TDI {tdi:?}");
-            println!("{generic_t:?}");
-
             t.generic_container(metadata.metadata)
                 .generic_parameters(metadata.metadata)
                 .iter()
@@ -98,13 +93,12 @@ pub trait CSType: Sized {
                 .collect_vec()
         });
 
-        let cpp_template = CppTemplate {
-            names: generics
-                .unwrap_or_default()
+        let cpp_template = generics.as_ref().map(|g| CppTemplate {
+            names: g
                 .iter()
                 .map(|(g, _)| g.name(metadata.metadata).to_string())
                 .collect(),
-        };
+        });
 
         let ns = t.namespace(metadata.metadata);
         let name = t.name(metadata.metadata);
@@ -137,6 +131,7 @@ pub trait CSType: Sized {
             requirements: Default::default(),
             inherit: Default::default(),
             generic_args: cpp_template,
+            is_stub: generics.is_some(),
             nested_types: Default::default(),
         };
 
@@ -166,6 +161,14 @@ pub trait CSType: Sized {
         ctx_collection: &CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
+        if Self::get_type_definition(metadata, tdi)
+            .generic_container_index
+            .is_valid()
+        {
+            // Do not fill generic typedefs
+            return;
+        }
+
         self.make_parents(metadata, ctx_collection, tdi);
         self.make_fields(metadata, ctx_collection, tdi);
         self.make_properties(metadata, ctx_collection, tdi);
@@ -175,6 +178,50 @@ pub trait CSType: Sized {
             func(self.get_mut_cpp_type())
         }
     }
+
+    // fn make_generic_constraints(
+    //     &mut self,
+    //     metadata: &Metadata,
+    //     config: &GenerationConfig,
+    //     ctx_collection: &CppContextCollection,
+    //     tdi: TypeDefinitionIndex,
+    // ) {
+    //     let t = Self::get_type_definition(metadata, tdi);
+
+    //     if !t.generic_container_index.is_valid() {
+    //         return;
+    //     }
+
+    //     let generic_class = metadata.metadata_registration.generic_classes.iter().find(|t| t.);
+    //     metadata.metadata_registration.generic_insts.get(generic_class.unwrap().context.class_inst_idx.unwrap())
+
+    //     let generics = t.generic_container(metadata.metadata);
+
+    //     let generic_constraints: Vec<Vec<String>> = generics
+    //         .generic_parameters(metadata.metadata)
+    //         .iter()
+    //         .map(|p| p.constraints(metadata.metadata))
+    //         .map(|c| {
+    //             c.iter()
+    //                 .map(|ti| {
+    //                     self.cppify_name_il2cpp(
+    //                         ctx_collection,
+    //                         metadata,
+    //                         metadata
+    //                             .metadata_registration
+    //                             .types
+    //                             .get(*ti as usize)
+    //                             .unwrap(),
+    //                         true,
+    //                     )
+    //                 })
+    //                 .filter(|l| !l.is_empty())
+    //                 .collect()
+    //         })
+    //         .filter(|l: &Vec<String>| !l.is_empty())
+    //         .collect();
+    //     let cpp_type = self.get_mut_cpp_type();
+    // }
 
     fn make_methods(
         &mut self,

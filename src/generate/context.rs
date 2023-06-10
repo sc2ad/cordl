@@ -19,7 +19,7 @@ use super::{
     config::GenerationConfig,
     cpp_type::CppType,
     cs_type::CSType,
-    members::CppUsingAlias,
+    members::{CppStructSpecialization, CppUsingAlias},
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
@@ -35,9 +35,9 @@ pub struct CppContext {
     pub fundamental_path: PathBuf,
 
     // Types to write, typedef
-    typedef_types: HashMap<TypeData, CppType>,
+    pub typedef_types: HashMap<TypeData, CppType>,
 
-    typealias_types: HashSet<CppUsingAlias>,
+    pub typealias_types: HashSet<CppUsingAlias>,
 }
 
 impl CppContext {

@@ -8,6 +8,14 @@ pub struct CppTemplate {
     pub names: Vec<String>,
 }
 
+#[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
+pub struct CppStructSpecialization {
+    pub name: String,
+    pub namespace: Option<String>,
+    pub is_struct: bool,
+    pub template: CppTemplate,
+}
+
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub struct CppForwardDeclareGroup {
     // TODO: Make this group lots into a single namespace
@@ -22,7 +30,7 @@ pub struct CppForwardDeclare {
     pub is_struct: bool,
     pub namespace: Option<String>,
     pub name: String,
-    pub templates: CppTemplate, // names of template arguments, T, TArgs etc.
+    pub templates: Option<CppTemplate>, // names of template arguments, T, TArgs etc.
 }
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]

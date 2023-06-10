@@ -6,7 +6,10 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
+use brocolib::{
+    global_metadata::{TypeDefinitionIndex, TypeIndex},
+    runtime_metadata::TypeData,
+};
 use itertools::Itertools;
 
 use super::{
@@ -51,7 +54,8 @@ pub struct CppType {
     pub requirements: CppTypeRequirements,
 
     pub inherit: Vec<String>,
-    pub generic_args: CppTemplate, // Names of templates e.g T, TKey etc.
+    pub generic_args: Option<CppTemplate>, // Names of templates e.g T, TKey etc.
+    pub is_stub: bool,
 
     pub nested_types: Vec<CppType>,
 }
@@ -206,62 +210,77 @@ impl CppType {
                 writer.indent();
             }
 
-            if fd {
+            if fd && let Some(generic_args) = &self.generic_args {
                 // template<...>
-                self.generic_args.write(writer)?;
+                generic_args.write(writer)?;
                 writeln!(writer, "struct {};", self.name())?;
             }
         }
 
-        // Write type definition
-        self.generic_args.write(writer)?;
-        writeln!(writer, "// Is value type: {}", self.is_value_type)?;
-        // Type definition plus inherit lines
-        match self.inherit.is_empty() {
-            true => writeln!(writer, "struct {} {{", self.cpp_name())?,
-            false => writeln!(
-                writer,
-                "struct {} : {} {{",
-                self.cpp_name(),
-                self.inherit
-                    .iter()
-                    .map(|s| format!("public {s}"))
-                    .join(", ")
-            )?,
-        }
+        // Just forward declare
+        if !self.is_stub {
+            // Write type definition
+            if let Some(generic_args) = &self.generic_args {
+                generic_args.write(writer)?;
+            }
+            writeln!(writer, "// Is value type: {}", self.is_value_type)?;
+            // Type definition plus inherit lines
 
-        writer.indent();
+            // let clazz_name = match &self.generic_constraints {
+            //     Some(literals) => format!(
+            //         "/* generic here lets go! */{}<{}>",
+            //         self.cpp_name(),
+            //         literals.iter().map(|v| v.join("|")).join(",")
+            //     ),
+            //     None => self.cpp_name().to_string(),
+            // };
+            let clazz_name = self.cpp_name();
 
-        self.nested_types.iter().try_for_each(|n| {
+            match self.inherit.is_empty() {
+                true => writeln!(writer, "struct {clazz_name} {{")?,
+                false => writeln!(
+                    writer,
+                    "struct {clazz_name} : {} {{",
+                    self.inherit
+                        .iter()
+                        .map(|s| format!("public {s}"))
+                        .join(", ")
+                )?,
+            }
+
+            writer.indent();
+
+            self.nested_types.iter().try_for_each(|n| {
+                writeln!(
+                    writer,
+                    "// Forward declare nested type\nstruct {};",
+                    n.cpp_name
+                )
+            })?;
+
+            self.nested_types
+                .iter()
+                .try_for_each(|n| n.write_def_internal(writer, None, false))?;
+            // Write all declarations within the type here
+            self.declarations.iter().for_each(|d| {
+                d.write(writer).unwrap();
+            });
+
             writeln!(
                 writer,
-                "// Forward declare nested type\nstruct {};",
-                n.cpp_name
-            )
-        })?;
+                "static constexpr bool __CORDL_IS_VALUE_TYPE = {};",
+                self.is_value_type
+            )?;
+            // Type complete
+            writer.dedent();
+            writeln!(writer, "}};")?;
 
-        self.nested_types
-            .iter()
-            .try_for_each(|n| n.write_def_internal(writer, None, false))?;
-        // Write all declarations within the type here
-        self.declarations.iter().for_each(|d| {
-            d.write(writer).unwrap();
-        });
-
-        writeln!(
-            writer,
-            "static constexpr bool __CORDL_IS_VALUE_TYPE = {};",
-            self.is_value_type
-        )?;
-        // Type complete
-        writer.dedent();
-        writeln!(writer, "}};")?;
-
-        // NON MEMBER DECLARATIONS
-        self.nonmember_declarations
-            .iter()
-            .try_for_each(|d| d.write(writer))?;
-
+            // NON MEMBER DECLARATIONS
+            self.nonmember_declarations
+                .iter()
+                .try_for_each(|d| d.write(writer))?;
+        }
+        
         // Namespace complete
         if let Some(n) = namespace {
             writer.dedent();

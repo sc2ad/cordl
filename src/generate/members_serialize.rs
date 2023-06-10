@@ -29,7 +29,9 @@ impl Writable for CppForwardDeclare {
             writeln!(writer, "namespace {namespace} {{")?;
         }
 
-        self.templates.write(writer)?;
+        if let Some(templates) = &self.templates {
+            templates.write(writer)?;
+        }
 
         writeln!(
             writer,
@@ -374,6 +376,24 @@ struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({}::*)(
             self.method_data.estimated_size,
             self.method_data.addrs
         )?;
+        Ok(())
+    }
+}
+
+impl Writable for CppStructSpecialization {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if let Some(namespace) = &self.namespace {
+            writeln!(writer, "namespace {} {{", namespace)?;
+        }
+
+        self.template.write(writer)?;
+        let class_specifier = if self.is_struct { "struct" } else { "class" };
+        writeln!(writer, "{class_specifier} {};", self.name)?;
+
+        if self.namespace.is_some() {
+            writeln!(writer, "}} // namespace end")?;
+        }
+
         Ok(())
     }
 }

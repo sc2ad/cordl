@@ -155,7 +155,7 @@ fn main() -> color_eyre::Result<()> {
         .find(|(_, c)| {
             c.get_types()
                 .iter()
-                .any(|(_, t)| !t.generic_args.names.is_empty())
+                .any(|(_, t)| t.generic_args.is_some())
         })
         .unwrap()
         .1
