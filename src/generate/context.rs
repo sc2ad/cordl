@@ -221,7 +221,7 @@ impl CppContext {
                 // TODO: Check forward declare is not of own type
                 .try_for_each(|i| i.write(&mut typedef_writer))?;
 
-            CppInclude::new(self.type_impl_path.to_path_buf()).write(&mut typeimpl_writer)?;
+            CppInclude::new(self.typedef_path.to_path_buf()).write(&mut typeimpl_writer)?;
             // This is likely not necessary
             // self.typedef_types
             //     .values()
