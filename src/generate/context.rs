@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use brocolib::global_metadata::TypeDefinitionIndex;
+use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::Il2CppGenericClass};
 use color_eyre::eyre::ContextCompat;
 
 use brocolib::runtime_metadata::TypeData;
@@ -383,6 +383,43 @@ impl CppContextCollection {
             .unwrap_or(tag)
     }
 
+    pub fn make_generic_from(
+        &mut self,
+        generic_class: &Il2CppGenericClass,
+        metadata: &mut Metadata,
+        config: &GenerationConfig,
+    ) -> &mut CppContext {
+        let type_index = generic_class.type_index;
+        let ty_def = metadata
+            .metadata_registration
+            .types
+            .get(type_index)
+            .unwrap();
+        let context_root_tag = self.get_context_root_tag(ty_def.data);
+
+        if self.filling_types.contains(&context_root_tag) {
+            panic!("Currently filling type {context_root_tag:?}, cannot fill")
+        }
+
+        // Why is the borrow checker so dumb?
+        // Using entries causes borrow checker to die :(
+        if self.filled_types.contains(&ty_def.data) {
+            return self.all_contexts.get_mut(&context_root_tag).unwrap();
+        }
+
+        let tdi = CppType::get_tag_tdi(ty_def.data);
+
+        self.borrow_cpp_type(ty_def.data, |collection, mut cpp_type| {
+            let type_args = CppType::get_generic_instantiation_args(generic_class, metadata);
+            cpp_type.add_generic_inst(collection, metadata, type_args);
+            collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
+            cpp_type
+        });
+
+        // assert!(self.filled_types.contains(&ty_def.data));
+        return self.all_contexts.get_mut(&context_root_tag).unwrap();
+    }
+
     pub fn make_from(
         &mut self,
         metadata: &Metadata,
@@ -449,26 +486,17 @@ impl CppContextCollection {
                 context.typedef_types.insert(ty, func(self, cpp_type));
             }
             None => {
+                let mut found = false;
                 for nested_type in context.typedef_types.values_mut() {
                     if nested_type.borrow_nested_type_mut(ty, self, &func) {
+                        found = true;
                         break;
                     }
                 }
 
-                panic!("No nested type found!");
-
-                // // search in nested
-                // let owner_ty = *context
-                //     .typedef_types
-                //     .iter()
-                //     .find(|(_, t)| t.borrow_nested_type_mut(ty, self, &func))
-                //     .unwrap().0;
-
-                // let mut owner_cpp_type = context.typedef_types.get(&owner_ty).cloned().unwrap();
-
-                // owner_cpp_type.borrow_nested_type_mut(ty, self, &func);
-
-                // context.typedef_types.insert(ty, owner_cpp_type);
+                if !found {
+                    panic!("No nested type found!");
+                }
             }
         }
 

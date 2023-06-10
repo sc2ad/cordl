@@ -4,6 +4,7 @@
 #![feature(slice_as_chunks)]
 #![feature(read_buf)]
 #![feature(map_try_insert)]
+#![feature(return_position_impl_trait_in_trait)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use generate::{config::GenerationConfig, context::CppContextCollection, metadata::Metadata};
@@ -96,41 +97,7 @@ fn main() -> color_eyre::Result<()> {
         if generic_class.context.class_inst_idx.is_none() {
             continue;
         }
-
-        let type_index = generic_class.type_index;
-        let ty_def = metadata
-            .metadata_registration
-            .types
-            .get(type_index)
-            .unwrap();
-        let tdi = CppType::get_tag_tdi(ty_def.data);
-
-        let inst_idx = generic_class.context.class_inst_idx.unwrap();
-        let inst = metadata
-            .metadata_registration
-            .generic_insts
-            .get(inst_idx)
-            .unwrap();
-
-        let type_args = inst
-            .types
-            .iter()
-            .map(|t| metadata.metadata_registration.types.get(*t).unwrap())
-            .collect_vec();
-
-        cpp_context_collection.borrow_cpp_type(ty_def.data, |collection, mut cpp_type| {
-            cpp_type.add_generic_inst(collection, &metadata, &type_args);
-            collection.fill_cpp_type(&mut cpp_type, &metadata, &config, tdi);
-            cpp_type
-        });
-
-        // // TODO: Fix for nested generic types
-        // let cpp_context = cpp_context_collection
-        //     .get_context_mut(ty_def.data)
-        //     .expect("No context?");
-        // cpp_context
-        //     .typedef_types
-        //     .insert(TypeData::GenericClassIndex(inst_idx), new_generic_type);
+        cpp_context_collection.make_generic_from(generic_class, &mut metadata, &config);
     }
 
     println!("Registering handlers!");

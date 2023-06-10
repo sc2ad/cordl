@@ -8,7 +8,7 @@ use brocolib::{
     global_metadata::{
         FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex, TypeDefinitionIndex,
     },
-    runtime_metadata::{Il2CppType, Il2CppTypeEnum, TypeData},
+    runtime_metadata::{Il2CppGenericClass, Il2CppType, Il2CppTypeEnum, TypeData},
 };
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -66,17 +66,16 @@ pub trait CSType: Sized {
         }
     }
 
-    fn add_generic_inst(
+    fn add_generic_inst<'a>(
         &mut self,
         ctx_collection: &CppContextCollection,
-        metadata: &Metadata,
-        type_args: &[&Il2CppType],
+        metadata: &'a Metadata,
+        type_args: impl Iterator<Item = &'a Il2CppType>,
     ) -> &mut CppType {
         let cpp_type = self.get_mut_cpp_type();
 
         cpp_type.generic_instantiation_args = Some(
             type_args
-                .iter()
                 .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true))
                 .collect(),
         );
@@ -84,6 +83,24 @@ pub trait CSType: Sized {
         cpp_type.is_stub = false;
 
         cpp_type
+    }
+
+    fn get_generic_instantiation_args<'a>(
+        generic_class: &Il2CppGenericClass,
+        metadata: &'a Metadata,
+    ) -> impl Iterator<Item = &'a Il2CppType> {
+        let inst_idx = generic_class.context.class_inst_idx.unwrap();
+        let inst = metadata
+            .metadata_registration
+            .generic_insts
+            .get(inst_idx)
+            .unwrap();
+
+        let type_args = inst
+            .types
+            .iter()
+            .map(|t| metadata.metadata_registration.types.get(*t).unwrap());
+        type_args
     }
 
     fn make_cpp_type(
@@ -121,7 +138,7 @@ pub trait CSType: Sized {
 
         let ns = t.namespace(metadata.metadata);
         let name = t.name(metadata.metadata);
-        let full_name = t.full_name(metadata.metadata, false);
+        let full_name = t.full_name(metadata.metadata, true);
         let cpp_full_name = if ns.is_empty() {
             format!("GlobalNamespace::{}", config.namespace_cpp(&full_name))
         } else {
@@ -919,15 +936,44 @@ pub trait CSType: Sized {
 
                 format!("::ArrayW<{generic}>")
             }
-            Il2CppTypeEnum::Mvar | Il2CppTypeEnum::Var => match typ.data {
+            Il2CppTypeEnum::Var => match typ.data {
                 // TODO: Alias to actual generic
                 TypeData::GenericParameterIndex(index) => {
                     let generic_param =
                         &metadata.metadata.global_metadata.generic_parameters[index];
 
-                    let name = generic_param.name(metadata.metadata);
+                    // cpp_type.generic_instantiation_args.as_ref().unwrap()
+                    //     [generic_param.num as usize]
+                    //     .clone()
 
-                    name.to_string()
+                    let owner_container = generic_param.owner(metadata.metadata);
+                    let owner_ty_idx = owner_container.owner_index;
+                    let owner_ty = metadata
+                        .metadata_registration
+                        .types
+                        .get(owner_ty_idx as usize)
+                        .unwrap();
+
+                    let generic_class = match owner_ty.data {
+                        TypeData::GenericClassIndex(e) => metadata
+                            .metadata_registration
+                            .generic_classes
+                            .get(e)
+                            .unwrap(),
+                        TypeData::GenericParameterIndex(foo) => return format!("TODO: Fix {foo:?}"),
+                        _ => panic!("Not supported {owner_ty:?}"),
+                    };
+
+                    let mut type_args =
+                        CppType::get_generic_instantiation_args(generic_class, metadata).map(|t| {
+                            self.cppify_name_il2cpp(ctx_collection, metadata, t, add_include)
+                        }).collect_vec();
+
+                    println!("{type_args:?}");
+                    type_args.iter().nth(generic_param.num as usize).unwrap().clone()
+                    // cpp_type.generic_instantiation_args.as_ref().unwrap()
+                    //     [generic_param.num as usize]
+                    //     .clone()
                 }
                 _ => todo!(),
             },
