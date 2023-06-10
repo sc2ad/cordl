@@ -147,13 +147,15 @@ impl CppContext {
                             is_struct: cpptype.is_value_type,
                             namespace: Some(cpptype.namespace().clone()),
                             name: cpptype.name().clone(),
-                            templates: cpptype.generic_args,
+                            templates: cpptype.generic_args.clone(),
                         },
                     );
-                } else {
-                    x.typedef_types
-                        .insert(TypeData::TypeDefinitionIndex(tdi), cpptype);
                 }
+
+                // Only stored temporary for metatdata, replaced later
+                // TODO: Figure out a better way of doing this
+                x.typedef_types
+                    .insert(TypeData::TypeDefinitionIndex(tdi), cpptype);
             }
             None => {
                 println!("Unable to create valid CppContext for type: {ns}::{name}!");
@@ -197,6 +199,8 @@ impl CppContext {
             indent: 0,
             newline: true,
         };
+
+        self.typedef_stubs.values().try_for_each(|s| s.write(&mut typedef_writer))?;
 
         // Write includes for typedef
         self.typedef_types

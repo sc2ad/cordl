@@ -227,15 +227,18 @@ impl CppType {
             writeln!(writer, "// Is value type: {}", self.is_value_type)?;
             // Type definition plus inherit lines
 
-            // let clazz_name = match &self.generic_constraints {
-            //     Some(literals) => format!(
-            //         "/* generic here lets go! */{}<{}>",
-            //         self.cpp_name(),
-            //         literals.iter().map(|v| v.join("|")).join(",")
-            //     ),
-            //     None => self.cpp_name().to_string(),
-            // };
-            let clazz_name = self.cpp_name();
+            let clazz_name = match &self.generic_instantiation_args {
+                Some(literals) => format!(
+                    "/* generic here lets go! */{}<{}>",
+                    self.cpp_name(),
+                    literals.join(",")
+                ),
+                None => self.cpp_name().to_string(),
+            };
+
+            if self.generic_instantiation_args.is_some() {
+                writeln!(writer, "template<>")?;
+            }
 
             match self.inherit.is_empty() {
                 true => writeln!(writer, "struct {clazz_name} {{")?,

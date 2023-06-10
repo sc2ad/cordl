@@ -130,8 +130,7 @@ fn main() -> color_eyre::Result<()> {
             .expect("No context?");
         cpp_context
             .typedef_types
-            .try_insert(TypeData::GenericClassIndex(inst_idx), new_generic_type)
-            .unwrap();
+            .insert(TypeData::GenericClassIndex(inst_idx), new_generic_type);
     }
 
     println!("Registering handlers!");
