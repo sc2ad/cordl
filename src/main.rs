@@ -14,7 +14,7 @@ use std::{fs, path::PathBuf, time};
 use clap::{Parser, Subcommand};
 
 use crate::{
-    generate::{cs_type::CSType, members::CppMember},
+    generate::{cs_type::CSType, members::CppMember, cpp_type::CppType},
     handlers::unity,
 };
 mod generate;
@@ -91,7 +91,7 @@ fn main() -> color_eyre::Result<()> {
         cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi));
     }
 
-    println!("Making generic type instantiations!");
+    println!("Making generic type instantiations and filling!");
     for generic_class in &metadata.metadata_registration.generic_classes {
         if generic_class.context.class_inst_idx.is_none() {
             continue;
@@ -103,6 +103,7 @@ fn main() -> color_eyre::Result<()> {
             .types
             .get(type_index)
             .unwrap();
+        let tdi = CppType::get_tag_tdi(ty_def.data);
 
         let inst_idx = generic_class.context.class_inst_idx.unwrap();
         let inst = metadata
@@ -118,12 +119,10 @@ fn main() -> color_eyre::Result<()> {
             .collect_vec();
 
         cpp_context_collection.borrow_cpp_type(ty_def.data, |collection, mut cpp_type| {
-            if cpp_type.cpp_name() == "IList_1" {
-                println!("{cpp_type:?}");
-            }
             cpp_type.add_generic_inst(collection, &metadata, &type_args);
+            collection.fill_cpp_type(&mut cpp_type, &metadata, &config, tdi);
             cpp_type
-        })
+        });
 
         // // TODO: Fix for nested generic types
         // let cpp_context = cpp_context_collection

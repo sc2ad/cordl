@@ -262,6 +262,26 @@ pub struct CppContextCollection {
 }
 
 impl CppContextCollection {
+    pub fn fill_cpp_type(
+        &mut self,
+        cpp_type: &mut CppType,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        tdi: TypeDefinitionIndex,
+    ) {
+        if self.filled_types.contains(&cpp_type.self_tag) {
+            return;
+        }
+
+        // Move ownership to local
+        self.filling_types.insert(cpp_type.self_tag);
+
+        cpp_type.fill_from_il2cpp(metadata, config, self, tdi);
+
+        self.filled_types.insert(cpp_type.self_tag);
+        self.filling_types.remove(&cpp_type.self_tag);
+    }
+
     pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, ty: TypeData) {
         let type_tag: TypeData = ty;
         let tdi = CppType::get_tag_tdi(type_tag);
@@ -285,13 +305,11 @@ impl CppContextCollection {
             .typedef_types
             .remove_entry(&type_tag);
 
-        self.filling_types.insert(type_tag);
-
         // In some occasions, the CppContext can be empty
         if let Some((t, mut cpp_type)) = cpp_type_entry {
             assert!(!cpp_type.nested, "Cannot fill a nested type!");
 
-            cpp_type.fill_from_il2cpp(metadata, config, self, tdi);
+            self.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
 
             // Move ownership back up
             self.all_contexts
@@ -300,9 +318,6 @@ impl CppContextCollection {
                 .typedef_types
                 .insert(t, cpp_type);
         }
-
-        self.filled_types.insert(type_tag);
-        self.filling_types.remove(&type_tag);
     }
 
     fn alias_nested_types(&mut self, owner: &CppType, root_tag: TypeData) {
@@ -335,13 +350,11 @@ impl CppContextCollection {
         let mut nested_types = owner.nested_types.clone();
         nested_types.iter_mut().for_each(|nested_type| {
             let nested_tag = nested_type.self_tag;
-            self.filling_types.insert(nested_tag);
             let tdi = CppType::get_tag_tdi(nested_tag);
 
-            nested_type.fill_from_il2cpp(metadata, config, self, tdi);
+            self.fill_cpp_type(nested_type, metadata, config, tdi);
 
-            self.filled_types.insert(nested_tag);
-            self.filling_types.remove(&nested_tag);
+            nested_type.fill_from_il2cpp(metadata, config, self, tdi);
         });
         // nested_tags.into_iter().for_each(|nested_tag| {
         //     self.filling_types.insert(nested_tag);
