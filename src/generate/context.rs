@@ -200,7 +200,9 @@ impl CppContext {
             newline: true,
         };
 
-        self.typedef_stubs.values().try_for_each(|s| s.write(&mut typedef_writer))?;
+        self.typedef_stubs
+            .values()
+            .try_for_each(|s| s.write(&mut typedef_writer))?;
 
         // Write includes for typedef
         self.typedef_types
@@ -234,8 +236,13 @@ impl CppContext {
             if t.nested {
                 continue;
             }
-            t.write_def(&mut typedef_writer)?;
-            t.write_impl(&mut typeimpl_writer)?;
+            if t.generic_instantiation_args.is_none() {
+                t.write_def(&mut typedef_writer)?;
+                t.write_impl(&mut typeimpl_writer)?;
+            } else {
+                t.write_def(&mut typeimpl_writer)?;
+                t.write_impl(&mut typeimpl_writer)?;
+            }
         }
 
         CppInclude::new(self.typedef_path.to_path_buf()).write(&mut fundamental_writer)?;
