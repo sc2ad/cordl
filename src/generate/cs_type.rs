@@ -67,6 +67,28 @@ pub trait CSType: Sized {
         }
     }
 
+    fn make_generic_inst(
+        ctx_collection: &CppContextCollection,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        ty_def: &Il2CppType,
+        type_args: Vec<&Il2CppType>,
+    ) -> CppType {
+        let mut cpp_type =
+            Self::make_cpp_type(metadata, config, ty_def.data).expect("Unable to create cpp type");
+
+        cpp_type.generic_instantiation_args = Some(
+            type_args
+                .into_iter()
+                .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true))
+                .collect(),
+        );
+        cpp_type.generic_args = None;
+        cpp_type.is_stub = false;
+
+        cpp_type
+    }
+
     fn make_cpp_type(
         metadata: &Metadata,
         config: &GenerationConfig,
@@ -131,6 +153,7 @@ pub trait CSType: Sized {
             requirements: Default::default(),
             inherit: Default::default(),
             generic_args: cpp_template,
+            generic_instantiation_args: Default::default(),
             is_stub: generics.is_some(),
             nested_types: Default::default(),
         };
@@ -161,11 +184,8 @@ pub trait CSType: Sized {
         ctx_collection: &CppContextCollection,
         tdi: TypeDefinitionIndex,
     ) {
-        if Self::get_type_definition(metadata, tdi)
-            .generic_container_index
-            .is_valid()
-        {
-            // Do not fill generic typedefs
+        if self.get_cpp_type().is_stub {
+            // Do not fill stubs
             return;
         }
 

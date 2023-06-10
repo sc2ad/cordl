@@ -55,6 +55,7 @@ pub struct CppType {
 
     pub inherit: Vec<String>,
     pub generic_args: Option<CppTemplate>, // Names of templates e.g T, TKey etc.
+    pub generic_instantiation_args: Option<Vec<String>>, // GenericArg -> Instantiation Arg
     pub is_stub: bool,
 
     pub nested_types: Vec<CppType>,
@@ -280,7 +281,7 @@ impl CppType {
                 .iter()
                 .try_for_each(|d| d.write(writer))?;
         }
-        
+
         // Namespace complete
         if let Some(n) = namespace {
             writer.dedent();

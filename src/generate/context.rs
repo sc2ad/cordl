@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use brocolib::global_metadata::TypeDefinitionIndex;
+use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::Il2CppType};
 use color_eyre::eyre::ContextCompat;
 
 use brocolib::runtime_metadata::TypeData;
@@ -19,7 +19,7 @@ use super::{
     config::GenerationConfig,
     cpp_type::CppType,
     cs_type::CSType,
-    members::{CppStructSpecialization, CppUsingAlias},
+    members::{CppForwardDeclare, CppForwardDeclareGroup, CppStructSpecialization, CppUsingAlias},
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
@@ -35,12 +35,17 @@ pub struct CppContext {
     pub fundamental_path: PathBuf,
 
     // Types to write, typedef
+    pub typedef_stubs: HashMap<TypeData, CppForwardDeclare>,
     pub typedef_types: HashMap<TypeData, CppType>,
 
     pub typealias_types: HashSet<CppUsingAlias>,
 }
 
 impl CppContext {
+    fn get_type_datas(&self) -> impl Iterator<Item = &TypeData> {
+        self.typedef_stubs.keys().chain(self.typedef_types.keys())
+    }
+
     pub fn get_cpp_type_recursive_mut(
         &mut self,
         root_tag: TypeData,
@@ -112,6 +117,7 @@ impl CppContext {
             )),
             typedef_types: Default::default(),
             typealias_types: Default::default(),
+            typedef_stubs: Default::default(),
         };
 
         if metadata.blacklisted_types.contains(&tdi) {
@@ -134,8 +140,20 @@ impl CppContext {
 
         match CppType::make_cpp_type(metadata, config, tag) {
             Some(cpptype) => {
-                x.typedef_types
-                    .insert(TypeData::TypeDefinitionIndex(tdi), cpptype);
+                if cpptype.is_stub {
+                    x.typedef_stubs.insert(
+                        tag,
+                        CppForwardDeclare {
+                            is_struct: cpptype.is_value_type,
+                            namespace: Some(cpptype.namespace().clone()),
+                            name: cpptype.name().clone(),
+                            templates: cpptype.generic_args,
+                        },
+                    );
+                } else {
+                    x.typedef_types
+                        .insert(TypeData::TypeDefinitionIndex(tdi), cpptype);
+                }
             }
             None => {
                 println!("Unable to create valid CppContext for type: {ns}::{name}!");
@@ -373,17 +391,6 @@ impl CppContextCollection {
         }
         self.all_contexts.insert(context_root_tag, context);
         self.all_contexts.get_mut(&context_root_tag).unwrap()
-        // self.all_contexts
-        //     .entry(context_root_tag)
-        //     .or_insert_with(|| {
-        //         let tdi = CppType::get_tag_tdi(context_root_tag);
-        //         let context = CppContext::make(metadata, config, tdi, context_root_tag);
-        //         // Now do children
-        //         for (_tag, cpp_type) in &context.typedef_types {
-        //             self.alias_nested_types(&cpp_type, cpp_type.self_tag);
-        //         }
-        //         context
-        //     })
     }
 
     pub fn get_cpp_type(&self, ty: TypeData) -> Option<&CppType> {

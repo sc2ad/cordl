@@ -3,15 +3,20 @@
 #![feature(core_intrinsics)]
 #![feature(slice_as_chunks)]
 #![feature(read_buf)]
+#![feature(map_try_insert)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use generate::{config::GenerationConfig, context::CppContextCollection, metadata::Metadata};
+use itertools::Itertools;
 
 use std::{fs, path::PathBuf, time};
 
 use clap::{Parser, Subcommand};
 
-use crate::{generate::members::CppMember, handlers::unity};
+use crate::{
+    generate::{cpp_type::CppType, cs_type::CSType, members::CppMember},
+    handlers::unity,
+};
 mod generate;
 mod handlers;
 mod helpers;
@@ -86,6 +91,49 @@ fn main() -> color_eyre::Result<()> {
         cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi));
     }
 
+    println!("Making generic type instantiations!");
+    for generic_class in &metadata.metadata_registration.generic_classes {
+        if generic_class.context.class_inst_idx.is_none() {
+            continue;
+        }
+
+        let type_index = generic_class.type_index;
+        let ty_def = metadata
+            .metadata_registration
+            .types
+            .get(type_index)
+            .unwrap();
+
+        let inst_idx = generic_class.context.class_inst_idx.unwrap();
+        let inst = metadata
+            .metadata_registration
+            .generic_insts
+            .get(inst_idx)
+            .unwrap();
+
+        let type_args = inst
+            .types
+            .iter()
+            .map(|t| metadata.metadata_registration.types.get(*t).unwrap())
+            .collect_vec();
+
+        let new_generic_type = CppType::make_generic_inst(
+            &cpp_context_collection,
+            &metadata,
+            &config,
+            ty_def,
+            type_args,
+        );
+        // TODO: Fix for nested generic types
+        let cpp_context = cpp_context_collection
+            .get_context_mut(ty_def.data)
+            .expect("No context?");
+        cpp_context
+            .typedef_types
+            .try_insert(TypeData::GenericClassIndex(inst_idx), new_generic_type)
+            .unwrap();
+    }
+
     println!("Registering handlers!");
     unity::register_unity(&cpp_context_collection, &mut metadata)?;
     println!("Handlers registered!");
@@ -152,11 +200,7 @@ fn main() -> color_eyre::Result<()> {
     cpp_context_collection
         .get()
         .iter()
-        .find(|(_, c)| {
-            c.get_types()
-                .iter()
-                .any(|(_, t)| t.generic_args.is_some())
-        })
+        .find(|(_, c)| c.get_types().iter().any(|(_, t)| t.generic_args.is_some()))
         .unwrap()
         .1
         .write()?;
