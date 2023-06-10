@@ -203,6 +203,14 @@ fn main() -> color_eyre::Result<()> {
         .unwrap()
         .1
         .write()?;
+    println!("List Generic type");
+    cpp_context_collection
+        .get()
+        .iter()
+        .find(|(_, c)| c.get_types().iter().any(|(_, t)| t.generic_args.is_some() && t.cpp_name() == "IList_1"))
+        .unwrap()
+        .1
+        .write()?;
     println!("Value type");
     cpp_context_collection
         .get()
