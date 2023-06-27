@@ -6,7 +6,7 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
+use brocolib::{global_metadata::{TypeDefinitionIndex, TypeIndex}, runtime_metadata::TypeData};
 use itertools::Itertools;
 
 use super::{
@@ -53,7 +53,8 @@ pub struct CppType {
 
     pub inherit: Vec<String>,
     pub generic_args: Option<CppTemplate>, // Names of templates e.g T, TKey etc.
-    pub generic_instantiation_args: Option<Vec<String>>, // GenericArg -> Instantiation Arg
+    pub generic_instantiations_args_types: Option<Vec<TypeIndex>>,  // GenericArg -> Instantiation Arg
+    pub generic_instantiation_args: Option<Vec<String>>, // generic_instantiations_args_types but formatted
     pub is_stub: bool,
 
     pub nested_types: Vec<CppType>,

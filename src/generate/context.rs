@@ -411,8 +411,8 @@ impl CppContextCollection {
 
         self.borrow_cpp_type(ty_def.data, |collection, mut cpp_type| {
             let type_args = CppType::get_generic_instantiation_args(generic_class, metadata);
-            cpp_type.add_generic_inst(collection, metadata, type_args);
-            collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
+            cpp_type.add_generic_inst(type_args);
+            // collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
             cpp_type
         });
 
