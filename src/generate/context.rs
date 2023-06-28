@@ -531,14 +531,7 @@ impl CppContextCollection {
             cpp_type
         });
 
-        let con = self.all_contexts.get_mut(&context_root_tag).unwrap();
-
-        if ty_def.name(metadata.metadata) == "List`1" {
-            // TODO: Remove
-            let x = 5;
-        }
-
-        return Some(con);
+        self.all_contexts.get_mut(&context_root_tag)
     }
 
     pub fn make_from(

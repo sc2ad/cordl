@@ -6,9 +6,7 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use brocolib::{
-    global_metadata::{TypeDefinitionIndex, TypeIndex},
-};
+use brocolib::global_metadata::{TypeDefinitionIndex, TypeIndex};
 use itertools::Itertools;
 
 use super::{
@@ -310,13 +308,17 @@ impl CppType {
 
             writer.indent();
 
-            self.nested_types.iter().try_for_each(|n| {
-                writeln!(
-                    writer,
-                    "// Forward declare nested type\nstruct {};",
-                    n.cpp_name
-                )
-            })?;
+            self.nested_types
+                .iter()
+                .map(|n| &n.cpp_name)
+                .unique()
+                .try_for_each(|cpp_name| {
+                    writeln!(
+                        writer,
+                        "// Forward declare nested type\nstruct {};",
+                        cpp_name
+                    )
+                })?;
 
             self.nested_types
                 .iter()

@@ -1034,13 +1034,13 @@ pub trait CSType: Sized {
                     //     .get(gen_param_idx)
                     //     .unwrap();
 
-                    let _ty = metadata
+                    let ty = metadata
                         .metadata_registration
                         .types
                         .get(ty_idx as usize)
                         .unwrap();
-                    // self.cppify_name_il2cpp(ctx_collection, metadata, ty, false)
-                    format!("{name}")
+                    self.cppify_name_il2cpp(ctx_collection, metadata, ty, false)
+                    // format!("{name}")
                 }
                 _ => todo!(),
             },
