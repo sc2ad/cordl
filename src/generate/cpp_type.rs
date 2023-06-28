@@ -53,6 +53,8 @@ pub struct CppType {
 
     pub inherit: Vec<String>,
     pub generic_args: Option<CppTemplate>, // Names of templates e.g T, TKey etc.
+
+    
     pub generic_instantiations_args_types: Option<Vec<TypeIndex>>,  // GenericArg -> Instantiation Arg
     pub generic_instantiation_args: Option<Vec<String>>, // generic_instantiations_args_types but formatted
     pub is_stub: bool,

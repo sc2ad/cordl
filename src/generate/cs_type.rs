@@ -279,7 +279,9 @@ pub trait CSType: Sized {
                             .get(*u as usize)
                             .unwrap()
                     })
-                    .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true))
+                    .map(|t| 
+                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true)
+                    )
                     .collect(),
             );
         }
@@ -966,6 +968,24 @@ pub trait CSType: Sized {
             }
             Il2CppTypeEnum::Mvar => match typ.data {
                 TypeData::GenericParameterIndex(index) => {
+                    let generic_param: &brocolib::global_metadata::Il2CppGenericParameter =
+                        &metadata.metadata.global_metadata.generic_parameters[index];
+
+                    let owner = generic_param.owner(metadata.metadata);
+                    assert!(owner.is_method != u32::MAX);
+
+                    let (gen_param_idx, _gen_param) = owner
+                        .generic_parameters(metadata.metadata)
+                        .iter()
+                        .find_position(|&p| p.name_index == generic_param.name_index)
+                        .unwrap();
+
+                    let ty = metadata
+                        .metadata_registration
+                        .types
+                        .get(gen_param_idx)
+                        .unwrap();
+
                     format!("generic_param {index:?}")
                 }
                 _ => todo!(),
@@ -984,17 +1004,25 @@ pub trait CSType: Sized {
                         .find_position(|&p| p.name_index == generic_param.name_index)
                         .unwrap();
 
-                    // let name = generic_param.name(metadata.metadata).to_string();
+                    let name = generic_param.name(metadata.metadata).to_string();
 
-                    // let ty_idx = cpp_type.generic_instantiations_args_types.as_ref().unwrap()
-                    //     [generic_param.num as usize];
+                    let ty_idx = cpp_type.generic_instantiations_args_types.as_ref().unwrap()
+                        [generic_param.num as usize];
+
+                    // let ty_idx = *cpp_type
+                    //     .generic_instantiations_args_types
+                    //     .as_ref()
+                    //     .unwrap()
+                    //     .get(gen_param_idx)
+                    //     .unwrap();
+
                     let ty = metadata
                         .metadata_registration
                         .types
-                        .get(gen_param_idx)
+                        .get(ty_idx as usize)
                         .unwrap();
-
-                    self.cppify_name_il2cpp(ctx_collection, metadata, ty, false)
+                    // self.cppify_name_il2cpp(ctx_collection, metadata, ty, false)
+                    format!("{name}")
                 }
                 _ => todo!(),
             },
