@@ -31,6 +31,7 @@ pub struct CppTypeRequirements {
 #[derive(Debug, Clone)]
 pub struct CppType {
     pub self_tag: TypeData,
+    pub tdi: TypeDefinitionIndex,
     pub nested: bool,
 
     pub(crate) prefix_comments: Vec<String>,

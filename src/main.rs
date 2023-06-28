@@ -100,7 +100,18 @@ fn main() -> color_eyre::Result<()> {
             .get(generic_class.generic_method_index as usize)
             .unwrap();
 
-        cpp_context_collection.make_generic_from(method_spec, &mut metadata, &config);
+        cpp_context_collection.make_generic_from(method_spec, &mut metadata);
+    }
+
+    println!("Filling generic types");
+        for generic_class in &metadata.metadata_registration.generic_method_table {
+        let method_spec = metadata
+            .metadata_registration
+            .method_specs
+            .get(generic_class.generic_method_index as usize)
+            .unwrap();
+
+        cpp_context_collection.fill_generic_inst(method_spec, &mut metadata, &config);
     }
 
     println!("Registering handlers!");

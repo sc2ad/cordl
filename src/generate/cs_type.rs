@@ -132,6 +132,7 @@ pub trait CSType: Sized {
 
         let mut cpptype = CppType {
             self_tag: tag,
+            tdi,
             nested: parent_pair.is_some(),
             prefix_comments: vec![format!("Type: {ns}::{name}")],
             namespace: config.namespace_cpp(ns),
@@ -914,9 +915,14 @@ pub trait CSType: Sized {
                 // In this case, just inherit the type
                 // But we have to:
                 // - Determine where to include it from
-                let to_incl = ctx_collection
-                    .get_context(typ.data)
-                    .unwrap_or_else(|| panic!("no context for type {typ:?}"));
+                let to_incl = ctx_collection.get_context(typ.data).unwrap_or_else(|| {
+                    panic!(
+                        "no context for type {typ:?} {}",
+                        metadata.metadata_registration.types
+                            [Self::get_tag_tdi(typ.data).index() as usize]
+                            .full_name(metadata.metadata)
+                    )
+                });
 
                 // - Include it
                 if add_include {

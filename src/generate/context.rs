@@ -6,8 +6,10 @@ use std::{
 };
 
 use brocolib::{
-    global_metadata::{MethodIndex, TypeDefinitionIndex},
-    runtime_metadata::{Il2CppGenericClass, Il2CppGenericContext, Il2CppMethodSpec},
+    global_metadata::{
+        Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex,
+    },
+    runtime_metadata::{Il2CppGenericClass, Il2CppGenericContext, Il2CppMethodSpec, Il2CppType},
 };
 use color_eyre::eyre::ContextCompat;
 
@@ -68,15 +70,13 @@ impl CppContext {
         child_tag: TypeData,
     ) -> Option<&CppType> {
         let ty = self.typedef_types.get(&root_tag);
+        // if a root type
         if root_tag == child_tag {
             return ty;
         }
 
         ty.and_then(|ty| ty.get_nested_type(child_tag))
     }
-    // pub fn get_cpp_type(&mut self, t: TypeData) -> Option<&CppType> {
-    //     self.typedef_types.get(&t)
-    // }
 
     pub fn get_include_path(&self) -> &PathBuf {
         &self.typedef_path
@@ -335,6 +335,9 @@ impl CppContextCollection {
     }
 
     pub fn alias_type(&mut self, src: TypeData, dest: TypeData) {
+        if self.alias_context.contains_key(&dest) {
+            panic!("Aliasing an aliased type!");
+        }
         self.alias_context.insert(src, dest);
     }
 
@@ -356,8 +359,7 @@ impl CppContextCollection {
         // sad inefficient memory usage but oh well
         let mut nested_types = owner.nested_types.clone();
         nested_types.iter_mut().for_each(|nested_type| {
-            let nested_tag = nested_type.self_tag;
-            let tdi = CppType::get_tag_tdi(nested_tag);
+            let tdi = nested_type.tdi;
 
             self.fill_cpp_type(nested_type, metadata, config, tdi);
 
@@ -394,13 +396,13 @@ impl CppContextCollection {
         &mut self,
         method_spec: &Il2CppMethodSpec,
         metadata: &mut Metadata,
-        config: &GenerationConfig,
     ) -> Option<&mut CppContext> {
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
         let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
 
         let type_data = TypeData::TypeDefinitionIndex(method.declaring_type);
+        let tdi = method.declaring_type;
 
         let context_root_tag = self.get_context_root_tag(type_data);
 
@@ -408,34 +410,19 @@ impl CppContextCollection {
             panic!("Currently filling type {context_root_tag:?}, cannot fill")
         }
 
-        let tdi = CppType::get_tag_tdi(type_data);
+        // get parent type if required
+        let parent_data = metadata.child_to_parent_map.get(&tdi).cloned();
 
-        let generic_class: Il2CppGenericClass = Il2CppGenericClass {
-            type_index: ty_def.byval_type_index as usize,
-            context: Il2CppGenericContext {
-                class_inst_idx: Some(method_spec.class_inst_index as usize),
-                method_inst_idx: None,
-            },
-        };
+        let (generic_class_ty_opt, generic_class) =
+            find_generic_il2cpp_type_data(ty_def, method_spec, metadata, method);
 
-        let generic_class_ty =
-            metadata
-                .metadata_registration
-                .types
-                .iter()
-                .find(|t| match t.data {
-                    TypeData::GenericClassIndex(index) => {
-                        let o = metadata
-                            .metadata_registration
-                            .generic_classes
-                            .get(index)
-                            .unwrap();
+        if generic_class_ty_opt.is_none() {
+            println!("Skipping {}", method.full_name(metadata.metadata));
+            println!("{generic_class:?}\n");
+            return None;
+        }
 
-                        *o == generic_class
-                    }
-                    _ => false,
-                })?;
-
+        let generic_class_ty = generic_class_ty_opt.unwrap();
         // Why is the borrow checker so dumb?
         // Using entries causes borrow checker to die :(
         if self.filled_types.contains(&generic_class_ty.data) {
@@ -443,6 +430,61 @@ impl CppContextCollection {
         }
 
         self.alias_type(generic_class_ty.data, context_root_tag);
+
+        let template_cpp_type = self.get_cpp_type(type_data).unwrap();
+        let mut new_cpp_type = template_cpp_type.clone();
+
+        new_cpp_type.self_tag = generic_class_ty.data;
+
+        match parent_data {
+            Some(parent) => {
+                let parent_ty = TypeData::TypeDefinitionIndex(parent.tdi);
+
+                self.borrow_cpp_type(
+                    parent_ty,
+                    |collection: &mut CppContextCollection, mut cpp_type| {
+                        cpp_type.nested_types.push(new_cpp_type.clone());
+
+                        cpp_type
+                    },
+                )
+            }
+            None => {
+                let context = self.get_context_mut(generic_class_ty.data).unwrap();
+
+                context
+                    .typedef_types
+                    .insert(generic_class_ty.data, new_cpp_type);
+            }
+        }
+
+        // assert!(self.filled_types.contains(&ty_def.data));
+        return Some(self.all_contexts.get_mut(&context_root_tag).unwrap());
+    }
+
+    pub fn fill_generic_inst(
+        &mut self,
+        method_spec: &Il2CppMethodSpec,
+        metadata: &mut Metadata,
+        config: &GenerationConfig,
+    ) -> Option<&mut CppContext> {
+        let method =
+            &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
+        let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
+
+        let type_data = TypeData::TypeDefinitionIndex(method.declaring_type);
+        let tdi = method.declaring_type;
+
+        let context_root_tag = self.get_context_root_tag(type_data);
+
+        if self.filling_types.contains(&context_root_tag) {
+            panic!("Currently filling type {context_root_tag:?}, cannot fill")
+        }
+
+        let (generic_class_ty_opt, generic_class) =
+            find_generic_il2cpp_type_data(ty_def, method_spec, metadata, method);
+
+        let generic_class_ty = generic_class_ty_opt?;
 
         self.borrow_cpp_type(generic_class_ty.data, |collection, mut cpp_type| {
             if method_spec.class_inst_index != u32::MAX {
@@ -456,7 +498,6 @@ impl CppContextCollection {
             cpp_type
         });
 
-        // assert!(self.filled_types.contains(&ty_def.data));
         return Some(self.all_contexts.get_mut(&context_root_tag).unwrap());
     }
 
@@ -520,7 +561,7 @@ impl CppContextCollection {
 
         // search in root
         // clone to avoid failing il2cpp_name
-        let in_context_cpp_type = context.typedef_types.get(&context_ty).cloned();
+        let in_context_cpp_type = context.typedef_types.get(&ty).cloned();
         match in_context_cpp_type {
             Some(cpp_type) => {
                 context.typedef_types.insert(ty, func(self, cpp_type));
@@ -535,7 +576,7 @@ impl CppContextCollection {
                 }
 
                 if !found {
-                    panic!("No nested type found!");
+                    panic!("No nested or parent type found!");
                 }
             }
         }
@@ -562,4 +603,37 @@ impl CppContextCollection {
     pub fn get(&self) -> &HashMap<TypeData, CppContext> {
         &self.all_contexts
     }
+}
+
+fn find_generic_il2cpp_type_data<'a>(
+    ty_def: &Il2CppTypeDefinition,
+    method_spec: &Il2CppMethodSpec,
+    metadata: &'a mut Metadata,
+    method: &Il2CppMethodDefinition,
+) -> (Option<&'a Il2CppType>, Il2CppGenericClass) {
+    let generic_class: Il2CppGenericClass = Il2CppGenericClass {
+        type_index: ty_def.byval_type_index as usize,
+        context: Il2CppGenericContext {
+            class_inst_idx: Some(method_spec.class_inst_index as usize),
+            method_inst_idx: None,
+        },
+    };
+    let generic_class_ty_opt = metadata
+        .metadata_registration
+        .types
+        .iter()
+        .find(|t| match t.data {
+            TypeData::GenericClassIndex(index) => {
+                let o = metadata
+                    .metadata_registration
+                    .generic_classes
+                    .get(index)
+                    .unwrap();
+
+                *o == generic_class
+            }
+            _ => false,
+        });
+
+    (generic_class_ty_opt, generic_class)
 }
