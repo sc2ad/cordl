@@ -1,15 +1,18 @@
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
+    ops::ControlFlow,
     rc::Rc,
 };
 
 use brocolib::{
     global_metadata::{
-        FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex, TypeDefinitionIndex,
-        TypeIndex,
+        FieldIndex, Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, ParameterIndex,
+        TypeDefinitionIndex, TypeIndex,
     },
-    runtime_metadata::{Il2CppGenericClass, Il2CppType, Il2CppTypeEnum, TypeData},
+    runtime_metadata::{
+        Il2CppGenericClass, Il2CppMethodSpec, Il2CppType, Il2CppTypeEnum, TypeData,
+    },
 };
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -86,14 +89,13 @@ pub trait CSType: Sized {
     }
 
     fn get_generic_instantiation_args<'a>(
-        generic_class: &Il2CppGenericClass,
+        generic_il2cpp_inst: u32,
         metadata: &'a Metadata,
     ) -> &'a Vec<usize> {
-        let inst_idx = generic_class.context.class_inst_idx.unwrap();
         let inst = metadata
             .metadata_registration
             .generic_insts
-            .get(inst_idx)
+            .get(generic_il2cpp_inst as usize)
             .unwrap();
 
         // generic_class.type_index
@@ -279,9 +281,7 @@ pub trait CSType: Sized {
                             .get(*u as usize)
                             .unwrap()
                     })
-                    .map(|t| 
-                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true)
-                    )
+                    .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true))
                     .collect(),
             );
         }
@@ -352,152 +352,7 @@ pub trait CSType: Sized {
             // Then, for each method, write it out
             for (i, method) in t.methods(metadata.metadata).iter().enumerate() {
                 let method_index = MethodIndex::new(t.method_start.index() + i as u32);
-                let m_name = method.name(metadata.metadata);
-
-                // Skip class/static constructor
-                // if method.is_special_name()
-                // && !(m_name.starts_with("get") || m_name.starts_with("set") || m_name == (".ctor"))
-                if m_name == ".cctor" {
-                    // println!("Skipping {}", m_name);
-                    continue;
-                }
-
-                let m_ret_type = metadata
-                    .metadata_registration
-                    .types
-                    .get(method.return_type as usize)
-                    .unwrap();
-                let mut m_params: Vec<CppParam> =
-                    Vec::with_capacity(method.parameter_count as usize);
-
-                for (pi, param) in method.parameters(metadata.metadata).iter().enumerate() {
-                    let param_index =
-                        ParameterIndex::new(method.parameter_start.index() + pi as u32);
-                    let param_type = metadata
-                        .metadata_registration
-                        .types
-                        .get(param.type_index as usize)
-                        .unwrap();
-
-                    let param_cpp_name = cpp_type.cppify_name_il2cpp_byref(
-                        ctx_collection,
-                        metadata,
-                        param_type,
-                        false,
-                    );
-
-                    let def_value = Self::param_default_value(metadata, param_index);
-
-                    m_params.push(CppParam {
-                        name: param.name(metadata.metadata).to_string(),
-                        def_value,
-                        ty: param_cpp_name,
-                        modifiers: "".to_string(),
-                    });
-                }
-
-                let generics = if method.generic_container_index.is_valid() {
-                    method
-                        .generic_container(metadata.metadata)
-                        .unwrap()
-                        .generic_parameters(metadata.metadata)
-                        .iter()
-                        .map(|param| param.name(metadata.metadata).to_string())
-                        .collect_vec()
-                } else {
-                    vec![]
-                };
-
-                let template = CppTemplate { names: generics };
-
-                // Need to include this type
-                let m_ret_cpp_type_name =
-                    cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, m_ret_type, false);
-
-                let method_calc = &metadata.method_calculations[&method_index];
-
-                if m_name == ".ctor" && !t.is_value_type() {
-                    cpp_type
-                        .implementations
-                        .push(CppMember::ConstructorImpl(CppConstructorImpl {
-                            holder_cpp_ty_name: cpp_type.cpp_name().clone(),
-                            parameters: m_params.clone(),
-                            is_constexpr: false,
-                            template: template.clone(),
-                        }));
-                    cpp_type
-                        .declarations
-                        .push(CppMember::ConstructorDecl(CppConstructorDecl {
-                            ty: cpp_type.formatted_complete_cpp_name().clone(),
-                            parameters: m_params.clone(),
-                            template: template.clone(),
-                        }));
-                }
-
-                let declaring_type = method.declaring_type(metadata.metadata);
-                let tag = TypeData::TypeDefinitionIndex(method.declaring_type);
-                let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
-                    Some(cpp_type)
-                } else {
-                    ctx_collection.get_cpp_type(tag)
-                };
-
-                cpp_type
-                    .nonmember_implementations
-                    .push(Rc::new(CppMethodSizeStruct {
-                        ret_ty: m_ret_cpp_type_name.clone(),
-                        cpp_method_name: config.name_cpp(m_name),
-                        complete_type_name: cpp_type.formatted_complete_cpp_name().clone(),
-                        instance: !method.is_static_method(),
-                        params: m_params.clone(),
-                        template: template.clone(),
-                        method_data: CppMethodData {
-                            addrs: method_calc.addrs,
-                            estimated_size: method_calc.estimated_size,
-                        },
-                        interface_clazz_of: declaring_cpp_type
-                            .map(|d| d.classof_cpp_name())
-                            .unwrap_or_else(|| format!("Bad stuff happened {declaring_type:?}")),
-                        is_final: method.is_final_method(),
-                        slot: if method.slot != u16::MAX {
-                            Some(method.slot)
-                        } else {
-                            None
-                        },
-                    }));
-                cpp_type
-                    .implementations
-                    .push(CppMember::MethodImpl(CppMethodImpl {
-                        cpp_method_name: config.name_cpp(m_name),
-                        cs_method_name: m_name.to_string(),
-                        holder_cpp_namespaze: cpp_type.cpp_namespace().to_string(),
-                        holder_cpp_name: match &cpp_type.parent_ty_cpp_name {
-                            Some(p) => format!("{p}::{}", cpp_type.cpp_name().clone()),
-                            None => cpp_type.cpp_name().clone(),
-                        },
-                        return_type: m_ret_cpp_type_name.clone(),
-                        parameters: m_params.clone(),
-                        instance: !method.is_static_method(),
-                        suffix_modifiers: Default::default(),
-                        prefix_modifiers: Default::default(),
-                        template: template.clone(),
-                    }));
-                cpp_type
-                    .declarations
-                    .push(CppMember::MethodDecl(CppMethodDecl {
-                        cpp_name: config.name_cpp(m_name),
-                        return_type: m_ret_cpp_type_name,
-                        parameters: m_params,
-                        instance: !method.is_static_method(),
-                        prefix_modifiers: Default::default(),
-                        suffix_modifiers: Default::default(),
-                        method_data: CppMethodData {
-                            addrs: method_calc.addrs,
-                            estimated_size: method_calc.estimated_size,
-                        },
-                        is_virtual: method.is_virtual_method() && !method.is_final_method(),
-                        template,
-                    }));
+                self.create_method(method, t, method_index, metadata, ctx_collection, config);
             }
         }
     }
@@ -701,6 +556,158 @@ pub trait CSType: Sized {
                     || p_setter.is_some_and(|p| p.is_abstract_method()),
                 instance: !p_getter.or(p_setter).unwrap().is_static_method(),
             }));
+        }
+    }
+
+    fn create_method(
+        &mut self,
+        method: &Il2CppMethodDefinition,
+        declaring_type: &Il2CppTypeDefinition,
+        method_index: MethodIndex,
+
+        metadata: &Metadata,
+        ctx_collection: &CppContextCollection,
+        config: &GenerationConfig,
+    ) {
+        let cpp_type = self.get_mut_cpp_type();
+
+        let m_name = method.name(metadata.metadata);
+        if m_name == ".cctor" {
+            // println!("Skipping {}", m_name);
+            return;
+        }
+
+        let m_ret_type = metadata
+            .metadata_registration
+            .types
+            .get(method.return_type as usize)
+            .unwrap();
+
+        let mut m_params: Vec<CppParam> = Vec::with_capacity(method.parameter_count as usize);
+
+        for (pi, param) in method.parameters(metadata.metadata).iter().enumerate() {
+            let param_index = ParameterIndex::new(method.parameter_start.index() + pi as u32);
+            let param_type = metadata
+                .metadata_registration
+                .types
+                .get(param.type_index as usize)
+                .unwrap();
+
+            let param_cpp_name =
+                cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, param_type, false);
+
+            let def_value = Self::param_default_value(metadata, param_index);
+
+            m_params.push(CppParam {
+                name: param.name(metadata.metadata).to_string(),
+                def_value,
+                ty: param_cpp_name,
+                modifiers: "".to_string(),
+            });
+        }
+
+        let generics = if method.generic_container_index.is_valid() {
+            method
+                .generic_container(metadata.metadata)
+                .unwrap()
+                .generic_parameters(metadata.metadata)
+                .iter()
+                .map(|param| param.name(metadata.metadata).to_string())
+                .collect_vec()
+        } else {
+            vec![]
+        };
+
+        let template = CppTemplate { names: generics };
+        let m_ret_cpp_type_name =
+            cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, m_ret_type, false);
+
+        if m_name == ".ctor" && !declaring_type.is_value_type() {
+            cpp_type
+                .implementations
+                .push(CppMember::ConstructorImpl(CppConstructorImpl {
+                    holder_cpp_ty_name: cpp_type.cpp_name().clone(),
+                    parameters: m_params.clone(),
+                    is_constexpr: false,
+                    template: template.clone(),
+                }));
+            cpp_type
+                .declarations
+                .push(CppMember::ConstructorDecl(CppConstructorDecl {
+                    ty: cpp_type.formatted_complete_cpp_name().clone(),
+                    parameters: m_params.clone(),
+                    template: template.clone(),
+                }));
+        }
+        let declaring_type = method.declaring_type(metadata.metadata);
+        let tag = TypeData::TypeDefinitionIndex(method.declaring_type);
+
+        let method_calc = metadata.method_calculations.get(&method_index);
+
+        cpp_type
+            .implementations
+            .push(CppMember::MethodImpl(CppMethodImpl {
+                cpp_method_name: config.name_cpp(m_name),
+                cs_method_name: m_name.to_string(),
+                holder_cpp_namespaze: cpp_type.cpp_namespace().to_string(),
+                holder_cpp_name: match &cpp_type.parent_ty_cpp_name {
+                    Some(p) => format!("{p}::{}", cpp_type.cpp_name().clone()),
+                    None => cpp_type.cpp_name().clone(),
+                },
+                return_type: m_ret_cpp_type_name.clone(),
+                parameters: m_params.clone(),
+                instance: !method.is_static_method(),
+                suffix_modifiers: Default::default(),
+                prefix_modifiers: Default::default(),
+                template: template.clone(),
+            }));
+
+        let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
+            Some(cpp_type)
+        } else {
+            ctx_collection.get_cpp_type(tag)
+        };
+
+        if let Some(method_calc) = method_calc {
+            cpp_type
+                .nonmember_implementations
+                .push(Rc::new(CppMethodSizeStruct {
+                    ret_ty: m_ret_cpp_type_name.clone(),
+                    cpp_method_name: config.name_cpp(m_name),
+                    complete_type_name: cpp_type.formatted_complete_cpp_name().clone(),
+                    instance: !method.is_static_method(),
+                    params: m_params.clone(),
+                    template: template.clone(),
+                    method_data: CppMethodData {
+                        addrs: method_calc.addrs,
+                        estimated_size: method_calc.estimated_size,
+                    },
+                    interface_clazz_of: declaring_cpp_type
+                        .map(|d| d.classof_cpp_name())
+                        .unwrap_or_else(|| format!("Bad stuff happened {declaring_type:?}")),
+                    is_final: method.is_final_method(),
+                    slot: if method.slot != u16::MAX {
+                        Some(method.slot)
+                    } else {
+                        None
+                    },
+                }));
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(CppMethodDecl {
+                    cpp_name: config.name_cpp(m_name),
+                    return_type: m_ret_cpp_type_name,
+                    parameters: m_params,
+                    instance: !method.is_static_method(),
+                    prefix_modifiers: Default::default(),
+                    suffix_modifiers: Default::default(),
+                    method_data: CppMethodData {
+                        addrs: method_calc.addrs,
+                        estimated_size: method_calc.estimated_size,
+                    },
+                    is_virtual: method.is_virtual_method() && !method.is_final_method(),
+                    template,
+                }));
         }
     }
 

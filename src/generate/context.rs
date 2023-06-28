@@ -5,7 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::Il2CppGenericClass};
+use brocolib::{
+    global_metadata::{MethodIndex, TypeDefinitionIndex},
+    runtime_metadata::{Il2CppGenericClass, Il2CppGenericContext, Il2CppMethodSpec},
+};
 use color_eyre::eyre::ContextCompat;
 
 use brocolib::runtime_metadata::TypeData;
@@ -326,9 +329,13 @@ impl CppContextCollection {
             //     "Aliasing {:?} to {:?}",
             //     nested_type.self_tag, owner.self_tag
             // );
-            self.alias_context.insert(nested_type.self_tag, root_tag);
+            self.alias_type(nested_type.self_tag, root_tag);
             self.alias_nested_types(nested_type, root_tag);
         }
+    }
+
+    pub fn alias_type(&mut self, src: TypeData, dest: TypeData) {
+        self.alias_context.insert(src, dest);
     }
 
     pub fn fill_nested_types(
@@ -385,17 +392,17 @@ impl CppContextCollection {
 
     pub fn make_generic_from(
         &mut self,
-        generic_class: &Il2CppGenericClass,
+        method_spec: &Il2CppMethodSpec,
         metadata: &mut Metadata,
         config: &GenerationConfig,
     ) -> &mut CppContext {
-        let type_index = generic_class.type_index;
-        let ty_def = metadata
-            .metadata_registration
-            .types
-            .get(type_index)
-            .unwrap();
-        let context_root_tag = self.get_context_root_tag(ty_def.data);
+        let method =
+            &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
+        let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
+
+        let type_data = TypeData::TypeDefinitionIndex(method.declaring_type);
+
+        let context_root_tag = self.get_context_root_tag(type_data);
 
         if self.filling_types.contains(&context_root_tag) {
             panic!("Currently filling type {context_root_tag:?}, cannot fill")
@@ -403,15 +410,58 @@ impl CppContextCollection {
 
         // Why is the borrow checker so dumb?
         // Using entries causes borrow checker to die :(
-        if self.filled_types.contains(&ty_def.data) {
+        if self.filled_types.contains(&type_data) {
             return self.all_contexts.get_mut(&context_root_tag).unwrap();
         }
 
-        let tdi = CppType::get_tag_tdi(ty_def.data);
+        let tdi = CppType::get_tag_tdi(type_data);
 
-        self.borrow_cpp_type(ty_def.data, |collection, mut cpp_type| {
-            let type_args = CppType::get_generic_instantiation_args(generic_class, metadata);
-            cpp_type.add_generic_inst(type_args);
+        let generic_class: Il2CppGenericClass = Il2CppGenericClass {
+            type_index: ty_def.byval_type_index as usize,
+            context: Il2CppGenericContext {
+                class_inst_idx: Some(method_spec.class_inst_index as usize),
+                method_inst_idx: None,
+            },
+        };
+
+        println!("Method {}", method.full_name(metadata.metadata));
+        println!(
+            "namespaze name {}",
+            ty_def.full_name(metadata.metadata, true)
+        );
+
+        let generic_class_ty = metadata
+            .metadata_registration
+            .types
+            .iter()
+            .find(|t| match t.data {
+                TypeData::GenericClassIndex(index) => {
+                    let o = metadata
+                        .metadata_registration
+                        .generic_classes
+                        .get(index)
+                        .unwrap();
+
+                    *o == generic_class
+                }
+                _ => false,
+            })
+            .unwrap();
+
+        println!("Creating context");
+        self.make_from(metadata, config, context_root_tag);
+        self.alias_type(generic_class_ty.data, context_root_tag);
+
+        self.borrow_cpp_type(generic_class_ty.data, |collection, mut cpp_type| {
+            if method_spec.class_inst_index != u32::MAX {
+                let type_args =
+                    CppType::get_generic_instantiation_args(method_spec.class_inst_index, metadata);
+                cpp_type.add_generic_inst(type_args);
+            }
+
+            let method_index = MethodIndex::new(method_spec.method_inst_index);
+            cpp_type.create_method(method, ty_def, method_index, metadata, collection, config);
+
             // collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
             cpp_type
         });
@@ -476,7 +526,7 @@ impl CppContextCollection {
         let mut context = self
             .all_contexts
             .remove(&context_ty)
-            .expect("No context for ty");
+            .expect("No context ty?");
 
         // search in root
         // clone to avoid failing il2cpp_name

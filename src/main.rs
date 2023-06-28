@@ -15,7 +15,7 @@ use std::{fs, path::PathBuf, time};
 use clap::{Parser, Subcommand};
 
 use crate::{
-    generate::{cs_type::CSType, members::CppMember, cpp_type::CppType},
+    generate::{cpp_type::CppType, cs_type::CSType, members::CppMember},
     handlers::unity,
 };
 mod generate;
@@ -93,11 +93,15 @@ fn main() -> color_eyre::Result<()> {
     }
 
     println!("Making generic type instantiations and filling!");
-    for generic_class in &metadata.metadata_registration.generic_classes {
-        if generic_class.context.class_inst_idx.is_none() {
-            continue;
-        }
-        cpp_context_collection.make_generic_from(generic_class, &mut metadata, &config);
+    for generic_class in &metadata.metadata_registration.generic_method_table {
+        let method_spec = metadata
+            .metadata_registration
+            .method_specs
+            .get(generic_class.generic_method_index as usize)
+            .unwrap();
+
+
+        cpp_context_collection.make_generic_from(method_spec, &mut metadata, &config);
     }
 
     println!("Registering handlers!");
