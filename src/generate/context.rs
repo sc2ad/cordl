@@ -30,6 +30,30 @@ use super::{
     writer::{CppWriter, Writable},
 };
 
+// TODO:
+type GenericClassIndex = usize;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum CppTypeTag {
+    TypeDefinitionIndex(TypeDefinitionIndex),
+    GenericInstantiation(GenericClassIndex),
+}
+
+impl From<TypeDefinitionIndex> for CppTypeTag {
+    fn from(value: TypeDefinitionIndex) -> Self {
+        CppTypeTag::TypeDefinitionIndex(value)
+    }
+}
+impl From<TypeData> for CppTypeTag {
+    fn from(value: TypeData) -> Self {
+        match value {
+            TypeData::TypeDefinitionIndex(i) => i.into(),
+            TypeData::GenericClassIndex(i) => CppTypeTag::GenericInstantiation(i),
+            _ => panic!("Can't use {value:?} for CppTypeTag"),
+        }
+    }
+}
+
 // Holds the contextual information for creating a C++ file
 // Will hold various metadata, such as includes, type definitions, and extraneous writes
 #[derive(Debug)]
@@ -41,21 +65,16 @@ pub struct CppContext {
     pub fundamental_path: PathBuf,
 
     // Types to write, typedef
-    pub typedef_stubs: HashMap<TypeData, CppForwardDeclare>,
-    pub typedef_types: HashMap<TypeData, CppType>,
+    pub typedef_types: HashMap<CppTypeTag, CppType>,
 
     pub typealias_types: HashSet<CppUsingAlias>,
 }
 
 impl CppContext {
-    fn get_type_datas(&self) -> impl Iterator<Item = &TypeData> {
-        self.typedef_stubs.keys().chain(self.typedef_types.keys())
-    }
-
     pub fn get_cpp_type_recursive_mut(
         &mut self,
-        root_tag: TypeData,
-        child_tag: TypeData,
+        root_tag: CppTypeTag,
+        child_tag: CppTypeTag,
     ) -> Option<&mut CppType> {
         let ty = self.typedef_types.get_mut(&root_tag);
         if root_tag == child_tag {
@@ -66,8 +85,8 @@ impl CppContext {
     }
     pub fn get_cpp_type_recursive(
         &self,
-        root_tag: TypeData,
-        child_tag: TypeData,
+        root_tag: CppTypeTag,
+        child_tag: CppTypeTag,
     ) -> Option<&CppType> {
         let ty = self.typedef_types.get(&root_tag);
         // if a root type
@@ -82,7 +101,7 @@ impl CppContext {
         &self.typedef_path
     }
 
-    pub fn get_types(&self) -> &HashMap<TypeData, CppType> {
+    pub fn get_types(&self) -> &HashMap<CppTypeTag, CppType> {
         &self.typedef_types
     }
 
@@ -91,7 +110,7 @@ impl CppContext {
         metadata: &Metadata,
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
-        tag: TypeData,
+        tag: CppTypeTag,
     ) -> CppContext {
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
         let ns = t.namespace(metadata.metadata);
@@ -121,7 +140,6 @@ impl CppContext {
             )),
             typedef_types: Default::default(),
             typealias_types: Default::default(),
-            typedef_stubs: Default::default(),
         };
 
         if metadata.blacklisted_types.contains(&tdi) {
@@ -142,24 +160,11 @@ impl CppContext {
             return x;
         }
 
-        match CppType::make_cpp_type(metadata, config, tag) {
+        match CppType::make_cpp_type(metadata, config, tag, tdi) {
             Some(cpptype) => {
-                if cpptype.is_stub {
-                    x.typedef_stubs.insert(
-                        tag,
-                        CppForwardDeclare {
-                            is_struct: cpptype.is_value_type,
-                            namespace: Some(cpptype.namespace().clone()),
-                            name: cpptype.name().clone(),
-                            templates: cpptype.cpp_template.clone(),
-                        },
-                    );
-                }
-
                 // Only stored temporary for metatdata, replaced later
                 // TODO: Figure out a better way of doing this
-                x.typedef_types
-                    .insert(TypeData::TypeDefinitionIndex(tdi), cpptype);
+                x.typedef_types.insert(tdi.into(), cpptype);
             }
             None => {
                 println!("Unable to create valid CppContext for type: {ns}::{name}!");
@@ -203,10 +208,6 @@ impl CppContext {
             indent: 0,
             newline: true,
         };
-
-        self.typedef_stubs
-            .values()
-            .try_for_each(|s| s.write(&mut typedef_writer))?;
 
         // Write includes for typedef
         self.typedef_types
@@ -258,10 +259,10 @@ impl CppContext {
 }
 
 pub struct CppContextCollection {
-    all_contexts: HashMap<TypeData, CppContext>,
-    alias_context: HashMap<TypeData, TypeData>,
-    filled_types: HashSet<TypeData>,
-    filling_types: HashSet<TypeData>,
+    all_contexts: HashMap<CppTypeTag, CppContext>,
+    alias_context: HashMap<CppTypeTag, CppTypeTag>,
+    filled_types: HashSet<CppTypeTag>,
+    filling_types: HashSet<CppTypeTag>,
 }
 
 impl CppContextCollection {
@@ -285,9 +286,8 @@ impl CppContextCollection {
         self.filling_types.remove(&cpp_type.self_tag);
     }
 
-    pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, ty: TypeData) {
-        let type_tag: TypeData = ty;
-        let tdi = CppType::get_tag_tdi(type_tag);
+    pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, type_tag: CppTypeTag) {
+        let tdi = CppType::get_cpp_tag_tdi(type_tag);
 
         assert!(
             !metadata.child_to_parent_map.contains_key(&tdi),
@@ -323,7 +323,7 @@ impl CppContextCollection {
         }
     }
 
-    fn alias_nested_types(&mut self, owner: &CppType, root_tag: TypeData) {
+    fn alias_nested_types(&mut self, owner: &CppType, root_tag: CppTypeTag) {
         for nested_type in &owner.nested_types {
             // println!(
             //     "Aliasing {:?} to {:?}",
@@ -334,7 +334,7 @@ impl CppContextCollection {
         }
     }
 
-    pub fn alias_type(&mut self, src: TypeData, dest: TypeData) {
+    pub fn alias_type(&mut self, src: CppTypeTag, dest: CppTypeTag) {
         if self.alias_context.contains_key(&dest) {
             panic!("Aliasing an aliased type!");
         }
@@ -345,7 +345,7 @@ impl CppContextCollection {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        owner_ty: TypeData,
+        owner_ty: CppTypeTag,
     ) {
         let owner_type_tag = owner_ty;
         let owner = self
@@ -383,7 +383,7 @@ impl CppContextCollection {
         self.get_cpp_type_mut(owner_type_tag).unwrap().nested_types = nested_types;
     }
 
-    pub fn get_context_root_tag(&self, ty: TypeData) -> TypeData {
+    pub fn get_context_root_tag(&self, ty: CppTypeTag) -> CppTypeTag {
         let tag = ty;
         self.alias_context
             .get(&tag)
@@ -404,7 +404,7 @@ impl CppContextCollection {
         let type_data = TypeData::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
 
-        let context_root_tag = self.get_context_root_tag(type_data);
+        let context_root_tag = self.get_context_root_tag(tdi.into());
 
         if self.filling_types.contains(&context_root_tag) {
             panic!("Currently filling type {context_root_tag:?}, cannot fill")
@@ -425,20 +425,20 @@ impl CppContextCollection {
         let generic_class_ty = generic_class_ty_opt.unwrap();
         // Why is the borrow checker so dumb?
         // Using entries causes borrow checker to die :(
-        if self.filled_types.contains(&generic_class_ty.data) {
+        if self.filled_types.contains(&generic_class_ty.data.into()) {
             return Some(self.all_contexts.get_mut(&context_root_tag).unwrap());
         }
 
-        self.alias_type(generic_class_ty.data, context_root_tag);
+        self.alias_type(generic_class_ty.data.into(), context_root_tag);
 
-        let template_cpp_type = self.get_cpp_type(type_data).unwrap();
+        let template_cpp_type = self.get_cpp_type(type_data.into()).unwrap();
         let mut new_cpp_type = template_cpp_type.clone();
 
-        new_cpp_type.self_tag = generic_class_ty.data;
+        new_cpp_type.self_tag = generic_class_ty.data.into();
 
         match parent_data {
             Some(parent) => {
-                let parent_ty = TypeData::TypeDefinitionIndex(parent.tdi);
+                let parent_ty = CppTypeTag::TypeDefinitionIndex(parent.tdi);
 
                 self.borrow_cpp_type(
                     parent_ty,
@@ -450,11 +450,11 @@ impl CppContextCollection {
                 )
             }
             None => {
-                let context = self.get_context_mut(generic_class_ty.data).unwrap();
+                let context = self.get_context_mut(generic_class_ty.data.into()).unwrap();
 
                 context
                     .typedef_types
-                    .insert(generic_class_ty.data, new_cpp_type);
+                    .insert(generic_class_ty.data.into(), new_cpp_type);
             }
         }
 
@@ -475,7 +475,7 @@ impl CppContextCollection {
         let type_data = TypeData::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
 
-        let context_root_tag = self.get_context_root_tag(type_data);
+        let context_root_tag = self.get_context_root_tag(type_data.into());
 
         if self.filling_types.contains(&context_root_tag) {
             panic!("Currently filling type {context_root_tag:?}, cannot fill")
@@ -486,7 +486,7 @@ impl CppContextCollection {
 
         let generic_class_ty = generic_class_ty_opt?;
 
-        self.borrow_cpp_type(generic_class_ty.data, |collection, mut cpp_type| {
+        self.borrow_cpp_type(generic_class_ty.data.into(), |collection, mut cpp_type| {
             if method_spec.class_inst_index != u32::MAX {
                 cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
                 collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
@@ -505,16 +505,15 @@ impl CppContextCollection {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        ty: TypeData,
+        type_tag: TypeData,
     ) -> &mut CppContext {
-        let type_tag = ty;
         assert!(
             !metadata
                 .child_to_parent_map
                 .contains_key(&CppType::get_tag_tdi(type_tag)),
             "Cannot create context for nested type",
         );
-        let context_root_tag = self.get_context_root_tag(type_tag);
+        let context_root_tag = self.get_context_root_tag(type_tag.into());
 
         if self.filling_types.contains(&context_root_tag) {
             panic!("Currently filling type {context_root_tag:?}, cannot fill")
@@ -526,7 +525,7 @@ impl CppContextCollection {
             return self.all_contexts.get_mut(&context_root_tag).unwrap();
         }
 
-        let tdi = CppType::get_tag_tdi(context_root_tag);
+        let tdi = CppType::get_cpp_tag_tdi(context_root_tag);
         let context = CppContext::make(metadata, config, tdi, context_root_tag);
         // Now do children
         for cpp_type in context.typedef_types.values() {
@@ -536,20 +535,20 @@ impl CppContextCollection {
         self.all_contexts.get_mut(&context_root_tag).unwrap()
     }
 
-    pub fn get_cpp_type(&self, ty: TypeData) -> Option<&CppType> {
+    pub fn get_cpp_type(&self, ty: CppTypeTag) -> Option<&CppType> {
         let tag = ty;
         let context_root_tag = self.get_context_root_tag(tag);
         self.get_context(context_root_tag)
             .and_then(|c| c.get_cpp_type_recursive(context_root_tag, tag))
     }
-    pub fn get_cpp_type_mut(&mut self, ty: TypeData) -> Option<&mut CppType> {
+    pub fn get_cpp_type_mut(&mut self, ty: CppTypeTag) -> Option<&mut CppType> {
         let tag = ty;
         let context_root_tag = self.get_context_root_tag(tag);
         self.get_context_mut(context_root_tag)
             .and_then(|c| c.get_cpp_type_recursive_mut(context_root_tag, tag))
     }
 
-    pub fn borrow_cpp_type<F>(&mut self, ty: TypeData, func: F)
+    pub fn borrow_cpp_type<F>(&mut self, ty: CppTypeTag, func: F)
     where
         F: Fn(&mut Self, CppType) -> CppType,
     {
@@ -584,10 +583,10 @@ impl CppContextCollection {
         self.all_contexts.insert(context_ty, context);
     }
 
-    pub fn get_context(&self, type_tag: TypeData) -> Option<&CppContext> {
+    pub fn get_context(&self, type_tag: CppTypeTag) -> Option<&CppContext> {
         self.all_contexts.get(&self.get_context_root_tag(type_tag))
     }
-    pub fn get_context_mut(&mut self, type_tag: TypeData) -> Option<&mut CppContext> {
+    pub fn get_context_mut(&mut self, type_tag: CppTypeTag) -> Option<&mut CppContext> {
         self.all_contexts
             .get_mut(&self.get_context_root_tag(type_tag))
     }
@@ -600,7 +599,7 @@ impl CppContextCollection {
             alias_context: Default::default(),
         }
     }
-    pub fn get(&self) -> &HashMap<TypeData, CppContext> {
+    pub fn get(&self) -> &HashMap<CppTypeTag, CppContext> {
         &self.all_contexts
     }
 }

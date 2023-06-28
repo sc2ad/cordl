@@ -13,7 +13,7 @@ use brocolib::{
 use itertools::Itertools;
 
 use super::{
-    context::CppContextCollection,
+    context::{CppContextCollection, CppTypeTag},
     members::{CppForwardDeclare, CppInclude, CppMember, CppTemplate},
     writer::Writable,
 };
@@ -30,7 +30,7 @@ pub struct CppTypeRequirements {
 // A C# type will be TURNED INTO this
 #[derive(Debug, Clone)]
 pub struct CppType {
-    pub self_tag: TypeData,
+    pub self_tag: CppTypeTag,
     pub tdi: TypeDefinitionIndex,
     pub nested: bool,
 
@@ -109,14 +109,14 @@ impl CppType {
         &self.cpp_name
     }
 
-    pub fn nested_types_flattened(&self) -> HashMap<TypeData, &CppType> {
+    pub fn nested_types_flattened(&self) -> HashMap<CppTypeTag, &CppType> {
         self.nested_types
             .iter()
             .flat_map(|n| n.nested_types_flattened())
             .chain(self.nested_types.iter().map(|n| (n.self_tag, n)))
             .collect()
     }
-    pub fn get_nested_type_mut(&mut self, tag: TypeData) -> Option<&mut CppType> {
+    pub fn get_nested_type_mut(&mut self, tag: CppTypeTag) -> Option<&mut CppType> {
         self.nested_types.iter_mut().find_map(|n| {
             if n.self_tag == tag {
                 return Some(n);
@@ -126,7 +126,7 @@ impl CppType {
             n.get_nested_type_mut(tag)
         })
     }
-    pub fn get_nested_type(&self, tag: TypeData) -> Option<&CppType> {
+    pub fn get_nested_type(&self, tag: CppTypeTag) -> Option<&CppType> {
         self.nested_types.iter().find_map(|n| {
             if n.self_tag == tag {
                 return Some(n);
@@ -139,7 +139,7 @@ impl CppType {
 
     pub fn borrow_nested_type_mut<F>(
         &mut self,
-        ty: TypeData,
+        ty: CppTypeTag,
         context: &mut CppContextCollection,
         func: &F,
     ) -> bool

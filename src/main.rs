@@ -15,7 +15,7 @@ use std::{fs, path::PathBuf, time};
 use clap::{Parser, Subcommand};
 
 use crate::{
-    generate::{cpp_type::CppType, cs_type::CSType, members::CppMember},
+    generate::{context::CppTypeTag, cpp_type::CppType, cs_type::CSType, members::CppMember},
     handlers::unity,
 };
 mod generate;
@@ -104,7 +104,7 @@ fn main() -> color_eyre::Result<()> {
     }
 
     println!("Filling generic types");
-        for generic_class in &metadata.metadata_registration.generic_method_table {
+    for generic_class in &metadata.metadata_registration.generic_method_table {
         let method_spec = metadata
             .metadata_registration
             .method_specs
@@ -132,13 +132,13 @@ fn main() -> color_eyre::Result<()> {
         if metadata.child_to_parent_map.contains_key(&tdi) {
             continue;
         }
-        cpp_context_collection.fill(&metadata, &config, TypeData::TypeDefinitionIndex(tdi));
+        cpp_context_collection.fill(&metadata, &config, CppTypeTag::TypeDefinitionIndex(tdi));
     }
     // Fill children
     println!("Nested types pass");
     for parent in metadata.parent_to_child_map.keys() {
         let owner = cpp_context_collection
-            .get_cpp_type(TypeData::TypeDefinitionIndex(*parent))
+            .get_cpp_type(CppTypeTag::TypeDefinitionIndex(*parent))
             .unwrap();
 
         // **Ignore this, we no longer recurse:**

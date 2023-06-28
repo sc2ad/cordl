@@ -26,7 +26,7 @@ use super::{
         MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
         TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
     },
-    context::CppContextCollection,
+    context::{CppContextCollection, CppTypeTag},
     cpp_type::CppType,
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppField, CppForwardDeclare,
@@ -45,6 +45,12 @@ pub trait CSType: Sized {
     fn get_tag_tdi(tag: TypeData) -> TypeDefinitionIndex {
         match tag {
             TypeData::TypeDefinitionIndex(tdi) => tdi,
+            _ => panic!("Unsupported type: {tag:?}"),
+        }
+    }
+    fn get_cpp_tag_tdi(tag: CppTypeTag) -> TypeDefinitionIndex {
+        match tag {
+            CppTypeTag::TypeDefinitionIndex(tdi) => tdi,
             _ => panic!("Unsupported type: {tag:?}"),
         }
     }
@@ -91,7 +97,8 @@ pub trait CSType: Sized {
     fn make_cpp_type(
         metadata: &Metadata,
         config: &GenerationConfig,
-        tag: TypeData,
+        tag: CppTypeTag,
+        tdi: TypeDefinitionIndex
     ) -> Option<CppType> {
         // let iface = metadata.interfaces.get(t.interfaces_start);
         // Then, handle interfaces
@@ -100,7 +107,6 @@ pub trait CSType: Sized {
         // - This includes constructors
         // inherited methods will be inherited
 
-        let tdi = Self::get_tag_tdi(tag);
         let parent_pair = metadata.child_to_parent_map.get(&tdi);
 
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
@@ -465,7 +471,8 @@ pub trait CSType: Sized {
             let nested_type = CppType::make_cpp_type(
                 metadata,
                 config,
-                TypeData::TypeDefinitionIndex(nested_type_index),
+                CppTypeTag::TypeDefinitionIndex(nested_type_index),
+                nested_type_index
             );
 
             match nested_type {
@@ -620,7 +627,7 @@ pub trait CSType: Sized {
                 }));
         }
         let declaring_type = method.declaring_type(metadata.metadata);
-        let tag = TypeData::TypeDefinitionIndex(method.declaring_type);
+        let tag = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
 
         let method_calc = metadata.method_calculations.get(&method_index);
 
@@ -868,9 +875,8 @@ pub trait CSType: Sized {
     ) -> String {
         let tag = typ.data;
 
-        let _context_tag = ctx_collection.get_context_root_tag(tag);
         let cpp_type = self.get_mut_cpp_type();
-        let mut nested_types: HashMap<TypeData, String> = cpp_type
+        let mut nested_types: HashMap<CppTypeTag, String> = cpp_type
             .nested_types_flattened()
             .into_iter()
             .map(|(t, c)| (t, c.formatted_complete_cpp_name().clone()))
@@ -901,21 +907,22 @@ pub trait CSType: Sized {
                 OBJECT_WRAPPER_TYPE.to_string()
             }
             Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class => {
+                let cpp_tag: CppTypeTag = tag.into();
                 // Self
-                if tag == cpp_type.self_tag {
+                if cpp_tag == cpp_type.self_tag {
                     // TODO: println!("Warning! This is self referencing, handle this better in the future");
                     return cpp_type.formatted_complete_cpp_name().clone();
                 }
 
                 // Skip nested classes
-                if let Some(nested) = nested_types.remove(&tag) {
+                if let Some(nested) = nested_types.remove(&tag.into()) {
                     return nested;
                 }
 
                 // In this case, just inherit the type
                 // But we have to:
                 // - Determine where to include it from
-                let to_incl = ctx_collection.get_context(typ.data).unwrap_or_else(|| {
+                let to_incl = ctx_collection.get_context(typ.data.into()).unwrap_or_else(|| {
                     panic!(
                         "no context for type {typ:?} {}",
                         metadata.metadata_registration.types
@@ -932,7 +939,7 @@ pub trait CSType: Sized {
                 }
                 let inc = CppInclude::new_context(to_incl);
                 let to_incl_ty = ctx_collection
-                    .get_cpp_type(typ.data)
+                    .get_cpp_type(typ.data.into())
                     .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));
 
                 // Forward declare it
