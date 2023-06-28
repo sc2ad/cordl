@@ -1,7 +1,7 @@
+use core::panic;
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
-    ops::ControlFlow,
     rc::Rc,
 };
 
@@ -10,9 +10,7 @@ use brocolib::{
         FieldIndex, Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, ParameterIndex,
         TypeDefinitionIndex, TypeIndex,
     },
-    runtime_metadata::{
-        Il2CppGenericClass, Il2CppMethodSpec, Il2CppType, Il2CppTypeEnum, TypeData,
-    },
+    runtime_metadata::{Il2CppType, Il2CppTypeEnum, TypeData},
 };
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -49,10 +47,7 @@ pub trait CSType: Sized {
         }
     }
     fn get_cpp_tag_tdi(tag: CppTypeTag) -> TypeDefinitionIndex {
-        match tag {
-            CppTypeTag::TypeDefinitionIndex(tdi) => tdi,
-            _ => panic!("Unsupported type: {tag:?}"),
-        }
+        tag.into()
     }
 
     fn parent_joined_cpp_name(
@@ -85,6 +80,10 @@ pub trait CSType: Sized {
             .get(generic_il2cpp_inst as usize)
             .unwrap();
 
+        // if cpp_type.generic_instantiations_args_types.is_some() {
+        //     panic!("Generic instantiation args are already set!");
+        // }
+
         cpp_type.generic_instantiations_args_types =
             Some(inst.types.iter().map(|t| *t as TypeIndex).collect());
 
@@ -98,7 +97,7 @@ pub trait CSType: Sized {
         metadata: &Metadata,
         config: &GenerationConfig,
         tag: CppTypeTag,
-        tdi: TypeDefinitionIndex
+        tdi: TypeDefinitionIndex,
     ) -> Option<CppType> {
         // let iface = metadata.interfaces.get(t.interfaces_start);
         // Then, handle interfaces
@@ -112,6 +111,7 @@ pub trait CSType: Sized {
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
 
         // Generics
+        // This is a generic type def
         let generics = t.generic_container_index.is_valid().then(|| {
             t.generic_container(metadata.metadata)
                 .generic_parameters(metadata.metadata)
@@ -180,6 +180,12 @@ pub trait CSType: Sized {
         }
 
         cpptype.make_nested_types(metadata, config, tdi);
+
+        // If this is a stub,
+        // it serves as a template for generic instantiations
+        if cpptype.is_stub {
+            println!("Made generic stub {}", t.full_name(metadata.metadata, true));
+        }
 
         Some(cpptype)
     }
@@ -472,7 +478,7 @@ pub trait CSType: Sized {
                 metadata,
                 config,
                 CppTypeTag::TypeDefinitionIndex(nested_type_index),
-                nested_type_index
+                nested_type_index,
             );
 
             match nested_type {
@@ -873,7 +879,7 @@ pub trait CSType: Sized {
         typ: &Il2CppType,
         add_include: bool,
     ) -> String {
-        let tag = typ.data;
+        let typ_tag = typ.data;
 
         let cpp_type = self.get_mut_cpp_type();
         let mut nested_types: HashMap<CppTypeTag, String> = cpp_type
@@ -907,32 +913,44 @@ pub trait CSType: Sized {
                 OBJECT_WRAPPER_TYPE.to_string()
             }
             Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class => {
-                let cpp_tag: CppTypeTag = tag.into();
+                let typ_cpp_tag: CppTypeTag = typ_tag.into();
                 // Self
-                if cpp_tag == cpp_type.self_tag {
+                if typ_cpp_tag == cpp_type.self_tag {
                     // TODO: println!("Warning! This is self referencing, handle this better in the future");
                     return cpp_type.formatted_complete_cpp_name().clone();
                 }
 
                 // Skip nested classes
-                if let Some(nested) = nested_types.remove(&tag.into()) {
+                if let Some(nested) = nested_types.remove(&typ_cpp_tag) {
                     return nested;
                 }
 
                 // In this case, just inherit the type
                 // But we have to:
                 // - Determine where to include it from
-                let to_incl = ctx_collection.get_context(typ.data.into()).unwrap_or_else(|| {
+                let to_incl = ctx_collection.get_context(typ_cpp_tag).unwrap_or_else(|| {
+                    let x = ctx_collection.get_cpp_type(typ_cpp_tag);
+                    let y = ctx_collection.alias_context.get(&typ_cpp_tag).unwrap();
+                    let z = ctx_collection.get_context(*y);
+                    let t = &metadata.metadata.global_metadata.type_definitions
+                        [Self::get_tag_tdi(typ.data)];
+                    let w = metadata
+                        .child_to_parent_map
+                        .get(&typ_cpp_tag.into())
+                        .unwrap();
+                    let p = ctx_collection.get_context(w.tdi.into());
+
                     panic!(
                         "no context for type {typ:?} {}",
-                        metadata.metadata_registration.types
-                            [Self::get_tag_tdi(typ.data).index() as usize]
-                            .full_name(metadata.metadata)
+                        t.full_name(metadata.metadata, true)
                     )
                 });
 
+                let parent_context_ty = ctx_collection.get_context_root_tag(typ_cpp_tag);
+
                 // - Include it
-                if add_include {
+                // Skip including the context if we're already in it
+                if add_include && parent_context_ty != cpp_type.self_tag {
                     requirements
                         .required_includes
                         .insert(CppInclude::new_context(to_incl));
@@ -980,7 +998,7 @@ pub trait CSType: Sized {
                         .find_position(|&p| p.name_index == generic_param.name_index)
                         .unwrap();
 
-                    let ty = metadata
+                    let _ty = metadata
                         .metadata_registration
                         .types
                         .get(gen_param_idx)
@@ -998,7 +1016,7 @@ pub trait CSType: Sized {
                         &metadata.metadata.global_metadata.generic_parameters[index];
 
                     let owner = generic_param.owner(metadata.metadata);
-                    let (gen_param_idx, _gen_param) = owner
+                    let (_gen_param_idx, _gen_param) = owner
                         .generic_parameters(metadata.metadata)
                         .iter()
                         .find_position(|&p| p.name_index == generic_param.name_index)
@@ -1016,7 +1034,7 @@ pub trait CSType: Sized {
                     //     .get(gen_param_idx)
                     //     .unwrap();
 
-                    let ty = metadata
+                    let _ty = metadata
                         .metadata_registration
                         .types
                         .get(ty_idx as usize)

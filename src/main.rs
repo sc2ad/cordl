@@ -8,14 +8,14 @@
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use generate::{config::GenerationConfig, context::CppContextCollection, metadata::Metadata};
-use itertools::Itertools;
+
 
 use std::{fs, path::PathBuf, time};
 
 use clap::{Parser, Subcommand};
 
 use crate::{
-    generate::{context::CppTypeTag, cpp_type::CppType, cs_type::CSType, members::CppMember},
+    generate::{context::CppTypeTag, cs_type::CSType, members::CppMember},
     handlers::unity,
 };
 mod generate;
@@ -90,6 +90,10 @@ fn main() -> color_eyre::Result<()> {
             continue;
         }
         cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi));
+    }
+
+    if cpp_context_collection.get_context(CppTypeTag::TypeDefinitionIndex(TypeDefinitionIndex::new(13839))).is_none() {
+        panic!("What!");
     }
 
     println!("Making generic type instantiations and filling!");

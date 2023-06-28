@@ -8,7 +8,6 @@ use color_eyre::eyre::Context;
 
 use brocolib::{
     global_metadata::{TypeDefinitionIndex, TypeIndex},
-    runtime_metadata::TypeData,
 };
 use itertools::Itertools;
 
