@@ -201,7 +201,7 @@ impl CppForwardDeclare {
             is_struct: cpp_type.is_value_type,
             namespace: Some(cpp_type.cpp_namespace().to_string()),
             name: cpp_type.name().clone(),
-            templates: cpp_type.generic_args.clone(),
+            templates: cpp_type.cpp_template.clone(),
         }
     }
 }

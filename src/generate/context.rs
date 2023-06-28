@@ -151,7 +151,7 @@ impl CppContext {
                             is_struct: cpptype.is_value_type,
                             namespace: Some(cpptype.namespace().clone()),
                             name: cpptype.name().clone(),
-                            templates: cpptype.generic_args.clone(),
+                            templates: cpptype.cpp_template.clone(),
                         },
                     );
                 }
@@ -395,7 +395,7 @@ impl CppContextCollection {
         method_spec: &Il2CppMethodSpec,
         metadata: &mut Metadata,
         config: &GenerationConfig,
-    ) -> &mut CppContext {
+    ) -> Option<&mut CppContext> {
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
         let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
@@ -408,12 +408,6 @@ impl CppContextCollection {
             panic!("Currently filling type {context_root_tag:?}, cannot fill")
         }
 
-        // Why is the borrow checker so dumb?
-        // Using entries causes borrow checker to die :(
-        if self.filled_types.contains(&type_data) {
-            return self.all_contexts.get_mut(&context_root_tag).unwrap();
-        }
-
         let tdi = CppType::get_tag_tdi(type_data);
 
         let generic_class: Il2CppGenericClass = Il2CppGenericClass {
@@ -424,50 +418,46 @@ impl CppContextCollection {
             },
         };
 
-        println!("Method {}", method.full_name(metadata.metadata));
-        println!(
-            "namespaze name {}",
-            ty_def.full_name(metadata.metadata, true)
-        );
+        let generic_class_ty =
+            metadata
+                .metadata_registration
+                .types
+                .iter()
+                .find(|t| match t.data {
+                    TypeData::GenericClassIndex(index) => {
+                        let o = metadata
+                            .metadata_registration
+                            .generic_classes
+                            .get(index)
+                            .unwrap();
 
-        let generic_class_ty = metadata
-            .metadata_registration
-            .types
-            .iter()
-            .find(|t| match t.data {
-                TypeData::GenericClassIndex(index) => {
-                    let o = metadata
-                        .metadata_registration
-                        .generic_classes
-                        .get(index)
-                        .unwrap();
+                        *o == generic_class
+                    }
+                    _ => false,
+                })?;
 
-                    *o == generic_class
-                }
-                _ => false,
-            })
-            .unwrap();
+        // Why is the borrow checker so dumb?
+        // Using entries causes borrow checker to die :(
+        if self.filled_types.contains(&generic_class_ty.data) {
+            return Some(self.all_contexts.get_mut(&context_root_tag).unwrap());
+        }
 
-        println!("Creating context");
-        self.make_from(metadata, config, context_root_tag);
         self.alias_type(generic_class_ty.data, context_root_tag);
 
         self.borrow_cpp_type(generic_class_ty.data, |collection, mut cpp_type| {
             if method_spec.class_inst_index != u32::MAX {
-                let type_args =
-                    CppType::get_generic_instantiation_args(method_spec.class_inst_index, metadata);
-                cpp_type.add_generic_inst(type_args);
+                cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
+                collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
             }
 
             let method_index = MethodIndex::new(method_spec.method_inst_index);
             cpp_type.create_method(method, ty_def, method_index, metadata, collection, config);
 
-            // collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
             cpp_type
         });
 
         // assert!(self.filled_types.contains(&ty_def.data));
-        return self.all_contexts.get_mut(&context_root_tag).unwrap();
+        return Some(self.all_contexts.get_mut(&context_root_tag).unwrap());
     }
 
     pub fn make_from(

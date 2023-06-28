@@ -70,43 +70,22 @@ pub trait CSType: Sized {
         }
     }
 
-    fn add_generic_inst(&mut self, type_args: &[usize]) -> &mut CppType {
+    fn add_generic_inst(&mut self, generic_il2cpp_inst: u32, metadata: &Metadata) -> &mut CppType {
         let cpp_type = self.get_mut_cpp_type();
 
-        // TODO: FILL
-        // cpp_type.generic_instantiation_args = Some(
-        //     type_args
-        //         .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true))
-        //         .collect(),
-        // );
-        cpp_type.generic_instantiations_args_types =
-            Some(type_args.iter().map(|t| *t as TypeIndex).collect());
-
-        cpp_type.generic_args = None;
-        cpp_type.is_stub = false;
-
-        cpp_type
-    }
-
-    fn get_generic_instantiation_args<'a>(
-        generic_il2cpp_inst: u32,
-        metadata: &'a Metadata,
-    ) -> &'a Vec<usize> {
         let inst = metadata
             .metadata_registration
             .generic_insts
             .get(generic_il2cpp_inst as usize)
             .unwrap();
 
-        // generic_class.type_index
-        // metadata.metadata.global_metadata.generic_parameters.as_vec().iter().find(|t| t.owner(metadata.metadata).generic_parameters(metadata))
-        // let type_args = inst.types.iter().map(|t| {
-        //     (
-        //         *t as TypeIndex,
-        //         metadata.metadata_registration.types.get(*t).unwrap(),
-        //     )
-        // });
-        &inst.types
+        cpp_type.generic_instantiations_args_types =
+            Some(inst.types.iter().map(|t| *t as TypeIndex).collect());
+
+        cpp_type.cpp_template = None;
+        cpp_type.is_stub = false;
+
+        cpp_type
     }
 
     fn make_cpp_type(
@@ -172,7 +151,7 @@ pub trait CSType: Sized {
             is_value_type: t.is_value_type(),
             requirements: Default::default(),
             inherit: Default::default(),
-            generic_args: cpp_template,
+            cpp_template,
             generic_instantiation_args: Default::default(),
             generic_instantiations_args_types: Default::default(),
             is_stub: generics.is_some(),

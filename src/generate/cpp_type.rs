@@ -6,7 +6,10 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use brocolib::{global_metadata::{TypeDefinitionIndex, TypeIndex}, runtime_metadata::TypeData};
+use brocolib::{
+    global_metadata::{TypeDefinitionIndex, TypeIndex},
+    runtime_metadata::TypeData,
+};
 use itertools::Itertools;
 
 use super::{
@@ -52,10 +55,9 @@ pub struct CppType {
     pub requirements: CppTypeRequirements,
 
     pub inherit: Vec<String>,
-    pub generic_args: Option<CppTemplate>, // Names of templates e.g T, TKey etc.
+    pub cpp_template: Option<CppTemplate>, // Names of templates e.g T, TKey etc.
 
-    
-    pub generic_instantiations_args_types: Option<Vec<TypeIndex>>,  // GenericArg -> Instantiation Arg
+    pub generic_instantiations_args_types: Option<Vec<TypeIndex>>, // GenericArg -> Instantiation Arg
     pub generic_instantiation_args: Option<Vec<String>>, // generic_instantiations_args_types but formatted
     pub is_stub: bool,
 
@@ -265,7 +267,7 @@ impl CppType {
                 writer.indent();
             }
 
-            if fd && let Some(generic_args) = &self.generic_args {
+            if fd && let Some(generic_args) = &self.cpp_template {
                 // template<...>
                 generic_args.write(writer)?;
                 writeln!(writer, "struct {};", self.name())?;
@@ -275,7 +277,7 @@ impl CppType {
         // Just forward declare
         if !self.is_stub {
             // Write type definition
-            if let Some(generic_args) = &self.generic_args {
+            if let Some(generic_args) = &self.cpp_template {
                 generic_args.write(writer)?;
             }
             writeln!(writer, "// Is value type: {}", self.is_value_type)?;

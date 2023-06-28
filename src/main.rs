@@ -100,7 +100,6 @@ fn main() -> color_eyre::Result<()> {
             .get(generic_class.generic_method_index as usize)
             .unwrap();
 
-
         cpp_context_collection.make_generic_from(method_spec, &mut metadata, &config);
     }
 
@@ -170,7 +169,7 @@ fn main() -> color_eyre::Result<()> {
     cpp_context_collection
         .get()
         .iter()
-        .find(|(_, c)| c.get_types().iter().any(|(_, t)| t.generic_args.is_some()))
+        .find(|(_, c)| c.get_types().iter().any(|(_, t)| t.cpp_template.is_some()))
         .unwrap()
         .1
         .write()?;
