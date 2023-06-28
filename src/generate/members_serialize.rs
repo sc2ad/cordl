@@ -148,8 +148,8 @@ impl Writable for CppMethodDecl {
             self.cpp_name,
             self.return_type,
             self.parameters,
-            self.method_data.addrs,
-            self.method_data.estimated_size
+            self.method_data.as_ref().map(|t| t.addrs).unwrap_or(u64::MAX),
+            self.method_data.as_ref().map(|t| t.estimated_size).unwrap_or(usize::MAX)
         )?;
 
         self.template.write(writer)?;

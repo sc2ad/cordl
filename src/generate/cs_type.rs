@@ -662,6 +662,23 @@ pub trait CSType: Sized {
                 template: template.clone(),
             }));
 
+        cpp_type
+            .declarations
+            .push(CppMember::MethodDecl(CppMethodDecl {
+                cpp_name: config.name_cpp(m_name),
+                return_type: m_ret_cpp_type_name.clone(),
+                parameters: m_params.clone(),
+                template: template.clone(),
+                instance: !method.is_static_method(),
+                prefix_modifiers: Default::default(),
+                suffix_modifiers: Default::default(),
+                method_data: method_calc.map(|method_calc| CppMethodData {
+                    addrs: method_calc.addrs,
+                    estimated_size: method_calc.estimated_size,
+                }),
+                is_virtual: method.is_virtual_method() && !method.is_final_method(),
+            }));
+
         let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
             Some(cpp_type)
         } else {
@@ -672,12 +689,12 @@ pub trait CSType: Sized {
             cpp_type
                 .nonmember_implementations
                 .push(Rc::new(CppMethodSizeStruct {
-                    ret_ty: m_ret_cpp_type_name.clone(),
+                    ret_ty: m_ret_cpp_type_name,
                     cpp_method_name: config.name_cpp(m_name),
                     complete_type_name: cpp_type.formatted_complete_cpp_name().clone(),
                     instance: !method.is_static_method(),
-                    params: m_params.clone(),
-                    template: template.clone(),
+                    params: m_params,
+                    template,
                     method_data: CppMethodData {
                         addrs: method_calc.addrs,
                         estimated_size: method_calc.estimated_size,
@@ -691,22 +708,6 @@ pub trait CSType: Sized {
                     } else {
                         None
                     },
-                }));
-            cpp_type
-                .declarations
-                .push(CppMember::MethodDecl(CppMethodDecl {
-                    cpp_name: config.name_cpp(m_name),
-                    return_type: m_ret_cpp_type_name,
-                    parameters: m_params,
-                    instance: !method.is_static_method(),
-                    prefix_modifiers: Default::default(),
-                    suffix_modifiers: Default::default(),
-                    method_data: CppMethodData {
-                        addrs: method_calc.addrs,
-                        estimated_size: method_calc.estimated_size,
-                    },
-                    is_virtual: method.is_virtual_method() && !method.is_final_method(),
-                    template,
                 }));
         }
     }

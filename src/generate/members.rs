@@ -134,7 +134,7 @@ pub struct CppMethodDecl {
     // virtual
     pub prefix_modifiers: String,
     // TODO: Add all descriptions missing for the method
-    pub method_data: CppMethodData,
+    pub method_data: Option<CppMethodData>,
     pub is_virtual: bool,
 }
 
