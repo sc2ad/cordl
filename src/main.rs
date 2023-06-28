@@ -195,7 +195,7 @@ fn main() -> color_eyre::Result<()> {
         .find(|(_, c)| {
             c.get_types()
                 .iter()
-                .any(|(_, t)| t.generic_instantiation_args.is_some() && t.cpp_name() == "IList_1")
+                .any(|(_, t)| t.generic_instantiation_args.is_some() && t.cpp_name() == "List_1")
         })
         .unwrap()
         .1

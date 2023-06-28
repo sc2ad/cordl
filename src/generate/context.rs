@@ -453,9 +453,10 @@ impl CppContextCollection {
         }
 
         let generic_class_ty = generic_class_ty_opt.unwrap();
+        let generic_class_ty_data = generic_class_ty.data;
         // Why is the borrow checker so dumb?
         // Using entries causes borrow checker to die :(
-        if self.filled_types.contains(&generic_class_ty.data.into()) {
+        if self.filled_types.contains(&generic_class_ty_data.into()) {
             return Some(self.all_contexts.get_mut(&context_root_tag).unwrap());
         }
 
@@ -465,6 +466,8 @@ impl CppContextCollection {
         new_cpp_type.self_tag = generic_class_ty.data.into();
         self.alias_type(new_cpp_type.self_tag, context_root_tag, true);
 
+        new_cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
+        
         // if generic type is a nested type
         // put it under the parent's `nested_types` field
         // otherwise put it in the typedef's hashmap
@@ -482,11 +485,11 @@ impl CppContextCollection {
                 )
             }
             None => {
-                let context = self.get_context_mut(generic_class_ty.data.into()).unwrap();
+                let context = self.get_context_mut(generic_class_ty_data.into()).unwrap();
 
                 context
                     .typedef_types
-                    .insert(generic_class_ty.data.into(), new_cpp_type);
+                    .insert(generic_class_ty_data.into(), new_cpp_type);
             }
         }
 
@@ -519,9 +522,6 @@ impl CppContextCollection {
 
         self.borrow_cpp_type(generic_class_ty.data.into(), |collection, mut cpp_type| {
             if method_spec.class_inst_index != u32::MAX {
-                if true || cpp_type.generic_instantiations_args_types.is_none() {
-                    cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
-                }
                 collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
             }
 
@@ -533,8 +533,9 @@ impl CppContextCollection {
 
         let con = self.all_contexts.get_mut(&context_root_tag).unwrap();
 
-        if ty_def.name(metadata.metadata) == "IList`1" {
-            println!("{:?}", con.typedef_types);
+        if ty_def.name(metadata.metadata) == "List`1" {
+            // TODO: Remove
+            let x = 5;
         }
 
         return Some(con);
