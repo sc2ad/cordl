@@ -6,7 +6,7 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use brocolib::global_metadata::{TypeDefinitionIndex, TypeIndex};
+use brocolib::global_metadata::{TypeDefinitionIndex, TypeIndex, MethodIndex};
 use itertools::Itertools;
 
 use super::{
@@ -56,6 +56,7 @@ pub struct CppType {
     pub cpp_template: Option<CppTemplate>, // Names of templates e.g T, TKey etc.
 
     pub generic_instantiations_args_types: Option<Vec<TypeIndex>>, // GenericArg -> Instantiation Arg
+    pub method_generic_instantiation_map: HashMap<MethodIndex, Vec<TypeIndex>>, // MethodIndex -> Generic Args
     pub generic_instantiation_args: Option<Vec<String>>, // generic_instantiations_args_types but formatted
     pub is_stub: bool,
 
@@ -283,7 +284,7 @@ impl CppType {
 
             let clazz_name = match &self.generic_instantiation_args {
                 Some(literals) => format!(
-                    "/* generic here lets go! */{}<{}>",
+                    "{}<{}>",
                     self.cpp_name(),
                     literals.join(",")
                 ),

@@ -466,8 +466,13 @@ impl CppContextCollection {
         new_cpp_type.self_tag = generic_class_ty.data.into();
         self.alias_type(new_cpp_type.self_tag, context_root_tag, true);
 
-        new_cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
-        
+        if method_spec.class_inst_index != u32::MAX {
+            new_cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
+        }
+        if method_spec.method_inst_index != u32::MAX {
+            new_cpp_type.add_method_generic_inst(method_spec, metadata);
+        }
+
         // if generic type is a nested type
         // put it under the parent's `nested_types` field
         // otherwise put it in the typedef's hashmap
