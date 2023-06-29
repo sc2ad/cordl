@@ -222,7 +222,7 @@ impl Writable for CppMethodImpl {
 
         write!(
             writer,
-            "return ::il2cpp_utils::RunMethodRethrow<{}, false>(this, ___internal__method,",
+            "return ::il2cpp_utils::RunMethodRethrow<{}, false>(this, ___internal_method",
             self.return_type
         )?;
 
