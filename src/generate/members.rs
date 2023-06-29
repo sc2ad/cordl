@@ -209,39 +209,34 @@ impl CppForwardDeclare {
             namespace: ns,
             name: cpp_type.name().clone(),
             templates: cpp_type.cpp_template.clone(),
-            literals: cpp_type.generic_instantiation_args.clone()
+            literals: cpp_type.generic_instantiation_args.clone(),
         }
     }
 }
 
 impl CppParam {
-    pub fn params_as_args(params: &[CppParam]) -> String {
-        params
-            .iter()
-            .map(|p| match &p.def_value {
-                Some(val) => format!("{}{} {} = {val}", p.ty, p.modifiers, p.name),
-                None => format!("{}{} {}", p.ty, p.modifiers, p.name),
-            })
-            .join(", ")
+    pub fn params_as_args(params: &[CppParam]) -> impl Iterator<Item = String> + '_ {
+        params.iter().map(|p| match &p.def_value {
+            Some(val) => format!("{}{} {} = {val}", p.ty, p.modifiers, p.name),
+            None => format!("{}{} {}", p.ty, p.modifiers, p.name),
+        })
     }
-    pub fn params_as_args_no_default(params: &[CppParam]) -> String {
+    pub fn params_as_args_no_default(params: &[CppParam]) -> impl Iterator<Item = String> + '_ {
         params
             .iter()
             .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
-            .join(", ")
     }
-    pub fn params_names(params: &[CppParam]) -> String {
-        params.iter().map(|p| &p.name).join(", ")
+    pub fn params_names(params: &[CppParam]) -> impl Iterator<Item = &String> {
+        params.iter().map(|p| &p.name)
     }
-    pub fn params_types(params: &[CppParam]) -> String {
-        params.iter().map(|p| &p.ty).join(", ")
+    pub fn params_types(params: &[CppParam]) -> impl Iterator<Item = &String> {
+        params.iter().map(|p| &p.ty)
     }
 
-    pub fn params_il2cpp_types(params: &[CppParam]) -> String {
+    pub fn params_il2cpp_types(params: &[CppParam]) -> impl Iterator<Item = String> + '_ {
         params
             .iter()
             .map(|p| format!("::il2cpp_utils::ExtractType({})", p.name))
-            .join(", ")
     }
 }
 

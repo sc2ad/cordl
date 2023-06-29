@@ -181,7 +181,7 @@ impl Writable for CppMethodDecl {
             "{} {}({});",
             self.return_type,
             self.cpp_name,
-            CppParam::params_as_args(&self.parameters)
+            CppParam::params_as_args(&self.parameters).join(", ")
         )?;
 
         Ok(())
@@ -204,7 +204,7 @@ impl Writable for CppMethodImpl {
             self.return_type,
             self.holder_cpp_name,
             self.cpp_method_name,
-            CppParam::params_as_args_no_default(&self.parameters)
+            CppParam::params_as_args_no_default(&self.parameters).join(", ")
         )?;
 
         //   static auto ___internal__logger = ::Logger::get().WithContext("::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals");
@@ -214,24 +214,29 @@ impl Writable for CppMethodImpl {
         // Body
 
         let complete_type_name = format!("{}::{}", self.holder_cpp_namespaze, self.holder_cpp_name);
-        let params_format = CppParam::params_types(&self.parameters);
+        let params_format = CppParam::params_types(&self.parameters).join(", ");
 
-        writeln!(writer, "static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({complete_type_name}::*)({params_format})>(&{complete_type_name}::{})>::methodInfo();",
+        writeln!(writer,
+            "static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({complete_type_name}::*)({params_format})>(&{complete_type_name}::{})>::methodInfo();",
             self.return_type,
             self.cpp_method_name)?;
 
-        write!(
-            writer,
-            "return ::il2cpp_utils::RunMethodRethrow<{}, false>(this, ___internal_method",
-            self.return_type
-        )?;
-
-        let param_names = CppParam::params_names(&self.parameters);
-
-        if !param_names.is_empty() {
-            write!(writer, ", {param_names}")?;
+        let mut method_invoke_params = vec!["___internal_method"];
+        if self.instance {
+            method_invoke_params.insert(0, "this");
         }
 
+        let param_names = CppParam::params_names(&self.parameters).map(|s| s.as_str());
+
+        write!(
+            writer,
+            "return ::il2cpp_utils::RunMethodRethrow<{}, false>({}",
+            self.return_type,
+            method_invoke_params
+                .into_iter()
+                .chain(param_names)
+                .join(", ")
+        )?;
         writeln!(writer, ");")?;
 
         // End
@@ -250,7 +255,7 @@ impl Writable for CppConstructorDecl {
             writer,
             "{}({});",
             self.ty,
-            CppParam::params_as_args(&self.parameters)
+            CppParam::params_as_args(&self.parameters).join(", ")
         )?;
         Ok(())
     }
@@ -269,14 +274,14 @@ impl Writable for CppConstructorImpl {
                 writer,
                 "inline {}({})",
                 self.holder_cpp_ty_name,
-                CppParam::params_as_args(&self.parameters)
+                CppParam::params_as_args(&self.parameters).join(", ")
             )?;
         } else {
             write!(
                 writer,
                 "{}({})",
                 self.holder_cpp_ty_name,
-                CppParam::params_as_args_no_default(&self.parameters)
+                CppParam::params_as_args_no_default(&self.parameters).join(", ")
             )?;
         }
 
@@ -297,7 +302,7 @@ impl Writable for CppConstructorImpl {
             writer,
             " : ::bs_hook::Il2CppWrapperType(::il2cpp_utils::New<Il2CppObject*>(classof({}), {})) {{",
             self.holder_cpp_ty_name,
-            CppParam::params_names(&self.parameters)
+            CppParam::params_names(&self.parameters).join(", ")
         )?;
         }
 
@@ -360,7 +365,7 @@ impl Writable for CppMethodSizeStruct {
             "//  Writing Method size for method: {}.{}",
             self.complete_type_name, self.cpp_method_name
         )?;
-        let params_format = CppParam::params_types(&self.params);
+        let params_format = CppParam::params_types(&self.params).join(", ");
 
         let method_info_rhs = if let Some(slot) = self.slot && !self.is_final {
             format!("THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot((*reinterpret_cast<Il2CppObject**>(this))->klass, {}(), {slot}))", 

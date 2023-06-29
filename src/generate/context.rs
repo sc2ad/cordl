@@ -392,7 +392,7 @@ impl CppContextCollection {
         // since we're modifying only 1 type exclusively
         // and we don't rely on any other type at this time
         // we can clone
-        
+
         // sad inefficient memory usage but oh well
         let nested_types: HashMap<CppTypeTag, CppType> = owner
             .nested_types
