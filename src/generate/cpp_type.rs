@@ -311,14 +311,10 @@ impl CppType {
 
             self.nested_types
                 .iter()
-                .map(|n| &n.cpp_name)
+                .map(CppForwardDeclare::from_cpp_type)
                 .unique()
                 .try_for_each(|cpp_name| {
-                    writeln!(
-                        writer,
-                        "// Forward declare nested type\nstruct {};",
-                        cpp_name
-                    )
+                    cpp_name.write(writer)
                 })?;
 
             self.nested_types

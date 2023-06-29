@@ -663,6 +663,10 @@ impl CppContextCollection {
     pub fn get(&self) -> &HashMap<CppTypeTag, CppContext> {
         &self.all_contexts
     }
+
+    pub fn write_all(&self) -> color_eyre::Result<()> {
+        self.all_contexts.iter().try_for_each(|(_, c)| c.write())
+    }
 }
 
 fn find_generic_il2cpp_type_data<'a>(

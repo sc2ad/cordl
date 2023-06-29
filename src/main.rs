@@ -9,7 +9,6 @@
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use generate::{config::GenerationConfig, context::CppContextCollection, metadata::Metadata};
 
-
 use std::{fs, path::PathBuf, time};
 
 use clap::{Parser, Subcommand};
@@ -92,7 +91,12 @@ fn main() -> color_eyre::Result<()> {
         cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi));
     }
 
-    if cpp_context_collection.get_context(CppTypeTag::TypeDefinitionIndex(TypeDefinitionIndex::new(13839))).is_none() {
+    if cpp_context_collection
+        .get_context(CppTypeTag::TypeDefinitionIndex(TypeDefinitionIndex::new(
+            13839,
+        )))
+        .is_none()
+    {
         panic!("What!");
     }
 
@@ -157,144 +161,149 @@ fn main() -> color_eyre::Result<()> {
         cpp_context_collection.fill_nested_types(&metadata, &config, owner_ty);
     }
 
-    // for t in &metadata.type_definitions {
-    //     // Handle the generation for a single type
-    //     let dest = open_writer(&metadata, &config, &t);
-    //     write_type(&metadata, &config, &t, &dest);
-    // }
-    fn make_td_tdi(idx: u32) -> TypeData {
-        TypeData::TypeDefinitionIndex(TypeDefinitionIndex::new(idx))
-    }
-    // All indices require updating
-    // cpp_context_collection.get()[&make_td_tdi(123)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(342)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(512)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(1024)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(600)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(1000)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(420)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(69)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(531)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(532)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(533)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(534)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(535)].write()?;
-    // cpp_context_collection.get()[&make_td_tdi(1455)].write()?;
-    println!("Generic type");
-    cpp_context_collection
-        .get()
-        .iter()
-        .find(|(_, c)| c.get_types().iter().any(|(_, t)| t.cpp_template.is_some()))
-        .unwrap()
-        .1
-        .write()?;
-    println!("List Generic type");
-    cpp_context_collection
-        .get()
-        .iter()
-        .find(|(_, c)| {
-            c.get_types()
-                .iter()
-                .any(|(_, t)| t.generic_instantiation_args.is_some() && t.cpp_name() == "List_1")
-        })
-        .unwrap()
-        .1
-        .write()?;
-    println!("Value type");
-    cpp_context_collection
-        .get()
-        .iter()
-        .find(|(_, c)| {
-            c.get_types()
-                .iter()
-                .any(|(_, t)| t.is_value_type && t.name == "Color" && t.namespace == "UnityEngine")
-        })
-        .unwrap()
-        .1
-        .write()?;
-    println!("Nested type");
-    cpp_context_collection
-        .get()
-        .iter()
-        .find(|(_, c)| {
-            c.get_types()
-                .iter()
-                .any(|(_, t)| t.nested_types.iter().any(|n| !n.declarations.is_empty()))
-        })
-        .unwrap()
-        .1
-        .write()?;
-    // Doesn't exist anymore?
-    // println!("AlignmentUnion type");
-    // cpp_context_collection
-    //     .get()
-    //     .iter()
-    //     .find(|(_, c)| {
-    //         c.get_types()
-    //             .iter()
-    //             .any(|(_, t)| t.is_value_type && &t.name == "AlignmentUnion")
-    //     })
-    //     .unwrap()
-    //     .1
-    //     .write()?;
-    println!("Array type");
-    cpp_context_collection
-        .get()
-        .iter()
-        .find(|(_, c)| {
-            c.get_types()
-                .iter()
-                .any(|(_, t)| t.name == "Array" && t.namespace == "System")
-        })
-        .unwrap()
-        .1
-        .write()?;
-    println!("Default param");
-    cpp_context_collection
-        .get()
-        .iter()
-        .filter(|(_, c)| {
-            c.get_types().iter().any(|(_, t)| {
-                t.declarations.iter().any(|d| {
-                    if let CppMember::MethodDecl(m) = d {
-                        m.parameters.iter().any(|p| p.def_value.is_some())
-                    } else {
-                        false
-                    }
+    let write_all = true;
+    if write_all {
+        cpp_context_collection.write_all()?;
+    } else {
+        // for t in &metadata.type_definitions {
+        //     // Handle the generation for a single type
+        //     let dest = open_writer(&metadata, &config, &t);
+        //     write_type(&metadata, &config, &t, &dest);
+        // }
+        fn make_td_tdi(idx: u32) -> TypeData {
+            TypeData::TypeDefinitionIndex(TypeDefinitionIndex::new(idx))
+        }
+        // All indices require updating
+        // cpp_context_collection.get()[&make_td_tdi(123)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(342)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(512)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(1024)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(600)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(1000)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(420)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(69)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(531)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(532)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(533)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(534)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(535)].write()?;
+        // cpp_context_collection.get()[&make_td_tdi(1455)].write()?;
+        println!("Generic type");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| c.get_types().iter().any(|(_, t)| t.cpp_template.is_some()))
+            .unwrap()
+            .1
+            .write()?;
+        println!("List Generic type");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types().iter().any(|(_, t)| {
+                    t.generic_instantiation_args.is_some() && t.cpp_name() == "List_1"
                 })
             })
-        })
-        .nth(2)
-        .unwrap()
-        .1
-        .write()?;
-    println!("UnityEngine.Object");
-    cpp_context_collection
-        .get()
-        .iter()
-        .find(|(_, c)| {
-            c.get_types()
-                .iter()
-                .any(|(_, t)| t.name == "Object" && t.namespace == "UnityEngine")
-        })
-        .unwrap()
-        .1
-        .write()?;
-    println!("BeatmapSaveDataHelpers");
-    cpp_context_collection
-        .get()
-        .iter()
-        .find(|(_, c)| {
-            c.get_types()
-                .iter()
-                .any(|(_, t)| t.name == "BeatmapSaveDataHelpers")
-        })
-        .unwrap()
-        .1
-        .write()?;
-    // for (_, context) in cpp_context_collection.get() {
-    //     context.write().unwrap();
-    // }
+            .unwrap()
+            .1
+            .write()?;
+        println!("Value type");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types().iter().any(|(_, t)| {
+                    t.is_value_type && t.name == "Color" && t.namespace == "UnityEngine"
+                })
+            })
+            .unwrap()
+            .1
+            .write()?;
+        println!("Nested type");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.nested_types.iter().any(|n| !n.declarations.is_empty()))
+            })
+            .unwrap()
+            .1
+            .write()?;
+        // Doesn't exist anymore?
+        // println!("AlignmentUnion type");
+        // cpp_context_collection
+        //     .get()
+        //     .iter()
+        //     .find(|(_, c)| {
+        //         c.get_types()
+        //             .iter()
+        //             .any(|(_, t)| t.is_value_type && &t.name == "AlignmentUnion")
+        //     })
+        //     .unwrap()
+        //     .1
+        //     .write()?;
+        println!("Array type");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.name == "Array" && t.namespace == "System")
+            })
+            .unwrap()
+            .1
+            .write()?;
+        println!("Default param");
+        cpp_context_collection
+            .get()
+            .iter()
+            .filter(|(_, c)| {
+                c.get_types().iter().any(|(_, t)| {
+                    t.declarations.iter().any(|d| {
+                        if let CppMember::MethodDecl(m) = d {
+                            m.parameters.iter().any(|p| p.def_value.is_some())
+                        } else {
+                            false
+                        }
+                    })
+                })
+            })
+            .nth(2)
+            .unwrap()
+            .1
+            .write()?;
+        println!("UnityEngine.Object");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.name == "Object" && t.namespace == "UnityEngine")
+            })
+            .unwrap()
+            .1
+            .write()?;
+        println!("BeatmapSaveDataHelpers");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.name == "BeatmapSaveDataHelpers")
+            })
+            .unwrap()
+            .1
+            .write()?;
+        // for (_, context) in cpp_context_collection.get() {
+        //     context.write().unwrap();
+        // }
+    }
 
     Ok(())
 }
