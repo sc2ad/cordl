@@ -932,10 +932,11 @@ pub trait CSType: Sized {
             | Il2CppTypeEnum::I8
             | Il2CppTypeEnum::U8
             | Il2CppTypeEnum::I
-            | Il2CppTypeEnum::U
-            | Il2CppTypeEnum::R4
-            | Il2CppTypeEnum::R8 => {
+            | Il2CppTypeEnum::U => {
                 requirements.needs_int_include();
+            }
+            Il2CppTypeEnum::R4 | Il2CppTypeEnum::R8 => {
+                requirements.needs_float_include();
             }
             _ => (),
         };
@@ -962,16 +963,8 @@ pub trait CSType: Sized {
                 // But we have to:
                 // - Determine where to include it from
                 let to_incl = ctx_collection.get_context(typ_cpp_tag).unwrap_or_else(|| {
-                    let x = ctx_collection.get_cpp_type(typ_cpp_tag);
-                    let y = ctx_collection.alias_context.get(&typ_cpp_tag).unwrap();
-                    let z = ctx_collection.get_context(*y);
                     let t = &metadata.metadata.global_metadata.type_definitions
                         [Self::get_tag_tdi(typ.data)];
-                    let w = metadata
-                        .child_to_parent_map
-                        .get(&typ_cpp_tag.into())
-                        .unwrap();
-                    let p = ctx_collection.get_context(w.tdi.into());
 
                     panic!(
                         "no context for type {typ:?} {}",
@@ -1121,8 +1114,8 @@ pub trait CSType: Sized {
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point
-            Il2CppTypeEnum::R4 => "float32_t".to_string(),
-            Il2CppTypeEnum::R8 => "float64_t".to_string(),
+            Il2CppTypeEnum::R4 => "std::float32_t".to_string(),
+            Il2CppTypeEnum::R8 => "std::float64_t".to_string(),
 
             Il2CppTypeEnum::Void => "void".to_string(),
             Il2CppTypeEnum::Boolean => "bool".to_string(),
