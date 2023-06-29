@@ -84,13 +84,13 @@ impl CppTypeRequirements {
     }
     pub fn needs_arrayw_include(&mut self) {
         self.required_includes.insert(CppInclude::new(
-            "beatsaber-hook/shared/utils/typedefs-array".into(),
+            "beatsaber-hook/shared/utils/typedefs-array.hpp".into(),
         ));
     }
 
     pub fn needs_byref_include(&mut self) {
         self.required_includes
-            .insert(CppInclude::new("beatsaber-hook/shared/utils/byref".into()));
+            .insert(CppInclude::new("beatsaber-hook/shared/utils/byref.hpp".into()));
     }
 }
 
