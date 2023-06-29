@@ -520,7 +520,7 @@ pub trait CSType: Sized {
             };
         }
 
-        cpp_type.nested_types = nested_types
+        cpp_type.nested_types = nested_types.into_iter().map(|t| (t.self_tag, t)).collect()
     }
 
     fn make_properties(

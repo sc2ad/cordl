@@ -182,9 +182,7 @@ impl CppContext {
 
         match CppType::make_cpp_type(metadata, config, tag, tdi) {
             Some(cpptype) => {
-                // Only stored temporary for metatdata, replaced later
-                // TODO: Figure out a better way of doing this
-                x.typedef_types.insert(tdi.into(), cpptype);
+                x.typedef_types.insert(tag, cpptype);
             }
             None => {
                 println!("Unable to create valid CppContext for type: {ns}::{name}!");
@@ -359,12 +357,12 @@ impl CppContextCollection {
     }
 
     fn alias_nested_types(&mut self, owner: &CppType, root_tag: CppTypeTag, context_check: bool) {
-        for nested_type in &owner.nested_types {
+        for (tag, nested_type) in &owner.nested_types {
             // println!(
             //     "Aliasing {:?} to {:?}",
             //     nested_type.self_tag, owner.self_tag
             // );
-            self.alias_type(nested_type.self_tag, root_tag, context_check);
+            self.alias_type(*tag, root_tag, context_check);
             self.alias_nested_types(nested_type, root_tag, context_check);
         }
     }
@@ -394,29 +392,20 @@ impl CppContextCollection {
         // since we're modifying only 1 type exclusively
         // and we don't rely on any other type at this time
         // we can clone
+        
         // sad inefficient memory usage but oh well
-        let mut nested_types = owner.nested_types.clone();
-        nested_types.iter_mut().for_each(|nested_type| {
-            let tdi = nested_type.tdi;
+        let nested_types: HashMap<CppTypeTag, CppType> = owner
+            .nested_types
+            .clone()
+            .into_iter()
+            .map(|(nested_tag, mut nested_type)| {
+                let tdi = nested_type.tdi;
 
-            self.fill_cpp_type(nested_type, metadata, config, tdi);
+                self.fill_cpp_type(&mut nested_type, metadata, config, tdi);
 
-            nested_type.fill_from_il2cpp(metadata, config, self, tdi);
-        });
-        // nested_tags.into_iter().for_each(|nested_tag| {
-        //     self.filling_types.insert(nested_tag);
-
-        //     let nested_type = nested_types
-        //         .iter_mut()
-        //         .find(|n| n.self_tag == nested_tag)
-        //         .unwrap();
-        //     let tdi = CppType::get_tag_tdi(nested_tag);
-
-        //     nested_type.fill_from_il2cpp(metadata, config, self, tdi);
-
-        //     self.filled_types.insert(nested_tag);
-        //     self.filling_types.remove(&nested_tag);
-        // });
+                (nested_tag, nested_type)
+            })
+            .collect();
 
         self.get_cpp_type_mut(owner_type_tag).unwrap().nested_types = nested_types;
     }
@@ -493,7 +482,9 @@ impl CppContextCollection {
                 self.borrow_cpp_type(
                     parent_ty,
                     |_collection: &mut CppContextCollection, mut cpp_type| {
-                        cpp_type.nested_types.push(new_cpp_type.clone());
+                        cpp_type
+                            .nested_types
+                            .insert(new_cpp_type.self_tag, new_cpp_type.clone());
 
                         cpp_type
                     },
@@ -619,10 +610,16 @@ impl CppContextCollection {
 
         // search in root
         // clone to avoid failing il2cpp_name
-        let in_context_cpp_type = context.typedef_types.get(&ty).cloned();
+        let in_context_cpp_type = context.typedef_types.get(&ty);
         match in_context_cpp_type {
-            Some(cpp_type) => {
-                context.typedef_types.insert(ty, func(self, cpp_type));
+            Some(old_cpp_type) => {
+                let old_tag = old_cpp_type.self_tag;
+                let new_cpp_ty = func(self, old_cpp_type.clone());
+
+                context.typedef_types.remove(&old_tag);
+                context
+                    .typedef_types
+                    .insert(new_cpp_ty.self_tag, new_cpp_ty);
             }
             None => {
                 let mut found = false;

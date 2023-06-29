@@ -91,15 +91,6 @@ fn main() -> color_eyre::Result<()> {
         cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi));
     }
 
-    if cpp_context_collection
-        .get_context(CppTypeTag::TypeDefinitionIndex(TypeDefinitionIndex::new(
-            13839,
-        )))
-        .is_none()
-    {
-        panic!("What!");
-    }
-
     println!("Making generic type instantiations and filling!");
     for generic_class in &metadata.metadata_registration.generic_method_table {
         let method_spec = metadata
@@ -225,9 +216,11 @@ fn main() -> color_eyre::Result<()> {
             .get()
             .iter()
             .find(|(_, c)| {
-                c.get_types()
-                    .iter()
-                    .any(|(_, t)| t.nested_types.iter().any(|n| !n.declarations.is_empty()))
+                c.get_types().iter().any(|(_, t)| {
+                    t.nested_types
+                        .iter()
+                        .any(|(_, n)| !n.declarations.is_empty())
+                })
             })
             .unwrap()
             .1

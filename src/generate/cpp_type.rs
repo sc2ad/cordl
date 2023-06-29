@@ -60,7 +60,7 @@ pub struct CppType {
     pub method_generic_instantiation_map: HashMap<MethodIndex, Vec<TypeIndex>>, // MethodIndex -> Generic Args
     pub is_stub: bool,
 
-    pub nested_types: Vec<CppType>,
+    pub nested_types: HashMap<CppTypeTag, CppType>,
 }
 
 impl CppTypeRequirements {
@@ -110,13 +110,14 @@ impl CppType {
     pub fn nested_types_flattened(&self) -> HashMap<CppTypeTag, &CppType> {
         self.nested_types
             .iter()
-            .flat_map(|n| n.nested_types_flattened())
-            .chain(self.nested_types.iter().map(|n| (n.self_tag, n)))
+            .flat_map(|(_, n)| n.nested_types_flattened())
+            .chain(self.nested_types.iter().map(|(tag, n)| (*tag, n)))
             .collect()
     }
     pub fn get_nested_type_mut(&mut self, tag: CppTypeTag) -> Option<&mut CppType> {
-        self.nested_types.iter_mut().find_map(|n| {
-            if n.self_tag == tag {
+        // sadly
+        self.nested_types.iter_mut().find_map(|(n_tag, n)| {
+            if *n_tag == tag {
                 return Some(n);
             }
 
@@ -125,13 +126,11 @@ impl CppType {
         })
     }
     pub fn get_nested_type(&self, tag: CppTypeTag) -> Option<&CppType> {
-        self.nested_types.iter().find_map(|n| {
-            if n.self_tag == tag {
-                return Some(n);
-            }
-
-            // Recurse
-            n.get_nested_type(tag)
+        self.nested_types.get(&tag).or_else(|| {
+            self.nested_types.iter().find_map(|(_, n)| {
+                // Recurse
+                n.get_nested_type(tag)
+            })
         })
     }
 
@@ -144,11 +143,11 @@ impl CppType {
     where
         F: Fn(&mut CppContextCollection, CppType) -> CppType,
     {
-        let nested_index = self.nested_types.iter().position(|n| n.self_tag == ty);
+        let nested_index = self.nested_types.get(&ty);
 
         match nested_index {
             None => {
-                for nested_ty in &mut self.nested_types {
+                for nested_ty in self.nested_types.values_mut() {
                     if nested_ty.borrow_nested_type_mut(ty, context, func) {
                         return true;
                     }
@@ -156,40 +155,23 @@ impl CppType {
 
                 false
             }
-            Some(index) => {
+            Some(old_nested_cpp_type) => {
                 // clone to avoid breaking il2cpp
-                let nested_cpp_type = self.nested_types.get(index).unwrap().clone();
-                let new_cpp_type = func(context, nested_cpp_type);
-                self.nested_types.remove(index);
-                self.nested_types.insert(index, new_cpp_type);
+                let old_nested_cpp_type_tag = old_nested_cpp_type.self_tag;
+                let new_cpp_type = func(context, old_nested_cpp_type.clone());
+
+                // Remove old type, which may have a new type tag
+                self.nested_types.remove(&old_nested_cpp_type_tag);
+                self.nested_types
+                    .insert(new_cpp_type.self_tag, new_cpp_type);
 
                 true
             }
         }
-
-        // let (nested_owner, index) = self
-        //     .nested_types
-        //     .iter_mut()
-        //     .find_map(|n| {
-        //         let nested_ty_index = n.nested_types.iter().position(ty);
-        //         if let Some(i) = nested_ty_index {
-        //             return Some((n, i));
-        //         }
-
-        //         // Recurse
-        //         n.get_nested_type_mut(ty)
-        //     })
-        //     .unwrap();
-
-        // let index = self
-        //     .nested_types
-        //     .iter()
-        //     .position(|t| t.self_tag == ty)
-        //     .unwrap();
     }
 
     pub fn formatted_complete_cpp_name(&self) -> &String {
-        return &self.cpp_full_name;
+        &self.cpp_full_name
         // We found a valid type that we have defined for this idx!
         // TODO: We should convert it here.
         // Ex, if it is a generic, convert it to a template specialization
@@ -229,7 +211,7 @@ impl CppType {
         // TODO: Figure out
         self.nested_types
             .iter()
-            .try_for_each(|n| n.write_impl_internal(writer, None))?;
+            .try_for_each(|(tag, n)| n.write_impl_internal(writer, None))?;
 
         if let Some(namespace) = namespace {
             writeln!(writer, "}} // end namespace {namespace}")?;
@@ -307,23 +289,24 @@ impl CppType {
 
             self.nested_types
                 .iter()
-                .map(|t| (t, CppForwardDeclare::from_cpp_type(t)))
+                .map(|(tag, t)| (t, CppForwardDeclare::from_cpp_type(t)))
                 .unique_by(|(t, n)| n.clone())
                 .try_for_each(|(t, cpp_name)| {
                     writeln!(
                         writer,
-                        "// nested type forward declare {} {} {:?} {:?}",
+                        "// nested type forward declare {} {} {:?} {:?}\n//{:?}",
                         t.cpp_full_name,
                         t.is_stub,
                         t.generic_instantiation_args,
-                        t.generic_instantiations_args_types
+                        t.generic_instantiations_args_types,
+                        t.self_tag
                     )?;
                     cpp_name.write(writer)
                 })?;
 
             self.nested_types
                 .iter()
-                .try_for_each(|n| -> color_eyre::Result<()> {
+                .try_for_each(|(tag, n)| -> color_eyre::Result<()> {
                     writer.indent();
                     writeln!(
                         writer,
