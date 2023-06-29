@@ -161,7 +161,7 @@ fn main() -> color_eyre::Result<()> {
         cpp_context_collection.fill_nested_types(&metadata, &config, owner_ty);
     }
 
-    let write_all = true;
+    let write_all = false;
     if write_all {
         cpp_context_collection.write_all()?;
     } else {
