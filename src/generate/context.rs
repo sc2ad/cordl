@@ -670,7 +670,20 @@ impl CppContextCollection {
     }
 
     pub fn write_all(&self) -> color_eyre::Result<()> {
-        self.all_contexts.iter().try_for_each(|(_, c)| c.write())
+        let amount = self.all_contexts.len();
+        self.all_contexts
+            .iter()
+            .enumerate()
+            .try_for_each(|(i, (_, c))| {
+                println!(
+                    "Writing {} {}% ({}/{})",
+                    c.fundamental_path.display(),
+                    i / amount * 100,
+                    i,
+                    amount
+                );
+                c.write()
+            })
     }
 }
 
