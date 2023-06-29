@@ -1,4 +1,5 @@
 use core::panic;
+use std::io::Write;
 use std::{
     collections::{HashMap, HashSet},
     fs::{create_dir_all, remove_file, File},
@@ -228,6 +229,10 @@ impl CppContext {
             newline: true,
         };
 
+        writeln!(typedef_writer, "#pragma once")?;
+        writeln!(typeimpl_writer, "#pragma once")?;
+        writeln!(fundamental_writer, "#pragma once")?;
+
         // Write includes for typedef
         self.typedef_types
             .values()
@@ -294,17 +299,22 @@ impl CppContextCollection {
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
     ) {
-        if self.filled_types.contains(&cpp_type.self_tag) {
+        let tag = cpp_type.self_tag;
+
+        if self.filled_types.contains(&tag) {
             return;
+        }
+        if self.filling_types.contains(&tag) {
+            panic!("Currently filling type {tag:?}, cannot fill")
         }
 
         // Move ownership to local
-        self.filling_types.insert(cpp_type.self_tag);
+        self.filling_types.insert(tag);
 
         cpp_type.fill_from_il2cpp(metadata, config, self, tdi);
 
-        self.filled_types.insert(cpp_type.self_tag);
-        self.filling_types.remove(&cpp_type.self_tag);
+        self.filled_types.insert(tag);
+        self.filling_types.remove(&tag);
     }
 
     pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, type_tag: CppTypeTag) {
@@ -524,15 +534,13 @@ impl CppContextCollection {
             find_generic_il2cpp_type_data(ty_def, method_spec, metadata, method);
 
         let generic_class_ty = generic_class_ty_opt?;
+        let generic_class_cpp_tag: CppTypeTag = generic_class_ty.data.into();
 
-        self.borrow_cpp_type(generic_class_ty.data.into(), |collection, mut cpp_type| {
-            if method_spec.class_inst_index != u32::MAX {
-                collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
-            }
-
+        self.borrow_cpp_type(generic_class_cpp_tag, |collection, mut cpp_type| {
             let method_index = MethodIndex::new(method_spec.method_inst_index);
             cpp_type.create_method(method, ty_def, method_index, metadata, collection, config);
 
+            collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
             cpp_type
         });
 

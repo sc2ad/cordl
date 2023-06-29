@@ -6,7 +6,7 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use brocolib::global_metadata::{TypeDefinitionIndex, TypeIndex, MethodIndex};
+use brocolib::global_metadata::{MethodIndex, TypeDefinitionIndex, TypeIndex};
 use itertools::Itertools;
 
 use super::{
@@ -56,8 +56,8 @@ pub struct CppType {
     pub cpp_template: Option<CppTemplate>, // Names of templates e.g T, TKey etc.
 
     pub generic_instantiations_args_types: Option<Vec<TypeIndex>>, // GenericArg -> Instantiation Arg
-    pub method_generic_instantiation_map: HashMap<MethodIndex, Vec<TypeIndex>>, // MethodIndex -> Generic Args
     pub generic_instantiation_args: Option<Vec<String>>, // generic_instantiations_args_types but formatted
+    pub method_generic_instantiation_map: HashMap<MethodIndex, Vec<TypeIndex>>, // MethodIndex -> Generic Args
     pub is_stub: bool,
 
     pub nested_types: Vec<CppType>,
@@ -283,11 +283,7 @@ impl CppType {
             // Type definition plus inherit lines
 
             let clazz_name = match &self.generic_instantiation_args {
-                Some(literals) => format!(
-                    "{}<{}>",
-                    self.cpp_name(),
-                    literals.join(",")
-                ),
+                Some(literals) => format!("{}<{}>", self.cpp_name(), literals.join(",")),
                 None => self.cpp_name().to_string(),
             };
 
@@ -311,15 +307,34 @@ impl CppType {
 
             self.nested_types
                 .iter()
-                .map(CppForwardDeclare::from_cpp_type)
-                .unique()
-                .try_for_each(|cpp_name| {
+                .map(|t| (t, CppForwardDeclare::from_cpp_type(t)))
+                .unique_by(|(t, n)| n.clone())
+                .try_for_each(|(t, cpp_name)| {
+                    writeln!(
+                        writer,
+                        "// nested type forward declare {} {} {:?} {:?}",
+                        t.cpp_full_name,
+                        t.is_stub,
+                        t.generic_instantiation_args,
+                        t.generic_instantiations_args_types
+                    )?;
                     cpp_name.write(writer)
                 })?;
 
             self.nested_types
                 .iter()
-                .try_for_each(|n| n.write_def_internal(writer, None, false))?;
+                .try_for_each(|n| -> color_eyre::Result<()> {
+                    writer.indent();
+                    writeln!(
+                        writer,
+                        "// nested type {} {}",
+                        self.cpp_full_name, self.is_stub
+                    )?;
+                    n.write_def_internal(writer, None, false)?;
+                    writer.dedent();
+                    Ok(())
+                })?;
+            writeln!(writer, "// Declarations")?;
             // Write all declarations within the type here
             self.declarations.iter().for_each(|d| {
                 d.write(writer).unwrap();
@@ -335,6 +350,8 @@ impl CppType {
             writeln!(writer, "}};")?;
 
             // NON MEMBER DECLARATIONS
+            writeln!(writer, "// Non member Declarations")?;
+
             self.nonmember_declarations
                 .iter()
                 .try_for_each(|d| d.write(writer))?;

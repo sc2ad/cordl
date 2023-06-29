@@ -33,14 +33,25 @@ impl Writable for CppForwardDeclare {
             templates.write(writer)?;
         }
 
+        let name = match &self.literals {
+            Some(literals) => {
+                format!("{}<{}>", self.name, literals.join(","))
+            }
+            None => self.name.clone(),
+        };
+
+        if self.literals.is_some() {
+            // forward declare for instantiation
+            writeln!(writer, "template<>")?;
+        }
+
         writeln!(
             writer,
-            "{} {};",
+            "{} {name};",
             match self.is_struct {
                 true => "struct",
                 false => "class",
-            },
-            self.name
+            }
         )?;
 
         if self.namespace.is_some() {
@@ -148,8 +159,14 @@ impl Writable for CppMethodDecl {
             self.cpp_name,
             self.return_type,
             self.parameters,
-            self.method_data.as_ref().map(|t| t.addrs).unwrap_or(u64::MAX),
-            self.method_data.as_ref().map(|t| t.estimated_size).unwrap_or(usize::MAX)
+            self.method_data
+                .as_ref()
+                .map(|t| t.addrs)
+                .unwrap_or(u64::MAX),
+            self.method_data
+                .as_ref()
+                .map(|t| t.estimated_size)
+                .unwrap_or(usize::MAX)
         )?;
 
         self.template.write(writer)?;
@@ -295,16 +312,17 @@ impl Writable for CppProperty {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         writeln!(
             writer,
-            "// Property: name: {}, Type Name: {}, setter {} getter {} abstract {}",
+            "// Property: name: {}, Type Name: {}, getter {} setter {} abstract {}",
             self.name,
             self.ty,
-            self.setter.is_some(),
             self.getter.is_some(),
+            self.setter.is_some(),
             self.abstr
         )?;
 
         // TODO:
         if self.abstr {
+            writeln!(writer, "// TODO: ABSTRACT PROP HERE!")?;
             return Ok(());
         }
 
