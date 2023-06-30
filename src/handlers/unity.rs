@@ -3,10 +3,9 @@ use std::path::PathBuf;
 use color_eyre::Result;
 
 use crate::generate::{
-    context::CppContextCollection,
     cpp_type::CppType,
     members::CppInclude,
-    metadata::{Il2cppFullName, Metadata},
+    metadata::{Il2cppFullName, Metadata}, context_collection::CppContextCollection,
 };
 
 pub fn register_unity(

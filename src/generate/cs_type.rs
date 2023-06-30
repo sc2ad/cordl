@@ -25,14 +25,14 @@ use super::{
         MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
         TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
     },
-    context::{CppContextCollection, CppTypeTag},
+    context::{CppTypeTag},
     cpp_type::CppType,
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppField, CppForwardDeclare,
         CppInclude, CppMember, CppMethodData, CppMethodDecl, CppMethodImpl, CppMethodSizeStruct,
         CppParam, CppProperty, CppTemplate,
     },
-    metadata::Metadata,
+    metadata::Metadata, context_collection::CppContextCollection,
 };
 
 type Endian = LittleEndian;
@@ -975,7 +975,7 @@ pub trait CSType: Sized {
                         .required_includes
                         .insert(CppInclude::new_context(to_incl));
                 }
-                let inc = CppInclude::new_context(to_incl);
+                let _inc = CppInclude::new_context(to_incl);
                 let to_incl_ty = ctx_collection
                     .get_cpp_type(typ.data.into())
                     .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));

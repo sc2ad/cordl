@@ -8,14 +8,14 @@
 #![feature(lazy_cell)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
-use generate::{config::GenerationConfig, context::CppContextCollection, metadata::Metadata};
+use generate::{config::GenerationConfig, metadata::Metadata};
 
 use std::{fs, path::PathBuf, sync::LazyLock, time};
 
 use clap::{Parser, Subcommand};
 
 use crate::{
-    generate::{context::CppTypeTag, members::CppMember},
+    generate::{context::CppTypeTag, members::CppMember, context_collection::CppContextCollection},
     handlers::unity,
 };
 mod generate;
@@ -117,7 +117,7 @@ fn main() -> color_eyre::Result<()> {
                 .get(generic_class.generic_method_index as usize)
                 .unwrap();
 
-            cpp_context_collection.make_generic_from(method_spec, &mut metadata);
+            cpp_context_collection.make_generic_from(method_spec, &mut metadata, &STATIC_CONFIG);
         }
     }
     {
