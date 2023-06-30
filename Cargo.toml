@@ -13,3 +13,6 @@ color-eyre = "0.6"
 itertools = "0.10"
 bytes = "*"
 byteorder = "1"
+
+# utils
+pathdiff = "0.2"

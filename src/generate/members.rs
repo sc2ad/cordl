@@ -1,7 +1,13 @@
-use itertools::Itertools;
 
-use super::{context::CppContext, cpp_type::CppType};
-use std::path::PathBuf;
+use pathdiff::diff_paths;
+
+use crate::STATIC_CONFIG;
+
+use super::{
+    context::CppContext,
+    cpp_type::CppType,
+};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
 pub struct CppTemplate {
@@ -241,23 +247,24 @@ impl CppParam {
 }
 
 impl CppInclude {
+    // smelly use of config but whatever
     pub fn new_context(context: &CppContext) -> Self {
         Self {
-            include: context.fundamental_path.clone(),
+            include: diff_paths(&context.fundamental_path, &STATIC_CONFIG.header_path).unwrap(),
             system: false,
         }
     }
 
-    pub fn new_system(str: PathBuf) -> Self {
+    pub fn new_system<P: AsRef<Path>>(str: P) -> Self {
         Self {
-            include: str,
+            include: str.as_ref().to_path_buf(),
             system: true,
         }
     }
 
-    pub fn new(str: PathBuf) -> Self {
+    pub fn new<P: AsRef<Path>>(str: P) -> Self {
         Self {
-            include: str,
+            include: str.as_ref().to_path_buf(),
             system: false,
         }
     }

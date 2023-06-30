@@ -66,27 +66,27 @@ pub struct CppType {
 impl CppTypeRequirements {
     pub fn need_wrapper(&mut self) {
         self.required_includes.insert(CppInclude::new(
-            "beatsaber-hook/shared/utils/base-wrapper-type.hpp".into(),
+            "beatsaber-hook/shared/utils/base-wrapper-type.hpp",
         ));
     }
     pub fn needs_int_include(&mut self) {
         self.required_includes
-            .insert(CppInclude::new_system("cstdint".into()));
+            .insert(CppInclude::new_system("cstdint"));
     }
     pub fn needs_stringw_include(&mut self) {
         self.required_includes.insert(CppInclude::new(
-            "beatsaber-hook/shared/utils/typedefs-string.hpp".into(),
+            "beatsaber-hook/shared/utils/typedefs-string.hpp",
         ));
     }
     pub fn needs_arrayw_include(&mut self) {
         self.required_includes.insert(CppInclude::new(
-            "beatsaber-hook/shared/utils/typedefs-array.hpp".into(),
+            "beatsaber-hook/shared/utils/typedefs-array.hpp",
         ));
     }
 
     pub fn needs_byref_include(&mut self) {
         self.required_includes
-            .insert(CppInclude::new("beatsaber-hook/shared/utils/byref.hpp".into()));
+            .insert(CppInclude::new("beatsaber-hook/shared/utils/byref.hpp"));
     }
 }
 
@@ -211,7 +211,7 @@ impl CppType {
         // TODO: Figure out
         self.nested_types
             .iter()
-            .try_for_each(|(tag, n)| n.write_impl_internal(writer, None))?;
+            .try_for_each(|(_tag, n)| n.write_impl_internal(writer, None))?;
 
         if let Some(namespace) = namespace {
             writeln!(writer, "}} // end namespace {namespace}")?;
@@ -288,9 +288,9 @@ impl CppType {
             writer.indent();
 
             self.nested_types
-                .iter()
-                .map(|(tag, t)| (t, CppForwardDeclare::from_cpp_type(t)))
-                .unique_by(|(t, n)| n.clone())
+                .values()
+                .map(|t| (t, CppForwardDeclare::from_cpp_type(t)))
+                .unique_by(|(_, n)| n.clone())
                 .try_for_each(|(t, cpp_name)| {
                     writeln!(
                         writer,
@@ -306,7 +306,7 @@ impl CppType {
 
             self.nested_types
                 .iter()
-                .try_for_each(|(tag, n)| -> color_eyre::Result<()> {
+                .try_for_each(|(_, n)| -> color_eyre::Result<()> {
                     writer.indent();
                     writeln!(
                         writer,

@@ -16,11 +16,13 @@ use color_eyre::eyre::ContextCompat;
 
 use brocolib::runtime_metadata::TypeData;
 use itertools::Itertools;
+use pathdiff::diff_paths;
 
 use crate::generate::{
     constants::{TypeDefinitionExtensions, OBJECT_WRAPPER_TYPE},
     members::CppInclude,
 };
+use crate::STATIC_CONFIG;
 
 use super::{
     config::GenerationConfig,
@@ -231,6 +233,8 @@ impl CppContext {
         writeln!(typeimpl_writer, "#pragma once")?;
         writeln!(fundamental_writer, "#pragma once")?;
 
+        let base_path = &STATIC_CONFIG.header_path;
+
         // Write includes for typedef
         self.typedef_types
             .values()
@@ -248,7 +252,8 @@ impl CppContext {
                 // TODO: Check forward declare is not of own type
                 .try_for_each(|i| i.write(&mut typedef_writer))?;
 
-            CppInclude::new(self.typedef_path.to_path_buf()).write(&mut typeimpl_writer)?;
+            CppInclude::new(diff_paths(&self.typedef_path, base_path).unwrap())
+                .write(&mut typeimpl_writer)?;
             // This is likely not necessary
             // self.typedef_types
             //     .values()
@@ -272,8 +277,10 @@ impl CppContext {
             }
         }
 
-        CppInclude::new(self.typedef_path.to_path_buf()).write(&mut fundamental_writer)?;
-        CppInclude::new(self.type_impl_path.to_path_buf()).write(&mut fundamental_writer)?;
+        CppInclude::new(diff_paths(&self.typedef_path, base_path).unwrap())
+            .write(&mut fundamental_writer)?;
+        CppInclude::new(diff_paths(&self.type_impl_path, base_path).unwrap())
+            .write(&mut fundamental_writer)?;
 
         // TODO: Write type impl and fundamental files here
         Ok(())

@@ -5,11 +5,16 @@
 #![feature(read_buf)]
 #![feature(map_try_insert)]
 #![feature(return_position_impl_trait_in_trait)]
+#![feature(lazy_cell)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use generate::{config::GenerationConfig, context::CppContextCollection, metadata::Metadata};
 
-use std::{fs, path::PathBuf, time};
+use std::{
+    fs,
+    path::{PathBuf},
+    time, sync::LazyLock,
+};
 
 use clap::{Parser, Subcommand};
 
@@ -39,9 +44,14 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {}
 
+static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| GenerationConfig {
+        header_path: PathBuf::from("./codegen/include"),
+        source_path: PathBuf::from("./codegen/src"),
+});
+
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
-    let cli = Cli::parse();
+    let cli: Cli = Cli::parse();
     // let cli = Cli {
     //     metadata: PathBuf::from("global-metadata.dat"),
     //     libil2cpp: PathBuf::from("libil2cpp.so"),
@@ -51,11 +61,6 @@ fn main() -> color_eyre::Result<()> {
     let global_metadata_data = fs::read(cli.metadata)?;
     let elf_data = fs::read(cli.libil2cpp)?;
     let il2cpp_metadata = brocolib::Metadata::parse(&global_metadata_data, &elf_data)?;
-
-    let config = GenerationConfig {
-        header_path: PathBuf::from("./codegen/include"),
-        source_path: PathBuf::from("./codegen/src"),
-    };
 
     let mut metadata = Metadata {
         metadata: &il2cpp_metadata,
@@ -88,7 +93,7 @@ fn main() -> color_eyre::Result<()> {
         if metadata.child_to_parent_map.contains_key(&tdi) {
             continue;
         }
-        cpp_context_collection.make_from(&metadata, &config, TypeData::TypeDefinitionIndex(tdi));
+        cpp_context_collection.make_from(&metadata, &STATIC_CONFIG, TypeData::TypeDefinitionIndex(tdi));
     }
 
     println!("Making generic type instantiations and filling!");
@@ -110,7 +115,7 @@ fn main() -> color_eyre::Result<()> {
             .get(generic_class.generic_method_index as usize)
             .unwrap();
 
-        cpp_context_collection.fill_generic_inst(method_spec, &mut metadata, &config);
+        cpp_context_collection.fill_generic_inst(method_spec, &mut metadata, &STATIC_CONFIG);
     }
 
     println!("Registering handlers!");
@@ -131,7 +136,7 @@ fn main() -> color_eyre::Result<()> {
         if metadata.child_to_parent_map.contains_key(&tdi) {
             continue;
         }
-        cpp_context_collection.fill(&metadata, &config, CppTypeTag::TypeDefinitionIndex(tdi));
+        cpp_context_collection.fill(&metadata, &STATIC_CONFIG, CppTypeTag::TypeDefinitionIndex(tdi));
     }
     // Fill children
     println!("Nested types pass");
@@ -149,7 +154,7 @@ fn main() -> color_eyre::Result<()> {
 
         let owner_ty = owner.self_tag;
 
-        cpp_context_collection.fill_nested_types(&metadata, &config, owner_ty);
+        cpp_context_collection.fill_nested_types(&metadata, &STATIC_CONFIG, owner_ty);
     }
 
     let write_all = false;

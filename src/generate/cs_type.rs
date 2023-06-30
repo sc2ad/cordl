@@ -14,6 +14,7 @@ use brocolib::{
 };
 use byteorder::{LittleEndian, ReadBytesExt};
 
+
 use itertools::Itertools;
 
 use crate::helpers::cursor::ReadBytesExtensions;
@@ -1011,14 +1012,14 @@ pub trait CSType: Sized {
                     let owner = generic_param.owner(metadata.metadata);
                     assert!(owner.is_method != u32::MAX);
 
-                    let (gen_param_idx, gen_param) = owner
+                    let (_gen_param_idx, gen_param) = owner
                         .generic_parameters(metadata.metadata)
                         .iter()
                         .find_position(|&p| p.name_index == generic_param.name_index)
                         .unwrap();
 
                     let method_index = MethodIndex::new(owner.owner_index);
-                    let method = &metadata.metadata.global_metadata.methods[method_index];
+                    let _method = &metadata.metadata.global_metadata.methods[method_index];
 
                     let method_args_opt =
                         cpp_type.method_generic_instantiation_map.get(&method_index);

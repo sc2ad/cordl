@@ -221,10 +221,9 @@ impl Writable for CppMethodImpl {
             self.return_type,
             self.cpp_method_name)?;
 
-        let mut method_invoke_params = vec!["___internal_method"];
-        if self.instance {
-            method_invoke_params.insert(0, "this");
-        }
+        let instance_pointer = if self.instance {"this"} else {"nullptr"};
+
+        let method_invoke_params = vec![instance_pointer, "___internal_method"];
 
         let param_names = CppParam::params_names(&self.parameters).map(|s| s.as_str());
 
