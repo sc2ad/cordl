@@ -193,10 +193,6 @@ impl Writable for CppMethodImpl {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         self.template.write(writer)?;
 
-        if !self.instance {
-            write!(writer, "static ")?;
-        }
-
         // Start
         writeln!(
             writer,
