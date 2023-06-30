@@ -14,7 +14,6 @@ use brocolib::{
 };
 use byteorder::{LittleEndian, ReadBytesExt};
 
-
 use itertools::Itertools;
 
 use crate::helpers::cursor::ReadBytesExtensions;
@@ -25,14 +24,14 @@ use super::{
         MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
         TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
     },
-    context::{CppTypeTag},
+    context_collection::{CppContextCollection, CppTypeTag},
     cpp_type::CppType,
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppField, CppForwardDeclare,
         CppInclude, CppMember, CppMethodData, CppMethodDecl, CppMethodImpl, CppMethodSizeStruct,
         CppParam, CppProperty, CppTemplate,
     },
-    metadata::Metadata, context_collection::CppContextCollection,
+    metadata::Metadata,
 };
 
 type Endian = LittleEndian;

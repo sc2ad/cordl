@@ -15,7 +15,7 @@ use std::{fs, path::PathBuf, sync::LazyLock, time};
 use clap::{Parser, Subcommand};
 
 use crate::{
-    generate::{context::CppTypeTag, members::CppMember, context_collection::CppContextCollection},
+    generate::{context::CppTypeTag, context_collection::CppContextCollection, members::CppMember},
     handlers::unity,
 };
 mod generate;

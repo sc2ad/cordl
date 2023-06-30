@@ -1,6 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
-use brocolib::global_metadata::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex};
+use brocolib::{
+    global_metadata::{
+        Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex,
+    },
+    runtime_metadata::{
+        Il2CppGenericClass, Il2CppGenericContext, Il2CppMethodSpec, Il2CppType, TypeData,
+    },
+};
 use itertools::Itertools;
 
 use super::cpp_type::CppType;
@@ -186,4 +193,36 @@ impl<'a> Metadata<'a> {
             })
             .collect();
     }
+}
+
+pub fn find_generic_il2cpp_type_data<'a>(
+    ty_def: &Il2CppTypeDefinition,
+    method_spec: &Il2CppMethodSpec,
+    metadata: &'a mut Metadata,
+) -> (Option<&'a Il2CppType>, Il2CppGenericClass) {
+    let generic_class: Il2CppGenericClass = Il2CppGenericClass {
+        type_index: ty_def.byval_type_index as usize,
+        context: Il2CppGenericContext {
+            class_inst_idx: Some(method_spec.class_inst_index as usize),
+            method_inst_idx: None,
+        },
+    };
+    let generic_class_ty_opt = metadata
+        .metadata_registration
+        .types
+        .iter()
+        .find(|t| match t.data {
+            TypeData::GenericClassIndex(index) => {
+                let o = metadata
+                    .metadata_registration
+                    .generic_classes
+                    .get(index)
+                    .unwrap();
+
+                *o == generic_class
+            }
+            _ => false,
+        });
+
+    (generic_class_ty_opt, generic_class)
 }

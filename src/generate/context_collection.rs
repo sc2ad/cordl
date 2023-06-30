@@ -1,11 +1,64 @@
 use std::collections::{HashMap, HashSet};
 
-use brocolib::{runtime_metadata::{TypeData, Il2CppMethodSpec, Il2CppType, Il2CppGenericClass, Il2CppGenericContext}, global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex}};
+use brocolib::{
+    global_metadata::{
+        Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex,
+    },
+    runtime_metadata::{
+        Il2CppGenericClass, Il2CppGenericContext, Il2CppMethodSpec, Il2CppType, TypeData,
+    },
+};
 
 use crate::generate::{cpp_type::CppType, cs_type::CSType};
 
-use super::{context::{CppTypeTag, CppContext}, metadata::Metadata, config::GenerationConfig};
+use super::{
+    config::GenerationConfig,
+    context::CppContext,
+    metadata::{find_generic_il2cpp_type_data, Metadata},
+};
 
+// TODO:
+type GenericClassIndex = usize;
+
+// Unique identifier for a CppType
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum CppTypeTag {
+    TypeDefinitionIndex(TypeDefinitionIndex),
+    GenericInstantiation(GenericClassIndex),
+}
+
+impl From<TypeDefinitionIndex> for CppTypeTag {
+    fn from(value: TypeDefinitionIndex) -> Self {
+        CppTypeTag::TypeDefinitionIndex(value)
+    }
+}
+impl From<TypeData> for CppTypeTag {
+    fn from(value: TypeData) -> Self {
+        match value {
+            TypeData::TypeDefinitionIndex(i) => i.into(),
+            TypeData::GenericClassIndex(i) => CppTypeTag::GenericInstantiation(i),
+            _ => panic!("Can't use {value:?} for CppTypeTag"),
+        }
+    }
+}
+
+impl From<CppTypeTag> for TypeData {
+    fn from(value: CppTypeTag) -> Self {
+        match value {
+            CppTypeTag::TypeDefinitionIndex(i) => TypeData::TypeDefinitionIndex(i),
+            CppTypeTag::GenericInstantiation(i) => TypeData::GenericClassIndex(i),
+        }
+    }
+}
+
+impl From<CppTypeTag> for TypeDefinitionIndex {
+    fn from(value: CppTypeTag) -> Self {
+        match value {
+            CppTypeTag::TypeDefinitionIndex(i) => i,
+            _ => panic!("Type is not a TDI! {value:?}"),
+        }
+    }
+}
 
 pub struct CppContextCollection {
     // Should always be a TypeDefinitionIndex
@@ -171,7 +224,7 @@ impl CppContextCollection {
         let parent_data = metadata.child_to_parent_map.get(&tdi).cloned();
 
         let (generic_class_ty_opt, generic_class) =
-            find_generic_il2cpp_type_data(ty_def, method_spec, metadata, method);
+            find_generic_il2cpp_type_data(ty_def, method_spec, metadata);
 
         if generic_class_ty_opt.is_none() {
             println!("Skipping {}", method.full_name(metadata.metadata));
@@ -251,7 +304,7 @@ impl CppContextCollection {
         }
 
         let (generic_class_ty_opt, _generic_class) =
-            find_generic_il2cpp_type_data(ty_def, method_spec, metadata, method);
+            find_generic_il2cpp_type_data(ty_def, method_spec, metadata);
 
         let generic_class_ty = generic_class_ty_opt?;
         let generic_class_cpp_tag: CppTypeTag = generic_class_ty.data.into();
@@ -414,38 +467,4 @@ impl CppContextCollection {
                 c.write()
             })
     }
-}
-
-
-fn find_generic_il2cpp_type_data<'a>(
-    ty_def: &Il2CppTypeDefinition,
-    method_spec: &Il2CppMethodSpec,
-    metadata: &'a mut Metadata,
-    _method: &Il2CppMethodDefinition,
-) -> (Option<&'a Il2CppType>, Il2CppGenericClass) {
-    let generic_class: Il2CppGenericClass = Il2CppGenericClass {
-        type_index: ty_def.byval_type_index as usize,
-        context: Il2CppGenericContext {
-            class_inst_idx: Some(method_spec.class_inst_index as usize),
-            method_inst_idx: None,
-        },
-    };
-    let generic_class_ty_opt = metadata
-        .metadata_registration
-        .types
-        .iter()
-        .find(|t| match t.data {
-            TypeData::GenericClassIndex(index) => {
-                let o = metadata
-                    .metadata_registration
-                    .generic_classes
-                    .get(index)
-                    .unwrap();
-
-                *o == generic_class
-            }
-            _ => false,
-        });
-
-    (generic_class_ty_opt, generic_class)
 }

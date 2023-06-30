@@ -1,12 +1,8 @@
-
 use pathdiff::diff_paths;
 
 use crate::STATIC_CONFIG;
 
-use super::{
-    context::CppContext,
-    cpp_type::CppType,
-};
+use super::{context::CppContext, cpp_type::CppType};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]

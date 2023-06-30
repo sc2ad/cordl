@@ -6,11 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use brocolib::{
-    global_metadata::{
-        TypeDefinitionIndex,
-    },
-};
+use brocolib::global_metadata::TypeDefinitionIndex;
 use color_eyre::eyre::ContextCompat;
 
 use brocolib::runtime_metadata::TypeData;
@@ -23,6 +19,7 @@ use crate::generate::{
 };
 use crate::STATIC_CONFIG;
 
+use super::context_collection::CppTypeTag;
 use super::{
     config::GenerationConfig,
     cpp_type::CppType,
@@ -31,49 +28,6 @@ use super::{
     metadata::Metadata,
     writer::{CppWriter, Writable},
 };
-
-// TODO:
-type GenericClassIndex = usize;
-
-// Unique identifier for a CppType
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub enum CppTypeTag {
-    TypeDefinitionIndex(TypeDefinitionIndex),
-    GenericInstantiation(GenericClassIndex),
-}
-
-impl From<TypeDefinitionIndex> for CppTypeTag {
-    fn from(value: TypeDefinitionIndex) -> Self {
-        CppTypeTag::TypeDefinitionIndex(value)
-    }
-}
-impl From<TypeData> for CppTypeTag {
-    fn from(value: TypeData) -> Self {
-        match value {
-            TypeData::TypeDefinitionIndex(i) => i.into(),
-            TypeData::GenericClassIndex(i) => CppTypeTag::GenericInstantiation(i),
-            _ => panic!("Can't use {value:?} for CppTypeTag"),
-        }
-    }
-}
-
-impl From<CppTypeTag> for TypeData {
-    fn from(value: CppTypeTag) -> Self {
-        match value {
-            CppTypeTag::TypeDefinitionIndex(i) => TypeData::TypeDefinitionIndex(i),
-            CppTypeTag::GenericInstantiation(i) => TypeData::GenericClassIndex(i),
-        }
-    }
-}
-
-impl From<CppTypeTag> for TypeDefinitionIndex {
-    fn from(value: CppTypeTag) -> Self {
-        match value {
-            CppTypeTag::TypeDefinitionIndex(i) => i,
-            _ => panic!("Type is not a TDI! {value:?}"),
-        }
-    }
-}
 
 // Holds the contextual information for creating a C++ file
 // Will hold various metadata, such as includes, type definitions, and extraneous writes
