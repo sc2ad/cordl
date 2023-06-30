@@ -216,8 +216,14 @@ impl Writable for CppMethodImpl {
         let complete_type_name = format!("{}::{}", self.holder_cpp_namespaze, self.holder_cpp_name);
         let params_format = CppParam::params_types(&self.parameters).join(", ");
 
+        let f_ptr_prefix = if self.instance {
+            format!("{complete_type_name}::")
+        } else {
+            "".to_string()
+        };
+
         writeln!(writer,
-            "static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({complete_type_name}::*)({params_format})>(&{complete_type_name}::{})>::methodInfo();",
+            "static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{})>::methodInfo();",
             self.return_type,
             self.cpp_method_name)?;
 
