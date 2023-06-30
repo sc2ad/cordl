@@ -49,7 +49,7 @@ fn register_unity_object_type_handler(
 
 fn unity_object_handler(cpp_type: &mut CppType) {
     println!("Found UnityEngine.Object type, adding UnityW!");
-    cpp_type.inherit = vec!["::UnityW".to_owned()];
+    cpp_type.inherit = vec!["bs_hook::UnityW".to_owned()];
 
     let path = PathBuf::from(r"beatsaber-hook/shared/utils/unityw.hpp");
 
