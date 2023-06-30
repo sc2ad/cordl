@@ -240,6 +240,7 @@ impl CppContext {
             .values()
             .flat_map(|t| &t.requirements.required_includes)
             .unique()
+            .sorted()
             .try_for_each(|i| i.write(&mut typedef_writer))?;
 
         // write forward declares
