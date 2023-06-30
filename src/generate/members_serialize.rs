@@ -227,7 +227,7 @@ impl Writable for CppMethodImpl {
             self.return_type,
             self.cpp_method_name)?;
 
-        let instance_pointer = if self.instance {"this"} else {"nullptr"};
+        let instance_pointer = if self.instance { "this" } else { "nullptr" };
 
         let method_invoke_params = vec![instance_pointer, "___internal_method"];
 
@@ -382,10 +382,16 @@ impl Writable for CppMethodSizeStruct {
             )
         };
 
+        let f_ptr_prefix = if self.instance {
+            format!("{}::", self.complete_type_name)
+        } else {
+            "".to_string()
+        };
+
         writeln!(
             writer,
             "template<>
-struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({}::*)({params_format})>(&{}::{})> {{
+struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({f_ptr_prefix}*)({params_format})>(&{}::{})> {{
   constexpr static const usize size() {{
     return 0x{:x};
   }}
@@ -398,7 +404,6 @@ struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({}::*)(
   }}
 }};",
             self.ret_ty,
-            self.complete_type_name,
             self.complete_type_name,
             self.cpp_method_name,
             self.method_data.estimated_size,
