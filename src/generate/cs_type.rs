@@ -935,9 +935,6 @@ pub trait CSType: Sized {
             | Il2CppTypeEnum::U => {
                 requirements.needs_int_include();
             }
-            Il2CppTypeEnum::R4 | Il2CppTypeEnum::R8 => {
-                requirements.needs_float_include();
-            }
             _ => (),
         };
 
@@ -1114,8 +1111,8 @@ pub trait CSType: Sized {
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point
-            Il2CppTypeEnum::R4 => "std::float32_t".to_string(),
-            Il2CppTypeEnum::R8 => "std::float64_t".to_string(),
+            Il2CppTypeEnum::R4 => "float_t".to_string(),
+            Il2CppTypeEnum::R8 => "double_t".to_string(),
 
             Il2CppTypeEnum::Void => "void".to_string(),
             Il2CppTypeEnum::Boolean => "bool".to_string(),
