@@ -10,11 +10,7 @@
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use generate::{config::GenerationConfig, context::CppContextCollection, metadata::Metadata};
 
-use std::{
-    fs,
-    path::{PathBuf},
-    time, sync::LazyLock,
-};
+use std::{fs, path::PathBuf, sync::LazyLock, time};
 
 use clap::{Parser, Subcommand};
 
@@ -45,8 +41,8 @@ struct Cli {
 enum Commands {}
 
 static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| GenerationConfig {
-        header_path: PathBuf::from("./codegen/include"),
-        source_path: PathBuf::from("./codegen/src"),
+    header_path: PathBuf::from("./codegen/include"),
+    source_path: PathBuf::from("./codegen/src"),
 });
 
 fn main() -> color_eyre::Result<()> {
@@ -79,82 +75,122 @@ fn main() -> color_eyre::Result<()> {
     println!("Finished in {}ms", t.elapsed().as_millis());
     let mut cpp_context_collection = CppContextCollection::new();
 
-    // First, make all the contexts
-    println!("Making types");
-    for tdi_u64 in 0..metadata
-        .metadata
-        .global_metadata
-        .type_definitions
-        .as_vec()
-        .len()
     {
-        let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
-        // Skip children, creating the parents creates them too
-        if metadata.child_to_parent_map.contains_key(&tdi) {
-            continue;
+        // First, make all the contexts
+        println!("Making types");
+        let type_defs = metadata.metadata.global_metadata.type_definitions.as_vec();
+        let total = type_defs.len();
+        for tdi_u64 in 0..total {
+            let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
+            // Skip children, creating the parents creates them too
+            if metadata.child_to_parent_map.contains_key(&tdi) {
+                continue;
+            }
+            println!(
+                "Making types {:.4}%",
+                (tdi_u64 as f64 / total as f64 * 100.0)
+            );
+            cpp_context_collection.make_from(
+                &metadata,
+                &STATIC_CONFIG,
+                TypeData::TypeDefinitionIndex(tdi),
+            );
         }
-        cpp_context_collection.make_from(&metadata, &STATIC_CONFIG, TypeData::TypeDefinitionIndex(tdi));
     }
 
-    println!("Making generic type instantiations and filling!");
-    for generic_class in &metadata.metadata_registration.generic_method_table {
-        let method_spec = metadata
+    {
+        let total = metadata.metadata_registration.generic_method_table.len() as f64;
+        println!("Making generic type instantiations");
+        for (i, generic_class) in metadata
             .metadata_registration
-            .method_specs
-            .get(generic_class.generic_method_index as usize)
-            .unwrap();
+            .generic_method_table
+            .iter()
+            .enumerate()
+        {
+            println!(
+                "Making generic type instantiations {:.4}%",
+                (i as f64 / total * 100.0)
+            );
+            let method_spec = metadata
+                .metadata_registration
+                .method_specs
+                .get(generic_class.generic_method_index as usize)
+                .unwrap();
 
-        cpp_context_collection.make_generic_from(method_spec, &mut metadata);
+            cpp_context_collection.make_generic_from(method_spec, &mut metadata);
+        }
     }
-
-    println!("Filling generic types");
-    for generic_class in &metadata.metadata_registration.generic_method_table {
-        let method_spec = metadata
+    {
+        let total = metadata.metadata_registration.generic_method_table.len() as f64;
+        println!("Filling generic types!");
+        for (i, generic_class) in metadata
             .metadata_registration
-            .method_specs
-            .get(generic_class.generic_method_index as usize)
-            .unwrap();
+            .generic_method_table
+            .iter()
+            .enumerate()
+        {
+            println!(
+                "Filling generic type instantiations {:.4}%",
+                (i as f64 / total * 100.0)
+            );
+            let method_spec = metadata
+                .metadata_registration
+                .method_specs
+                .get(generic_class.generic_method_index as usize)
+                .unwrap();
 
-        cpp_context_collection.fill_generic_inst(method_spec, &mut metadata, &STATIC_CONFIG);
+            cpp_context_collection.fill_generic_inst(method_spec, &mut metadata, &STATIC_CONFIG);
+        }
     }
 
     println!("Registering handlers!");
     unity::register_unity(&cpp_context_collection, &mut metadata)?;
     println!("Handlers registered!");
 
-    // Fill them now
-    println!("Filling root types");
-    for tdi_u64 in 0..metadata
-        .metadata
-        .global_metadata
-        .type_definitions
-        .as_vec()
-        .len()
     {
-        let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
+        // Fill them now
+        println!("Filling root types");
+        let type_defs = metadata.metadata.global_metadata.type_definitions.as_vec();
+        let total = type_defs.len();
+        for tdi_u64 in 0..total {
+            let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
 
-        if metadata.child_to_parent_map.contains_key(&tdi) {
-            continue;
+            if metadata.child_to_parent_map.contains_key(&tdi) {
+                continue;
+            }
+            println!(
+                "Filling root type {:.4}",
+                (tdi_u64 as f64 / total as f64 * 100.0)
+            );
+
+            cpp_context_collection.fill(
+                &metadata,
+                &STATIC_CONFIG,
+                CppTypeTag::TypeDefinitionIndex(tdi),
+            );
         }
-        cpp_context_collection.fill(&metadata, &STATIC_CONFIG, CppTypeTag::TypeDefinitionIndex(tdi));
     }
-    // Fill children
-    println!("Nested types pass");
-    for parent in metadata.parent_to_child_map.keys() {
-        let owner = cpp_context_collection
-            .get_cpp_type(CppTypeTag::TypeDefinitionIndex(*parent))
-            .unwrap();
+    {
+        // Fill children
+        let total = metadata.parent_to_child_map.len() as f64;
+        println!("Nested types pass");
+        for (i, parent) in metadata.parent_to_child_map.keys().enumerate() {
+            println!("Filling nested type {:.4}", (i as f64 / total * 100.0));
+            let owner = cpp_context_collection
+                .get_cpp_type(CppTypeTag::TypeDefinitionIndex(*parent))
+                .unwrap();
 
-        // **Ignore this, we no longer recurse:**
-        // skip children of children
-        // only fill first grade children of types
-        // if owner.nested {
-        //     continue;
-        // }
+            // **Ignore this, we no longer recurse:**
+            // skip children of children
+            // only fill first grade children of types
+            // if owner.nested {
+            //     continue;
+            // }
 
-        let owner_ty = owner.self_tag;
+            let owner_ty = owner.self_tag;
 
-        cpp_context_collection.fill_nested_types(&metadata, &STATIC_CONFIG, owner_ty);
+            cpp_context_collection.fill_nested_types(&metadata, &STATIC_CONFIG, owner_ty);
+        }
     }
 
     let write_all = false;
