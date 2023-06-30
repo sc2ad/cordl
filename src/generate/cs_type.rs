@@ -892,7 +892,7 @@ pub trait CSType: Sized {
             return format!("ByRef<{ret}>");
         }
 
-        if typ.is_param_in() || typ.is_byref() {
+        if typ.is_param_in() {
             requirements.needs_byref_include();
 
             return format!("ByRefConst<{ret}>");
