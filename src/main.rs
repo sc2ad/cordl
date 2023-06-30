@@ -19,7 +19,7 @@ use std::{
 use clap::{Parser, Subcommand};
 
 use crate::{
-    generate::{context::CppTypeTag, cs_type::CSType, members::CppMember},
+    generate::{context::CppTypeTag, members::CppMember},
     handlers::unity,
 };
 mod generate;

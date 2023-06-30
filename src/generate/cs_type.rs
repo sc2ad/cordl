@@ -984,7 +984,7 @@ pub trait CSType: Sized {
                 if !add_include {
                     requirements
                         .forward_declares
-                        .insert((CppForwardDeclare::from_cpp_type(to_incl_ty), inc));
+                        .insert(CppForwardDeclare::from_cpp_type(to_incl_ty));
                 }
 
                 to_incl_ty.formatted_complete_cpp_name().clone()
