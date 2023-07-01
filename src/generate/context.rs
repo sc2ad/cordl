@@ -197,17 +197,22 @@ impl CppContext {
             .try_for_each(|i| i.write(&mut typedef_writer))?;
 
         // write forward declares
+        // and includes for impl
         {
+            CppInclude::new(diff_paths(&self.typedef_path, base_path).unwrap())
+                .write(&mut typeimpl_writer)?;
+
             self.typedef_types
                 .values()
                 .flat_map(|t| &t.requirements.forward_declares)
-                .map(|(d, _)| d)
                 .unique()
                 // TODO: Check forward declare is not of own type
-                .try_for_each(|i| i.write(&mut typedef_writer))?;
+                .try_for_each(|(fd, i)| {
+                    // Forward declare and include
+                    i.write(&mut typeimpl_writer)?;
+                    fd.write(&mut typedef_writer)
+                })?;
 
-            CppInclude::new(diff_paths(&self.typedef_path, base_path).unwrap())
-                .write(&mut typeimpl_writer)?;
             // This is likely not necessary
             // self.typedef_types
             //     .values()
