@@ -15,7 +15,10 @@ use std::{fs, path::PathBuf, sync::LazyLock, time};
 use clap::{Parser, Subcommand};
 
 use crate::{
-    generate::{context::CppTypeTag, context_collection::CppContextCollection, members::CppMember},
+    generate::{
+        context_collection::{CppContextCollection, CppTypeTag},
+        members::CppMember,
+    },
     handlers::unity,
 };
 mod generate;
@@ -87,7 +90,7 @@ fn main() -> color_eyre::Result<()> {
                 continue;
             }
             println!(
-                "Making types {:.4}%",
+                "Making types {:.4}% ({tdi_u64}/{total})",
                 (tdi_u64 as f64 / total as f64 * 100.0)
             );
             cpp_context_collection.make_from(
@@ -108,7 +111,7 @@ fn main() -> color_eyre::Result<()> {
             .enumerate()
         {
             println!(
-                "Making generic type instantiations {:.4}%",
+                "Making generic type instantiations {:.4}% ({i}/{total})",
                 (i as f64 / total * 100.0)
             );
             let method_spec = metadata
@@ -130,7 +133,7 @@ fn main() -> color_eyre::Result<()> {
             .enumerate()
         {
             println!(
-                "Filling generic type instantiations {:.4}%",
+                "Filling generic type instantiations {:.4}% ({i}/{total})",
                 (i as f64 / total * 100.0)
             );
             let method_spec = metadata
@@ -159,7 +162,7 @@ fn main() -> color_eyre::Result<()> {
                 continue;
             }
             println!(
-                "Filling root type {:.4}",
+                "Filling root type {:.4} ({tdi_u64}/{total})",
                 (tdi_u64 as f64 / total as f64 * 100.0)
             );
 
@@ -175,7 +178,10 @@ fn main() -> color_eyre::Result<()> {
         let total = metadata.parent_to_child_map.len() as f64;
         println!("Nested types pass");
         for (i, parent) in metadata.parent_to_child_map.keys().enumerate() {
-            println!("Filling nested type {:.4}", (i as f64 / total * 100.0));
+            println!(
+                "Filling nested type {:.4} ({i}/{total})",
+                (i as f64 / total * 100.0)
+            );
             let owner = cpp_context_collection
                 .get_cpp_type(CppTypeTag::TypeDefinitionIndex(*parent))
                 .unwrap();
