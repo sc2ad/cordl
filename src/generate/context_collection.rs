@@ -310,7 +310,7 @@ impl CppContextCollection {
         let generic_class_cpp_tag: CppTypeTag = generic_class_ty.data.into();
 
         self.borrow_cpp_type(generic_class_cpp_tag, |collection, mut cpp_type| {
-            let method_index = MethodIndex::new(method_spec.method_inst_index);
+            let method_index = method_spec.method_inst_index
             cpp_type.create_method(method, ty_def, method_index, metadata, collection, config);
 
             collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
