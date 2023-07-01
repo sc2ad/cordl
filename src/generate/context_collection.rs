@@ -250,9 +250,6 @@ impl CppContextCollection {
         if method_spec.class_inst_index != u32::MAX {
             new_cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
         }
-        if method_spec.method_inst_index != u32::MAX {
-            new_cpp_type.add_method_generic_inst(method_spec, metadata);
-        }
 
         // if generic type is a nested type
         // put it under the parent's `nested_types` field
@@ -310,8 +307,11 @@ impl CppContextCollection {
         let generic_class_cpp_tag: CppTypeTag = generic_class_ty.data.into();
 
         self.borrow_cpp_type(generic_class_cpp_tag, |collection, mut cpp_type| {
-            let method_index = method_spec.method_inst_index
-            cpp_type.create_method(method, ty_def, method_index, metadata, collection, config);
+            if method_spec.method_inst_index != u32::MAX {
+                let method_index = method_spec.method_definition_index;
+                cpp_type.add_method_generic_inst(method_spec, metadata);
+                cpp_type.create_method(method, ty_def, method_index, metadata, collection, config);
+            }
 
             collection.fill_cpp_type(&mut cpp_type, metadata, config, tdi);
             cpp_type
