@@ -116,11 +116,11 @@ impl CppType {
     }
     pub fn get_nested_type_mut(&mut self, tag: CppTypeTag) -> Option<&mut CppType> {
         // sadly
-        self.nested_types.iter_mut().find_map(|(n_tag, n)| {
-            if *n_tag == tag {
-                return Some(n);
-            }
+        if self.nested_types.get_mut(&tag).is_some() {
+            return self.nested_types.get_mut(&tag);
+        }
 
+        self.nested_types.values_mut().find_map(|n| {
             // Recurse
             n.get_nested_type_mut(tag)
         })
