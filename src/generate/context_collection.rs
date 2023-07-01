@@ -240,6 +240,10 @@ impl CppContextCollection {
             return Some(self.all_contexts.get_mut(&context_root_tag).unwrap());
         }
 
+        if self.get_cpp_type(generic_class_ty_data.into()).is_some() {
+            return self.get_context_mut(generic_class_ty_data.into());
+        }
+
         // let template_cpp_type = self.get_cpp_type(type_data).unwrap();
         let mut new_cpp_type =
             CppType::make_cpp_type(metadata, config, generic_class_ty_data.into(), tdi)
