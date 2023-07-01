@@ -201,6 +201,7 @@ impl CppContext {
             self.typedef_types
                 .values()
                 .flat_map(|t| &t.requirements.forward_declares)
+                .map(|(d, _)| d)
                 .unique()
                 // TODO: Check forward declare is not of own type
                 .try_for_each(|i| i.write(&mut typedef_writer))?;

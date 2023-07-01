@@ -17,7 +17,7 @@ use super::{
 
 #[derive(Debug, Clone, Default)]
 pub struct CppTypeRequirements {
-    pub forward_declares: HashSet<CppForwardDeclare>,
+    pub forward_declares: HashSet<(CppForwardDeclare, CppInclude)>,
 
     // Only value types or classes
     pub required_includes: HashSet<CppInclude>,

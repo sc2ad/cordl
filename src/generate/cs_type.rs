@@ -965,7 +965,7 @@ pub trait CSType: Sized {
                         .required_includes
                         .insert(CppInclude::new_context(to_incl));
                 }
-                let _inc = CppInclude::new_context(to_incl);
+                let inc = CppInclude::new_context(to_incl);
                 let to_incl_ty = ctx_collection
                     .get_cpp_type(typ.data.into())
                     .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));
@@ -974,7 +974,7 @@ pub trait CSType: Sized {
                 if !add_include {
                     requirements
                         .forward_declares
-                        .insert(CppForwardDeclare::from_cpp_type(to_incl_ty));
+                        .insert((CppForwardDeclare::from_cpp_type(to_incl_ty), inc));
                 }
 
                 to_incl_ty.formatted_complete_cpp_name().clone()
