@@ -115,9 +115,6 @@ pub trait CSType: Sized {
             inst.types.iter().map(|t| *t as TypeIndex).collect(),
         );
 
-        cpp_type.cpp_template = None;
-        cpp_type.is_stub = false;
-
         cpp_type
     }
 
@@ -209,12 +206,6 @@ pub trait CSType: Sized {
         }
 
         cpptype.make_nested_types(metadata, config, tdi);
-
-        // If this is a stub,
-        // it serves as a template for generic instantiations
-        if cpptype.is_stub {
-            println!("Made generic stub {}", t.full_name(metadata.metadata, true));
-        }
 
         Some(cpptype)
     }
