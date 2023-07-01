@@ -208,6 +208,11 @@ impl CppContextCollection {
         metadata: &mut Metadata,
         config: &GenerationConfig,
     ) -> Option<&mut CppContext> {
+        // Not a generic class, no type needed
+        if method_spec.class_inst_index == u32::MAX {
+            return None;
+        }
+
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
         let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
