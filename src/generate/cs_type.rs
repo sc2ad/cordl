@@ -1047,6 +1047,10 @@ pub trait CSType: Sized {
                         .find_position(|&p| p.name_index == generic_param.name_index)
                         .unwrap();
 
+                    if cpp_type.generic_instantiations_args_types.is_none() {
+                        return format!("/* TODO: FIX THIS, THIS SHOULDN'T HAPPEN! NO GENERIC INST ARGS FOUND HERE */ {}", generic_param.name(metadata.metadata));
+                    }
+
                     let ty_idx = cpp_type.generic_instantiations_args_types.as_ref().unwrap()
                         [generic_param.num as usize];
 

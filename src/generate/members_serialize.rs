@@ -129,7 +129,11 @@ impl Writable for CppField {
             true => {
                 // literal il2cpp value
                 if let Some(literal) = &self.literal_value {
-                    writeln!(writer, "constexpr static {} {}{{{literal}}};", self.ty, self.name)?;
+                    writeln!(
+                        writer,
+                        "constexpr static {} {}{{{literal}}};",
+                        self.ty, self.name
+                    )?;
                 }
                 if self.instance {
                     writeln!(

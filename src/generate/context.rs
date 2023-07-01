@@ -1,4 +1,4 @@
-use core::panic;
+
 use std::io::Write;
 use std::{
     collections::{HashMap, HashSet},
@@ -9,7 +9,7 @@ use std::{
 use brocolib::global_metadata::TypeDefinitionIndex;
 use color_eyre::eyre::ContextCompat;
 
-use brocolib::runtime_metadata::TypeData;
+
 use itertools::Itertools;
 use pathdiff::diff_paths;
 

@@ -3,10 +3,10 @@ use std::collections::{HashMap, HashSet};
 
 use brocolib::{
     global_metadata::{
-        Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex,
+        TypeDefinitionIndex,
     },
     runtime_metadata::{
-        Il2CppGenericClass, Il2CppGenericContext, Il2CppMethodSpec, Il2CppType, TypeData,
+        Il2CppMethodSpec, TypeData,
     },
 };
 
@@ -15,14 +15,18 @@ use crate::generate::{cpp_type::CppType, cs_type::CSType};
 use super::{
     config::GenerationConfig,
     context::CppContext,
-    metadata::{find_generic_il2cpp_type_data, Metadata},
+    metadata::{Metadata},
 };
 
 // TODO:
 type GenericClassIndex = usize;
 
 // TDI -> Generic inst
-type GenericInstantiation = (TypeDefinitionIndex, u32);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GenericInstantiation {
+    pub tdi: TypeDefinitionIndex,
+    pub inst: u32,
+}
 
 // Unique identifier for a CppType
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -67,6 +71,7 @@ pub struct CppContextCollection {
     // Should always be a TypeDefinitionIndex
     all_contexts: HashMap<CppTypeTag, CppContext>,
     pub alias_context: HashMap<CppTypeTag, CppTypeTag>,
+    pub alias_nested_type_to_parent: HashMap<CppTypeTag, CppTypeTag>,
     filled_types: HashSet<CppTypeTag>,
     filling_types: HashSet<CppTypeTag>,
     borrowing_types: HashSet<CppTypeTag>,
@@ -95,7 +100,7 @@ impl CppContextCollection {
         cpp_type.fill_from_il2cpp(metadata, config, self, tdi);
 
         self.filled_types.insert(tag);
-        self.filling_types.remove(&tag);
+        self.filling_types.remove(&tag.clone());
     }
 
     pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, type_tag: CppTypeTag) {
@@ -145,12 +150,19 @@ impl CppContextCollection {
             //     "Aliasing {:?} to {:?}",
             //     nested_type.self_tag, owner.self_tag
             // );
-            self.alias_type(*tag, root_tag, context_check);
+            self.alias_type_to_context(*tag, root_tag, context_check);
+            self.alias_type_to_parent(*tag, owner.self_tag, context_check);
+
             self.alias_nested_types(nested_type, root_tag, context_check);
         }
     }
 
-    pub fn alias_type(&mut self, src: CppTypeTag, dest: CppTypeTag, context_check: bool) {
+    pub fn alias_type_to_context(
+        &mut self,
+        src: CppTypeTag,
+        dest: CppTypeTag,
+        context_check: bool,
+    ) {
         if self.alias_context.contains_key(&dest) {
             panic!("Aliasing an aliased type!");
         }
@@ -158,6 +170,13 @@ impl CppContextCollection {
             panic!("Aliased context {src:?} to {dest:?} doesn't have a context");
         }
         self.alias_context.insert(src, dest);
+    }
+
+    pub fn alias_type_to_parent(&mut self, src: CppTypeTag, dest: CppTypeTag, _context_check: bool) {
+        // if context_check && !self.all_contexts.contains_key(&dest) {
+        //     panic!("Aliased nested type {src:?} to {dest:?} doesn't have a parent");
+        // }
+        self.alias_nested_type_to_parent.insert(src, dest);
     }
 
     pub fn fill_nested_types(
@@ -194,12 +213,18 @@ impl CppContextCollection {
     }
 
     pub fn get_context_root_tag(&self, ty: CppTypeTag) -> CppTypeTag {
-        let tag = ty;
         self.alias_context
-            .get(&tag)
+            .get(&ty)
             .cloned()
             // .map(|t| self.get_context_root_tag(*t))
-            .unwrap_or(tag)
+            .unwrap_or(ty)
+    }
+    pub fn get_parent_or_self_tag(&self, ty: CppTypeTag) -> CppTypeTag {
+        self.alias_nested_type_to_parent
+            .get(&ty)
+            .cloned()
+            .map(|t| self.get_parent_or_self_tag(t))
+            .unwrap_or(ty)
     }
 
     /// Make a generic type
@@ -218,7 +243,7 @@ impl CppContextCollection {
 
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
-        let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
+        let _ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
 
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
@@ -228,11 +253,34 @@ impl CppContextCollection {
             panic!("Currently filling type {context_root_tag:?}, cannot fill")
         }
 
-        // get parent type if required
-        let parent_data = metadata.child_to_parent_map.get(&tdi).cloned();
+        let generic_class_ty_data = CppTypeTag::GenericInstantiation(GenericInstantiation {
+            tdi,
+            inst: method_spec.class_inst_index,
+        });
 
-        let generic_class_ty_data =
-            CppTypeTag::GenericInstantiation((tdi, method_spec.class_inst_index));
+        // get parent type if required
+        let parent_tdi_data = metadata.child_to_parent_map.get(&tdi).cloned();
+
+        let parent_generic_data = parent_tdi_data.clone().and_then(|parent_tdi_data| {
+            let parent_generic_inst = GenericInstantiation {
+                tdi: parent_tdi_data.tdi,
+                inst: method_spec.class_inst_index,
+            };
+
+            metadata
+                .generic_instantiation_map
+                .get(&parent_generic_inst)
+                .map(|m| (*m, parent_generic_inst))
+        });
+
+        let parent_data = parent_generic_data
+            .map(|(_, parent_generic)| CppTypeTag::GenericInstantiation(parent_generic))
+            .or(parent_tdi_data.map(|t| CppTypeTag::TypeDefinitionIndex(t.tdi)));
+
+        if let Some((parent_generic_method_spec, _)) = parent_generic_data {
+            self.make_generic_from(parent_generic_method_spec, metadata, config);
+        }
+
         // Why is the borrow checker so dumb?
         // Using entries causes borrow checker to die :(
         if self.filled_types.contains(&generic_class_ty_data) {
@@ -248,7 +296,7 @@ impl CppContextCollection {
             .expect("Failed to make generic type");
         new_cpp_type.self_tag = generic_class_ty_data;
 
-        self.alias_type(new_cpp_type.self_tag, context_root_tag, true);
+        self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
 
         new_cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
 
@@ -256,9 +304,8 @@ impl CppContextCollection {
         // put it under the parent's `nested_types` field
         // otherwise put it in the typedef's hashmap
         match parent_data {
-            Some(parent) => {
-                let parent_ty = CppTypeTag::TypeDefinitionIndex(parent.tdi);
-
+            Some(parent_ty) => {
+                self.alias_type_to_parent(generic_class_ty_data, parent_ty, true);
                 self.borrow_cpp_type(
                     parent_ty,
                     |_collection: &mut CppContextCollection, mut cpp_type| {
@@ -268,7 +315,7 @@ impl CppContextCollection {
 
                         cpp_type
                     },
-                )
+                );
             }
             None => {
                 let context = self.get_context_mut(generic_class_ty_data).unwrap();
@@ -298,7 +345,10 @@ impl CppContextCollection {
         let context_root_tag = self.get_context_root_tag(type_data);
 
         let generic_class_ty_data = if method_spec.class_inst_index != u32::MAX {
-            CppTypeTag::GenericInstantiation((tdi, method_spec.class_inst_index))
+            CppTypeTag::GenericInstantiation(GenericInstantiation {
+                tdi,
+                inst: method_spec.class_inst_index,
+            })
         } else {
             type_data
         };
@@ -357,17 +407,27 @@ impl CppContextCollection {
         self.all_contexts.get_mut(&context_root_tag).unwrap()
     }
 
+    ///
+    /// By default will only look for nested types of the context, ignoring other CppTypes
+    ///
     pub fn get_cpp_type(&self, ty: CppTypeTag) -> Option<&CppType> {
         let tag = ty;
         let context_root_tag = self.get_context_root_tag(tag);
+        let parent_root_tag = self.get_parent_or_self_tag(tag);
+
         self.get_context(context_root_tag)
-            .and_then(|c| c.get_cpp_type_recursive(context_root_tag, tag))
+            .and_then(|c| c.get_cpp_type_recursive(parent_root_tag, tag))
     }
+
+    ///
+    /// By default will only look for nested types of the context, ignoring other CppTypes
+    ///
     pub fn get_cpp_type_mut(&mut self, ty: CppTypeTag) -> Option<&mut CppType> {
         let tag = ty;
         let context_root_tag = self.get_context_root_tag(tag);
+        let parent_root_tag = self.get_parent_or_self_tag(tag);
         self.get_context_mut(context_root_tag)
-            .and_then(|c| c.get_cpp_type_recursive_mut(context_root_tag, tag))
+            .and_then(|c| c.get_cpp_type_recursive_mut(parent_root_tag, tag))
     }
 
     pub fn borrow_cpp_type<F>(&mut self, ty: CppTypeTag, func: F)
@@ -386,12 +446,14 @@ impl CppContextCollection {
             .cloned()
             .expect("No context ty?");
 
+        let parent = self.get_parent_or_self_tag(ty);
+
         // TODO: Needed
         // self.borrowing_types.insert(context_ty);
 
         // search in root
         // clone to avoid failing il2cpp_name
-        let in_context_cpp_type = context.typedef_types.get(&ty);
+        let in_context_cpp_type = context.typedef_types.get(&parent);
         match in_context_cpp_type {
             Some(old_cpp_type) => {
                 let old_tag = old_cpp_type.self_tag;
@@ -412,7 +474,7 @@ impl CppContextCollection {
                 }
 
                 if !found {
-                    panic!("No nested or parent type found!");
+                    panic!("No nested or parent type found for type {ty:?}!");
                 }
             }
         }
@@ -442,6 +504,7 @@ impl CppContextCollection {
             all_contexts: Default::default(),
             filled_types: Default::default(),
             filling_types: Default::default(),
+            alias_nested_type_to_parent: Default::default(),
             alias_context: Default::default(),
             borrowing_types: Default::default(),
         }

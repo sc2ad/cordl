@@ -71,6 +71,7 @@ fn main() -> color_eyre::Result<()> {
         custom_type_handler: Default::default(),
         name_to_tdi: Default::default(),
         blacklisted_types: Default::default(),
+        generic_instantiation_map: Default::default(),
     };
     let t = time::Instant::now();
     println!("Parsing metadata methods");
