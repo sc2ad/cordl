@@ -28,7 +28,6 @@ pub struct CppTypeRequirements {
 #[derive(Debug, Clone)]
 pub struct CppType {
     pub self_tag: CppTypeTag,
-    pub tdi: TypeDefinitionIndex,
     pub nested: bool,
 
     pub(crate) prefix_comments: Vec<String>,
@@ -294,7 +293,7 @@ impl CppType {
                 .try_for_each(|(t, cpp_name)| {
                     writeln!(
                         writer,
-                        "// nested type forward declare {} {} {:?} {:?}\n//{:?}",
+                        "// nested type forward declare {} is stub {} {:?} {:?}\n//{:?}",
                         t.cpp_full_name,
                         t.is_stub,
                         t.generic_instantiation_args,

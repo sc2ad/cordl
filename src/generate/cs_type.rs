@@ -82,9 +82,9 @@ pub trait CSType: Sized {
             .get(generic_il2cpp_inst as usize)
             .unwrap();
 
-        // if cpp_type.generic_instantiations_args_types.is_some() {
-        //     panic!("Generic instantiation args are already set!");
-        // }
+        if cpp_type.generic_instantiations_args_types.is_some() {
+            panic!("Generic instantiation args are already set!");
+        }
 
         cpp_type.generic_instantiations_args_types =
             Some(inst.types.iter().map(|t| *t as TypeIndex).collect());
@@ -159,7 +159,6 @@ pub trait CSType: Sized {
 
         let mut cpptype = CppType {
             self_tag: tag,
-            tdi,
             nested: parent_pair.is_some(),
             prefix_comments: vec![format!("Type: {ns}::{name}")],
             namespace: config.namespace_cpp(ns),
@@ -215,12 +214,13 @@ pub trait CSType: Sized {
         metadata: &Metadata,
         config: &GenerationConfig,
         ctx_collection: &CppContextCollection,
-        tdi: TypeDefinitionIndex,
     ) {
         if self.get_cpp_type().is_stub {
             // Do not fill stubs
             return;
         }
+
+        let tdi: TypeDefinitionIndex = self.get_cpp_type().self_tag.into();
 
         self.make_generics_args(metadata, ctx_collection);
         self.make_parents(metadata, ctx_collection, tdi);
@@ -744,6 +744,7 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
             Il2CppTypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
             Il2CppTypeEnum::I2 => cursor.read_i16::<Endian>().unwrap().to_string(),
+            // enum
             Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::I4 => {
                 cursor.read_i32::<Endian>().unwrap().to_string()
             }

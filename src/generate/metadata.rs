@@ -1,10 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use brocolib::{
-    global_metadata::{
-        GlobalMetadata, Il2CppTypeDefinition, MethodIndex,
-        TypeDefinitionIndex,
-    },
+    global_metadata::{GlobalMetadata, Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex},
     runtime_metadata::{
         Il2CppGenericClass, Il2CppGenericContext, Il2CppMetadataRegistration, Il2CppMethodSpec,
         Il2CppType, TypeData,
@@ -213,13 +210,16 @@ impl<'a> Metadata<'a> {
                     .method_specs
                     .get(m.generic_method_index as usize)
                     .unwrap();
-
+                method_spec
+            })
+            .filter(|m| m.method_inst_index == u32::MAX)
+            .map(|method_spec| {
                 let method = &gm.methods[method_spec.method_definition_index];
 
                 (
                     GenericInstantiation {
                         tdi: method.declaring_type,
-                        inst: method_spec.class_inst_index,
+                        inst: method_spec.class_inst_index as usize,
                     },
                     method_spec,
                 )
