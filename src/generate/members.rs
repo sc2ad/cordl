@@ -246,7 +246,7 @@ impl CppInclude {
     // smelly use of config but whatever
     pub fn new_context(context: &CppContext) -> Self {
         Self {
-            include: diff_paths(&context.fundamental_path, &STATIC_CONFIG.header_path).unwrap(),
+            include: diff_paths(&context.typedef_path, &STATIC_CONFIG.header_path).unwrap(),
             system: false,
         }
     }
