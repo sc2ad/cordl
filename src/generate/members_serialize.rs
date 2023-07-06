@@ -64,10 +64,10 @@ impl Writable for CppForwardDeclare {
 
 impl Writable for CppCommentedString {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        writeln!(writer, "{}", self.data)?;
         if let Some(val) = &self.comment {
             writeln!(writer, "// {val}")?;
         }
-        writeln!(writer, "{}", self.data)?;
         Ok(())
     }
 }
@@ -111,68 +111,69 @@ impl Writable for CppUsingAlias {
     }
 }
 
-impl Writable for CppField {
+impl Writable for CppFieldDecl {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        writeln!(
-            writer,
-            "// Field: name: {}, Type Name: {}, Offset: 0x{:x}",
-            self.name, self.ty, self.offset
-        )?;
-
-        let cpp_name = if self.literal_value.is_some() {
-            format!("_{}", &self.name)
-        } else {
-            self.name.to_string()
-        };
-
-        match self.use_wrapper {
-            // no wrapper/is C++ literal, like an int
-            false => writeln!(
+        fn write_field_comment(this: &CppFieldDecl, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+            writeln!(
                 writer,
-                "{}{} {} = {}",
-                if self.instance { "" } else { "inline static " },
-                self.ty,
-                self.name,
-                self.literal_value.as_ref().unwrap_or(&"{}".to_string())
-            )?,
-            // wrapper
-            true => {
-                // literal il2cpp value
-                if let Some(literal) = &self.literal_value {
-                    writeln!(
-                        writer,
-                        "constexpr static {} {}{{{literal}}};",
-                        self.ty, self.name
-                    )?;
+                "/// @brief Field: name: {}, Type Name: {}, {}",
+                this.name,
+                this.ty,
+                match this.instance {
+                    true => format!("Offset: 0x{:x}", this.offset),
+                    false => "Static".to_string(),
                 }
-                if self.instance {
-                    writeln!(
-                        writer,
-                        "::bs_hook::InstanceField<{}, 0x{:x},{}> {cpp_name};",
-                        self.ty, self.offset, self.readonly
-                    )?;
-                } else {
-                    writeln!(
-                        writer,
-                        "static inline ::bs_hook::StaticField<{},\"{}\",&{},{}> {cpp_name};",
-                        self.ty, self.name, self.classof_call, self.readonly
-                    )?;
-                }
-            }
+            )?;
+
+            Ok(())
+        }
+
+        // default value for fields
+        let name = &self.name;
+        let ty = &self.ty;
+
+        // writes out a literal value as field default value accessible in C++
+        if let Some(literal) = &self.literal_value {
+            // default value for a ::StringW is a ConstString
+            if ty == "::StringW" {
+                writeln!(writer, "static ConstString<0x{:x}> {name}_default{{{literal}}};", literal.len() - 3)?;
+            } else {
+                writeln!(writer, "constexpr static {} {name}_default{{{literal}}};", self.ty)?;
+            };
+        }
+
+        self.write_field_getter(writer)?;
+        if !self.readonly {
+            self.write_field_putter(writer)?;
+            write_field_comment(self, writer)?;
+            writeln!(writer, "{}__declspec(property(get=__get_{name}, put=__put_{name})) {ty} {name};", match self.instance { true => "", false => "static " })?;
+        } else {
+            write_field_comment(self, writer)?;
+            writeln!(writer, "{}__declspec(property(get=__get_{name})) {ty} {name};", match self.instance { true => "", false => "static " })?;
         }
 
         Ok(())
     }
 }
+
+impl Writable for CppFieldImpl {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        self.write_field_getter(writer)?;
+        if !self.field.readonly {
+            self.write_field_putter(writer)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl Writable for CppMethodDecl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         writeln!(
             writer,
-            "// Method: name: {}, Return Type Name: {} Parameters: {:?} Addr {:x} Size {:x}",
+            "/// @brief Name: {}, Addr: 0x{:x}, Size: 0x{:x}",
             self.cpp_name,
-            self.return_type,
-            self.parameters,
             self.method_data
                 .as_ref()
                 .map(|t| t.addrs)
@@ -182,6 +183,34 @@ impl Writable for CppMethodDecl {
                 .map(|t| t.estimated_size)
                 .unwrap_or(usize::MAX)
         )?;
+
+        self.parameters.iter().try_for_each(|param|
+            match &param.def_value {
+                Some(def) =>
+                    writeln!(
+                        writer,
+                        "/// @param {}: {} (default: {})",
+                        param.name,
+                        param.ty,
+                        def
+                    ),
+                None =>
+                    writeln!(
+                        writer,
+                        "/// @param {}: {}",
+                        param.name,
+                        param.ty
+                    ),
+            }
+        )?;
+
+        if self.return_type != "void" {
+            writeln!(
+                writer,
+                "/// @return {}",
+                self.return_type
+            )?;
+        }
 
         self.template.write(writer)?;
 
@@ -275,6 +304,7 @@ impl Writable for CppConstructorDecl {
         Ok(())
     }
 }
+
 impl Writable for CppConstructorImpl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -332,7 +362,7 @@ impl Writable for CppProperty {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         writeln!(
             writer,
-            "// Property: name: {}, Type Name: {}, getter {} setter {} abstract {}",
+            "/// @brief Property: name: {}, Type Name: {}, getter: {}, setter: {}, abstract: {}",
             self.name,
             self.ty,
             self.getter.is_some(),
@@ -346,27 +376,22 @@ impl Writable for CppProperty {
             return Ok(());
         }
 
-        if self.instance {
-            writeln!(
-                writer,
-                "::bs_hook::InstanceProperty<\"{}\",{},{},{}> {};",
-                self.name,
-                self.ty,
-                self.getter.is_some(),
-                self.setter.is_some(),
-                self.name
-            )?;
-        } else {
-            writeln!(
-                writer,
-                "static inline ::bs_hook::StaticProperty<{},\"{}\",{},{}, &{}> {};",
-                self.ty,
-                self.name,
-                self.getter.is_some(),
-                self.setter.is_some(),
-                self.classof_call,
-                self.name
-            )?;
+        // if this is an instance prop, don't put 'static ' in front
+        if !self.instance {write!(writer, "static ")? }
+
+        // TODO: verify self.name is correct for the get_, set_ methods
+        // TODO: make the used prop name not start with _ if we can
+        let name = &self.name;
+        let ty = &self.ty;
+
+        if self.getter.is_some() && self.setter.is_some() { // getter & setter
+            writeln!(writer, "__declspec(property(get=get_{name}, put=set_{name})) {ty} {name};")?;
+        } else if self.getter.is_some() { // only getter
+            writeln!(writer, "__declspec(property(get=get_{name})) {ty} {name};")?;
+        } else if self.setter.is_some() { // only setter
+            writeln!(writer, "__declspec(property(put=set_{name})) {ty} {name};")?;
+        } else { // property without get & set, mostly a safeguard to let us know something is wrong
+            writeln!(writer, "// ERROR: INVALID PROP WITH GET & SET FALSE!")?;
         }
 
         Ok(())
@@ -383,12 +408,15 @@ impl Writable for CppMethodSizeStruct {
         let params_format = CppParam::params_types(&self.params).join(", ");
 
         let method_info_rhs = if let Some(slot) = self.slot && !self.is_final {
-            format!("THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot((*reinterpret_cast<Il2CppObject**>(this))->klass, {}(), {slot}))", 
-              self.interface_clazz_of
+            format!("THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(classof({}), {}(), {slot}))",
+                self.complete_type_name,
+                self.interface_clazz_of
             )
         } else {
-            format!("THROW_UNLESS(::il2cpp_utils::FindMethod(this, \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{params_format}}}))", 
-                self.cpp_method_name
+            format!("THROW_UNLESS(::il2cpp_utils::FindMethod(classof({}), \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}))",
+                self.complete_type_name,
+                self.cpp_method_name,
+                CppParam::params_types(&self.params).map(|t| format!("&classof({t})->byval_arg")).join(", ")
             )
         };
 
@@ -402,10 +430,10 @@ impl Writable for CppMethodSizeStruct {
             writer,
             "template<>
 struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({f_ptr_prefix}*)({params_format})>(&{}::{})> {{
-  constexpr static const usize size() {{
+  constexpr static const std::size_t size() {{
     return 0x{:x};
   }}
-  constexpr static const usize addrs() {{
+  constexpr static const std::size_t addrs() {{
     return 0x{:x};
   }}
 
@@ -444,7 +472,8 @@ impl Writable for CppStructSpecialization {
 impl Writable for CppMember {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         match self {
-            CppMember::Field(f) => f.write(writer),
+            CppMember::FieldDecl(f) => f.write(writer),
+            CppMember::FieldImpl(fi) => fi.write(writer),
             CppMember::MethodDecl(m) => m.write(writer),
             CppMember::Property(p) => p.write(writer),
             CppMember::Comment(c) => c.write(writer),

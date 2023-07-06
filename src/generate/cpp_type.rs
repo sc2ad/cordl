@@ -196,14 +196,15 @@ impl CppType {
         writer: &mut super::writer::CppWriter,
         namespace: Option<&str>,
     ) -> color_eyre::Result<()> {
+        self.nonmember_implementations
+            .iter()
+            .try_for_each(|d| d.write(writer))?;
+
         if let Some(namespace) = namespace {
             writeln!(writer, "namespace {namespace} {{")?;
         }
         // Write all declarations within the type here
         self.implementations
-            .iter()
-            .try_for_each(|d| d.write(writer))?;
-        self.nonmember_implementations
             .iter()
             .try_for_each(|d| d.write(writer))?;
 
@@ -231,27 +232,73 @@ impl CppType {
                 .unwrap();
         });
 
-        // forward declare self
-        {
-            if fd {
+        let type_kind = match self.is_value_type {
+            true => "struct",
+            false => "class"
+        };
+
+        fn write_il2cpp_arg_macros(ty: &CppType, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+            if !ty.is_value_type { // reference types need no boxing
                 writeln!(
                     writer,
-                    "// Forward declaring type: {}::{}",
-                    namespace.unwrap_or(""),
-                    self.name()
+                    "NEED_NO_BOX(::{});",
+                    ty.cpp_full_name
                 )?;
             }
 
+            if ty.nested { // TODO: for nested types, the ns & name might differ
+                writeln!(writer, "// TODO: Nested type, check correct definition print!")?;
+                writeln!(
+                    writer,
+                    "DEFINE_IL2CPP_ARG_TYPE({}, \"{}\", \"{}\");",
+                    ty.cpp_full_name,
+                    ty.namespace,
+                    ty.name
+                )?;
+            } else {
+                writeln!(
+                    writer,
+                    "DEFINE_IL2CPP_ARG_TYPE({}, \"{}\", \"{}\");",
+                    ty.cpp_full_name,
+                    ty.namespace,
+                    ty.name
+                )?;
+            }
+
+            Ok(())
+        }
+
+        // forward declare self
+        if fd {
+            writeln!(
+                writer,
+                "// Forward declaring type: {}::{}",
+                namespace.unwrap_or(""),
+                self.name()
+            )?;
+
             if let Some(n) = &namespace {
-                writeln!(writer, "namespace {n} {{",)?;
+                writeln!(writer, "namespace {n} {{")?;
                 writer.indent();
             }
 
-            if fd && let Some(generic_args) = &self.cpp_template {
+            if let Some(generic_args) = &self.cpp_template {
                 // template<...>
                 generic_args.write(writer)?;
-                writeln!(writer, "struct {};", self.name())?;
             }
+
+            writeln!(writer, "{} {};", &type_kind, self.name())?;
+
+            if let Some(n) = &namespace {
+                writeln!(writer, "}} // end namespace {n}")?;
+            }
+
+            write_il2cpp_arg_macros(self, writer)?;
+        }
+
+        if let Some(n) = &namespace {
+            writeln!(writer, "namespace {n} {{")?;
+            writer.indent();
         }
 
         // Just forward declare
@@ -273,10 +320,11 @@ impl CppType {
             }
 
             match self.inherit.is_empty() {
-                true => writeln!(writer, "struct {clazz_name} {{")?,
+                true => writeln!(writer, "{} {clazz_name} {{", &type_kind)?,
                 false => writeln!(
                     writer,
-                    "struct {clazz_name} : {} {{",
+                    "{} {clazz_name} : {} {{",
+                    &type_kind,
                     self.inherit
                         .iter()
                         .map(|s| format!("public {s}"))
@@ -344,6 +392,11 @@ impl CppType {
             writer.dedent();
             writeln!(writer, "}} // namespace {n}")?;
         }
+
+        if !fd { // if we did not FD we still need to provide an il2cpp arg type definition for class resolution
+            write_il2cpp_arg_macros(self, writer)?;
+        }
+
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
         Ok(())
     }

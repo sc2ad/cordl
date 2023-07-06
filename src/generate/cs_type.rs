@@ -29,7 +29,7 @@ use super::{
     context_collection::{CppContextCollection, CppTypeTag},
     cpp_type::CppType,
     members::{
-        CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppField, CppForwardDeclare,
+        CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl, CppForwardDeclare,
         CppInclude, CppMember, CppMethodData, CppMethodDecl, CppMethodImpl, CppMethodSizeStruct,
         CppParam, CppProperty, CppTemplate,
     },
@@ -374,6 +374,13 @@ pub trait CSType: Sized {
             let fields = t
                 .fields(metadata.metadata)
                 .iter()
+                .filter(|field| { // skip static fields in default ctor
+                    !metadata
+                        .metadata_registration
+                        .types
+                        .get(field.type_index as usize)
+                        .unwrap().is_static()
+                })
                 .map(|field| {
                     let f_type = metadata
                         .metadata_registration
@@ -442,6 +449,7 @@ pub trait CSType: Sized {
         if t.field_count == 0 {
             return;
         }
+
         // Write comment for fields
         cpp_type
             .declarations
@@ -451,8 +459,10 @@ pub trait CSType: Sized {
             }));
         // Then, for each field, write it out
         cpp_type.declarations.reserve(t.field_count as usize);
+        cpp_type.implementations.reserve(t.field_count as usize);
         for (i, field) in t.fields(metadata.metadata).iter().enumerate() {
             let field_index = FieldIndex::new(t.field_start.index() + i as u32);
+            // TODO: sanitize name for c++
             let f_name = field.name(metadata.metadata);
             let f_offset = metadata
                 .metadata_registration
@@ -479,11 +489,7 @@ pub trait CSType: Sized {
             // TODO: Check a flag to look for default values to speed this up
             let def_value = Self::field_default_value(metadata, field_index);
 
-            if f_type.ty == Il2CppTypeEnum::String && def_value.is_some() {
-                cpp_name = "ConstString".to_string();
-            }
-
-            cpp_type.declarations.push(CppMember::Field(CppField {
+            let field = CppFieldDecl {
                 name: f_name.to_owned(),
                 ty: cpp_name,
                 offset: f_offset,
@@ -491,7 +497,16 @@ pub trait CSType: Sized {
                 readonly: f_type.is_const(),
                 classof_call: cpp_type.classof_cpp_name(),
                 literal_value: def_value,
-                use_wrapper: !t.is_value_type(),
+                is_value_type: f_type.valuetype,
+                declaring_is_reference: !t.is_value_type(),
+            };
+
+            cpp_type.declarations.push(CppMember::FieldDecl(field.clone()));
+
+            // TODO: improve how these are handled
+            cpp_type.implementations.push(CppMember::FieldImpl(CppFieldImpl{
+                klass_name: cpp_type.cpp_name.clone(),
+                field: field,
             }));
         }
     }
@@ -593,6 +608,7 @@ pub trait CSType: Sized {
         cpp_type.declarations.reserve(t.property_count as usize);
         // Then, for each field, write it out
         for prop in t.properties(metadata.metadata) {
+            // TODO: sanitize name for c++
             let p_name = prop.name(metadata.metadata);
             let p_setter = (prop.set != u32::MAX).then(|| prop.set_method(t, metadata.metadata));
             let p_getter = (prop.get != u32::MAX).then(|| prop.get_method(t, metadata.metadata));
@@ -644,6 +660,7 @@ pub trait CSType: Sized {
     ) {
         let cpp_type = self.get_mut_cpp_type();
 
+        // TODO: sanitize method name for c++
         let m_name = method.name(metadata.metadata);
         if m_name == ".cctor" {
             // println!("Skipping {}", m_name);
