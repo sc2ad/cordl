@@ -197,9 +197,14 @@ impl CppContext {
 
         let base_path = &STATIC_CONFIG.header_path;
 
+        let typedef_types_sorted = || {
+            self.typedef_types
+                .values()
+                .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
+        };
+
         // Write includes for typedef
-        self.typedef_types
-            .values()
+        typedef_types_sorted()
             .flat_map(|t| &t.requirements.required_includes)
             .unique()
             .sorted()
@@ -211,8 +216,7 @@ impl CppContext {
             CppInclude::new(diff_paths(&self.typedef_path, base_path).unwrap())
                 .write(&mut typeimpl_writer)?;
 
-            self.typedef_types
-                .values()
+            typedef_types_sorted()
                 .flat_map(|t| &t.requirements.forward_declares)
                 .unique()
                 // TODO: Check forward declare is not of own type
@@ -232,7 +236,7 @@ impl CppContext {
             //     .try_for_each(|i| i.write(&mut typeimpl_writer))?;
         }
 
-        for t in self.typedef_types.values() {
+        for t in typedef_types_sorted() {
             if t.nested {
                 panic!(
                     "Cannot have a root type as a nested type! {}",

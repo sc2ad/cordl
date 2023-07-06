@@ -17,7 +17,7 @@ type GenericClassIndex = usize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GenericInstantiation {
     pub tdi: TypeDefinitionIndex,
-    pub inst: usize,
+    pub inst: GenericClassIndex,
 }
 
 // Unique identifier for a CppType

@@ -234,34 +234,34 @@ impl CppType {
 
         let type_kind = match self.is_value_type {
             true => "struct",
-            false => "class"
+            false => "class",
         };
 
-        fn write_il2cpp_arg_macros(ty: &CppType, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-            if !ty.is_value_type { // reference types need no boxing
-                writeln!(
-                    writer,
-                    "NEED_NO_BOX(::{});",
-                    ty.cpp_full_name
-                )?;
+        fn write_il2cpp_arg_macros(
+            ty: &CppType,
+            writer: &mut super::writer::CppWriter,
+        ) -> color_eyre::Result<()> {
+            if !ty.is_value_type {
+                // reference types need no boxing
+                writeln!(writer, "NEED_NO_BOX(::{});", ty.cpp_full_name)?;
             }
 
-            if ty.nested { // TODO: for nested types, the ns & name might differ
-                writeln!(writer, "// TODO: Nested type, check correct definition print!")?;
+            if ty.nested {
+                // TODO: for nested types, the ns & name might differ
+                writeln!(
+                    writer,
+                    "// TODO: Nested type, check correct definition print!"
+                )?;
                 writeln!(
                     writer,
                     "DEFINE_IL2CPP_ARG_TYPE({}, \"{}\", \"{}\");",
-                    ty.cpp_full_name,
-                    ty.namespace,
-                    ty.name
+                    ty.cpp_full_name, ty.namespace, ty.name
                 )?;
             } else {
                 writeln!(
                     writer,
                     "DEFINE_IL2CPP_ARG_TYPE({}, \"{}\", \"{}\");",
-                    ty.cpp_full_name,
-                    ty.namespace,
-                    ty.name
+                    ty.cpp_full_name, ty.namespace, ty.name
                 )?;
             }
 
@@ -366,9 +366,13 @@ impl CppType {
                 })?;
             writeln!(writer, "// Declarations")?;
             // Write all declarations within the type here
-            self.declarations.iter().for_each(|d| {
-                d.write(writer).unwrap();
-            });
+            self.declarations
+                .iter()
+                .try_for_each(|d| -> color_eyre::Result<()> {
+                    d.write(writer)?;
+                    writeln!(writer)?;
+                    Ok(())
+                })?;
 
             writeln!(
                 writer,
@@ -384,7 +388,11 @@ impl CppType {
 
             self.nonmember_declarations
                 .iter()
-                .try_for_each(|d| d.write(writer))?;
+                .try_for_each(|d| -> color_eyre::Result<()> {
+                    d.write(writer)?;
+                    writeln!(writer)?;
+                    Ok(())
+                })?;
         }
 
         // Namespace complete
@@ -393,7 +401,8 @@ impl CppType {
             writeln!(writer, "}} // namespace {n}")?;
         }
 
-        if !fd { // if we did not FD we still need to provide an il2cpp arg type definition for class resolution
+        if !fd {
+            // if we did not FD we still need to provide an il2cpp arg type definition for class resolution
             write_il2cpp_arg_macros(self, writer)?;
         }
 

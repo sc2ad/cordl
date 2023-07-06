@@ -3,9 +3,9 @@ use pathdiff::diff_paths;
 use crate::STATIC_CONFIG;
 
 use super::{context::CppContext, cpp_type::CppType};
+
+
 use std::path::{Path, PathBuf};
-use std::io::Write;
-use color_eyre::eyre::eyre;
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
 pub struct CppTemplate {
@@ -70,7 +70,7 @@ pub enum CppMember {
     Comment(CppCommentedString),
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
-    CppUsingAlias(CppUsingAlias)
+    CppUsingAlias(CppUsingAlias),
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -96,8 +96,8 @@ pub struct CppMethodSizeStruct {
 }
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppFieldDecl {
-    pub name: String,
-    pub ty: String,
+    pub cpp_name: String,
+    pub field_ty: String,
     pub offset: u32,
     pub instance: bool,
     pub readonly: bool,
@@ -109,8 +109,8 @@ pub struct CppFieldDecl {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppFieldImpl {
-    pub klass_name: String,
-    pub field: CppFieldDecl,
+    pub declaring_ty_cpp_name: String,
+    pub field_data: CppFieldDecl,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -202,7 +202,8 @@ pub struct CppConstructorImpl {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppProperty {
     pub name: String,
-    pub ty: String,
+    pub cpp_name: String,
+    pub prop_ty: String,
     pub setter: Option<CppMethodData>,
     pub getter: Option<CppMethodData>,
     pub abstr: bool,
@@ -279,107 +280,3 @@ impl CppInclude {
     }
 }
 
-impl CppFieldDecl { // field declaration
-    pub fn write_field_getter(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        let name = &self.name;
-        let ty = &self.ty;
-
-        writeln!(writer, "/// @brief Field getter for {name}")?;
-        if self.instance { writeln!(writer, "/// @return value at offset 0x{:x}", self.offset)? }
-
-        let static_keyword = if self.instance { "" } else { "static " };
-        if self.declaring_is_reference && self.is_value_type {
-            let const_keyword = if self.readonly { "const " } else { "" };
-            writeln!(writer, "{static_keyword}{const_keyword}{ty}& __get_{name}();")?;
-        } else {
-            writeln!(writer, "{static_keyword}{ty} __get_{name}();")?;
-        }
-
-        Ok(())
-    }
-
-    pub fn write_field_putter(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        if self.readonly {
-            return Err(eyre!("can't write putter for readonly field"));
-        }
-
-        let name = &self.name;
-        let ty = &self.ty;
-
-        writeln!(writer, "/// @brief Field putter for {name}")?;
-        writeln!(writer, "/// @param value what to put at offset 0x{:x}", self.offset)?;
-
-        let static_keyword = if self.instance { "" } else { "static " };
-        if self.declaring_is_reference && self.is_value_type {
-            writeln!(writer, "{static_keyword}void __put_{name}(const {ty}& value);")?;
-        } else {
-            writeln!(writer, "{static_keyword}void __put_{name}({ty} value);")?;
-        }
-
-        Ok(())
-    }
-}
-
-impl CppFieldImpl {
-    pub fn write_field_getter(&self, writer: &mut super::writer::CppWriter)  -> color_eyre::Result<()> {
-        let field = &self.field;
-        let name = &field.name;
-        let ty = &field.ty;
-        let klass_name = &self.klass_name;
-
-        if field.declaring_is_reference && field.is_value_type {
-            writeln!(writer, "{}{ty}& {klass_name}::__get_{name}() {{", if field.readonly {"const "} else { "" })?;
-        } else {
-            writeln!(writer, "{ty} {klass_name}::__get_{name}() {{")?;
-        }
-
-        if field.is_value_type {
-            match field.instance {
-                true => writeln!(writer, "return getValueTypeInstance<{ty}, 0x{:x}>({});", field.offset, if field.declaring_is_reference { "instance" } else { "this" })?,
-                false => writeln!(writer, "return getValueTypeStatic<{ty}, \"{}\", {}>();", name, field.classof_call)?,
-            }
-        } else {
-            match field.instance {
-                true => writeln!(writer, "return getReferenceTypeInstance<{ty}, 0x{:x}>({});", field.offset, if field.declaring_is_reference { "instance" } else { "this" })?,
-                false => writeln!(writer, "return getReferenceTypeStatic<{ty}, \"{}\", {}>();", name, field.classof_call)?,
-            }
-        }
-
-        writeln!(writer, "}}")?;
-
-        Ok(())
-    }
-
-    pub fn write_field_putter(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        if self.field.readonly {
-            return Err(eyre!("can't write putter for readonly field"));
-        }
-
-        let field = &self.field;
-        let name = &field.name;
-        let ty = &field.ty;
-        let klass_name = &self.klass_name;
-
-        if field.declaring_is_reference && field.is_value_type {
-            writeln!(writer, "void {klass_name}::__put_{name}(const {ty}& value) {{")?;
-        } else {
-            writeln!(writer, "void {klass_name}::__put_{name}({ty} value) {{")?;
-        }
-
-        if field.is_value_type {
-            match field.instance {
-                true => writeln!(writer, "setValueTypeInstance<{ty}, 0x{:x}>({}, value);", field.offset, if field.declaring_is_reference { "instance" } else { "this" })?,
-                false => writeln!(writer, "setValueTypeStatic<{ty}, \"{}\", {}>(value);", field.name, field.classof_call)?,
-            }
-        } else {
-            match field.instance {
-                true => writeln!(writer, "setReferenceTypeInstance<{ty}, 0x{:x}>({}, value);", field.offset, if field.declaring_is_reference { "instance" } else { "this" })?,
-                false => writeln!(writer, "setReferenceTypeStatic<{ty}, \"{}\", {}>(value);", field.name, field.classof_call)?,
-            }
-        }
-
-        writeln!(writer, "}}")?;
-
-        Ok(())
-    }
-}

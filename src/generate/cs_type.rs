@@ -29,9 +29,9 @@ use super::{
     context_collection::{CppContextCollection, CppTypeTag},
     cpp_type::CppType,
     members::{
-        CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl, CppForwardDeclare,
-        CppInclude, CppMember, CppMethodData, CppMethodDecl, CppMethodImpl, CppMethodSizeStruct,
-        CppParam, CppProperty, CppTemplate,
+        CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
+        CppForwardDeclare, CppInclude, CppMember, CppMethodData, CppMethodDecl, CppMethodImpl,
+        CppMethodSizeStruct, CppParam, CppProperty, CppTemplate,
     },
     metadata::Metadata,
 };
@@ -226,8 +226,8 @@ pub trait CSType: Sized {
 
         self.make_generics_args(metadata, ctx_collection);
         self.make_parents(metadata, ctx_collection, tdi);
-        self.make_fields(metadata, ctx_collection, tdi);
-        self.make_properties(metadata, ctx_collection, tdi);
+        self.make_fields(metadata, ctx_collection, config, tdi);
+        self.make_properties(metadata, ctx_collection, config, tdi);
         self.make_methods(metadata, config, ctx_collection, tdi);
 
         if let Some(func) = metadata.custom_type_handler.get(&tdi) {
@@ -301,7 +301,7 @@ pub trait CSType: Sized {
             .collect();
 
         // Handle nested types
-        // Assumes these nested types exist, 
+        // Assumes these nested types exist,
         // which are created in the make_generic type func
         // TODO: Base off a CppType the alias path
         {
@@ -374,29 +374,26 @@ pub trait CSType: Sized {
             let fields = t
                 .fields(metadata.metadata)
                 .iter()
-                .filter(|field| { // skip static fields in default ctor
-                    !metadata
-                        .metadata_registration
-                        .types
-                        .get(field.type_index as usize)
-                        .unwrap().is_static()
-                })
-                .map(|field| {
+                .filter_map(|field| {
                     let f_type = metadata
                         .metadata_registration
                         .types
                         .get(field.type_index as usize)
                         .unwrap();
 
+                    if f_type.is_static() {
+                        return None;
+                    }
+
                     let cpp_name =
                         cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
-                    CppParam {
+                    Some(CppParam {
                         name: field.name(metadata.metadata).to_string(),
                         ty: cpp_name,
                         modifiers: "".to_string(),
                         def_value: Some("{}".to_string()),
-                    }
+                    })
                 })
                 .collect_vec();
             cpp_type
@@ -440,6 +437,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         ctx_collection: &CppContextCollection,
+        config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
@@ -462,7 +460,6 @@ pub trait CSType: Sized {
         cpp_type.implementations.reserve(t.field_count as usize);
         for (i, field) in t.fields(metadata.metadata).iter().enumerate() {
             let field_index = FieldIndex::new(t.field_start.index() + i as u32);
-            // TODO: sanitize name for c++
             let f_name = field.name(metadata.metadata);
             let f_offset = metadata
                 .metadata_registration
@@ -482,16 +479,15 @@ pub trait CSType: Sized {
                 println!("Value type uses {tdi:?} which is blacklisted! TODO");
             }
 
-            let _f_type_data = f_type.data;
-
-            let mut cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+            let field_cpp_name =
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
             // TODO: Check a flag to look for default values to speed this up
             let def_value = Self::field_default_value(metadata, field_index);
 
-            let field = CppFieldDecl {
-                name: f_name.to_owned(),
-                ty: cpp_name,
+            let field_decl = CppFieldDecl {
+                cpp_name: config.name_cpp(f_name),
+                field_ty: field_cpp_name,
                 offset: f_offset,
                 instance: !f_type.is_static() && !f_type.is_const(),
                 readonly: f_type.is_const(),
@@ -501,13 +497,17 @@ pub trait CSType: Sized {
                 declaring_is_reference: !t.is_value_type(),
             };
 
-            cpp_type.declarations.push(CppMember::FieldDecl(field.clone()));
+            cpp_type
+                .declarations
+                .push(CppMember::FieldDecl(field_decl.clone()));
 
             // TODO: improve how these are handled
-            cpp_type.implementations.push(CppMember::FieldImpl(CppFieldImpl{
-                klass_name: cpp_type.cpp_name.clone(),
-                field: field,
-            }));
+            cpp_type
+                .implementations
+                .push(CppMember::FieldImpl(CppFieldImpl {
+                    declaring_ty_cpp_name: cpp_type.cpp_name.clone(),
+                    field_data: field_decl,
+                }));
         }
     }
 
@@ -589,6 +589,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         ctx_collection: &CppContextCollection,
+        config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
@@ -608,7 +609,6 @@ pub trait CSType: Sized {
         cpp_type.declarations.reserve(t.property_count as usize);
         // Then, for each field, write it out
         for prop in t.properties(metadata.metadata) {
-            // TODO: sanitize name for c++
             let p_name = prop.name(metadata.metadata);
             let p_setter = (prop.set != u32::MAX).then(|| prop.set_method(t, metadata.metadata));
             let p_getter = (prop.get != u32::MAX).then(|| prop.get_method(t, metadata.metadata));
@@ -624,7 +624,7 @@ pub trait CSType: Sized {
                 .get(p_type_index)
                 .unwrap();
 
-            let p_cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
+            let p_ty_cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
 
             let method_map = |p: MethodIndex| {
                 let method_calc = metadata.method_calculations.get(&p).unwrap();
@@ -637,7 +637,8 @@ pub trait CSType: Sized {
             // Need to include this type
             cpp_type.declarations.push(CppMember::Property(CppProperty {
                 name: p_name.to_owned(),
-                ty: p_cpp_name.clone(),
+                cpp_name: config.name_cpp(p_name),
+                prop_ty: p_ty_cpp_name.clone(),
                 classof_call: cpp_type.classof_cpp_name(),
                 setter: p_setter.map(|_| method_map(prop.set_method_index(t))),
                 getter: p_getter.map(|_| method_map(prop.get_method_index(t))),
