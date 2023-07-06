@@ -305,7 +305,7 @@ fn main() -> color_eyre::Result<()> {
             .filter(|(_, c)| {
                 c.get_types().iter().any(|(_, t)| {
                     t.declarations.iter().any(|d| {
-                        if let CppMember::MethodDecl(m) = d {
+                        if let CppMember::MethodDecl(m) = d.as_ref() {
                             m.parameters.iter().any(|p| p.def_value.is_some())
                         } else {
                             false

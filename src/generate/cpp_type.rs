@@ -41,8 +41,8 @@ pub struct CppType {
 
     pub cpp_full_name: String,
 
-    pub declarations: Vec<CppMember>,
-    pub implementations: Vec<CppMember>,
+    pub declarations: Vec<Rc<CppMember>>,
+    pub implementations: Vec<Rc<CppMember>>,
     /// Outside of the class declaration
     /// Move to CsType/CppType?
     pub nonmember_implementations: Vec<Rc<dyn Writable>>,

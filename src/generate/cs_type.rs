@@ -372,7 +372,11 @@ pub trait CSType: Sized {
                 }
             });
 
-            aliases.for_each(|a| cpp_type.declarations.insert(0, CppMember::CppUsingAlias(a)));
+            aliases.for_each(|a| {
+                cpp_type
+                    .declarations
+                    .insert(0, CppMember::CppUsingAlias(a).into())
+            });
             // replaced by using statements
             cpp_type.nested_types.clear();
         }
@@ -417,25 +421,27 @@ pub trait CSType: Sized {
                     })
                 })
                 .collect_vec();
-            cpp_type
-                .declarations
-                .push(CppMember::ConstructorImpl(CppConstructorImpl {
+            cpp_type.declarations.push(
+                CppMember::ConstructorImpl(CppConstructorImpl {
                     holder_cpp_ty_name: cpp_type.cpp_name().clone(),
                     parameters: fields,
                     is_constexpr: true,
                     template: CppTemplate::default(),
-                }));
+                })
+                .into(),
+            );
         }
 
         // Then, handle methods
         if t.method_count > 0 {
             // Write comment for methods
-            cpp_type
-                .declarations
-                .push(CppMember::Comment(CppCommentedString {
+            cpp_type.declarations.push(
+                CppMember::Comment(CppCommentedString {
                     data: "".to_string(),
                     comment: Some("Methods".to_string()),
-                }));
+                })
+                .into(),
+            );
 
             // 2 because each method gets a method struct and method decl
             // a constructor will add an additional one for each
@@ -470,12 +476,13 @@ pub trait CSType: Sized {
         }
 
         // Write comment for fields
-        cpp_type
-            .declarations
-            .push(CppMember::Comment(CppCommentedString {
+        cpp_type.declarations.push(
+            CppMember::Comment(CppCommentedString {
                 data: "".to_string(),
                 comment: Some("Fields".to_string()),
-            }));
+            })
+            .into(),
+        );
         // Then, for each field, write it out
         cpp_type.declarations.reserve(t.field_count as usize);
         cpp_type.implementations.reserve(t.field_count as usize);
@@ -520,15 +527,16 @@ pub trait CSType: Sized {
 
             cpp_type
                 .declarations
-                .push(CppMember::FieldDecl(field_decl.clone()));
+                .push(CppMember::FieldDecl(field_decl.clone()).into());
 
             // TODO: improve how these are handled
-            cpp_type
-                .implementations
-                .push(CppMember::FieldImpl(CppFieldImpl {
+            cpp_type.implementations.push(
+                CppMember::FieldImpl(CppFieldImpl {
                     declaring_ty_cpp_name: cpp_type.cpp_name.clone(),
                     field_data: field_decl,
-                }));
+                })
+                .into(),
+            );
         }
     }
 
@@ -621,12 +629,13 @@ pub trait CSType: Sized {
             return;
         }
         // Write comment for properties
-        cpp_type
-            .declarations
-            .push(CppMember::Comment(CppCommentedString {
+        cpp_type.declarations.push(
+            CppMember::Comment(CppCommentedString {
                 data: "".to_string(),
                 comment: Some("Properties".to_string()),
-            }));
+            })
+            .into(),
+        );
         cpp_type.declarations.reserve(t.property_count as usize);
         // Then, for each field, write it out
         for prop in t.properties(metadata.metadata) {
@@ -657,17 +666,20 @@ pub trait CSType: Sized {
             };
 
             // Need to include this type
-            cpp_type.declarations.push(CppMember::Property(CppProperty {
-                name: p_name.to_owned(),
-                cpp_name: config.name_cpp(p_name),
-                prop_ty: p_ty_cpp_name.clone(),
-                classof_call: cpp_type.classof_cpp_name(),
-                setter: p_setter.map(|_| method_map(prop.set_method_index(t))),
-                getter: p_getter.map(|_| method_map(prop.get_method_index(t))),
-                abstr: p_getter.is_some_and(|p| p.is_abstract_method())
-                    || p_setter.is_some_and(|p| p.is_abstract_method()),
-                instance: !p_getter.or(p_setter).unwrap().is_static_method(),
-            }));
+            cpp_type.declarations.push(
+                CppMember::Property(CppProperty {
+                    name: p_name.to_owned(),
+                    cpp_name: config.name_cpp(p_name),
+                    prop_ty: p_ty_cpp_name.clone(),
+                    classof_call: cpp_type.classof_cpp_name(),
+                    setter: p_setter.map(|_| method_map(prop.set_method_index(t))),
+                    getter: p_getter.map(|_| method_map(prop.get_method_index(t))),
+                    abstr: p_getter.is_some_and(|p| p.is_abstract_method())
+                        || p_setter.is_some_and(|p| p.is_abstract_method()),
+                    instance: !p_getter.or(p_setter).unwrap().is_static_method(),
+                })
+                .into(),
+            );
         }
     }
 
@@ -736,30 +748,31 @@ pub trait CSType: Sized {
             cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, m_ret_type, false);
 
         if m_name == ".ctor" && !declaring_type.is_value_type() {
-            cpp_type
-                .implementations
-                .push(CppMember::ConstructorImpl(CppConstructorImpl {
+            cpp_type.implementations.push(
+                CppMember::ConstructorImpl(CppConstructorImpl {
                     holder_cpp_ty_name: cpp_type.cpp_name().clone(),
                     parameters: m_params.clone(),
                     is_constexpr: false,
                     template: template.clone(),
-                }));
-            cpp_type
-                .declarations
-                .push(CppMember::ConstructorDecl(CppConstructorDecl {
+                })
+                .into(),
+            );
+            cpp_type.declarations.push(
+                CppMember::ConstructorDecl(CppConstructorDecl {
                     ty: cpp_type.formatted_complete_cpp_name().clone(),
                     parameters: m_params.clone(),
                     template: template.clone(),
-                }));
+                })
+                .into(),
+            );
         }
         let declaring_type = method.declaring_type(metadata.metadata);
         let tag = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
 
         let method_calc = metadata.method_calculations.get(&method_index);
 
-        cpp_type
-            .implementations
-            .push(CppMember::MethodImpl(CppMethodImpl {
+        cpp_type.implementations.push(
+            CppMember::MethodImpl(CppMethodImpl {
                 cpp_method_name: config.name_cpp(m_name),
                 cs_method_name: m_name.to_string(),
                 holder_cpp_namespaze: cpp_type.cpp_namespace().to_string(),
@@ -773,11 +786,12 @@ pub trait CSType: Sized {
                 suffix_modifiers: Default::default(),
                 prefix_modifiers: Default::default(),
                 template: template.clone(),
-            }));
+            })
+            .into(),
+        );
 
-        cpp_type
-            .declarations
-            .push(CppMember::MethodDecl(CppMethodDecl {
+        cpp_type.declarations.push(
+            CppMember::MethodDecl(CppMethodDecl {
                 cpp_name: config.name_cpp(m_name),
                 return_type: m_ret_cpp_type_name.clone(),
                 parameters: m_params.clone(),
@@ -790,7 +804,9 @@ pub trait CSType: Sized {
                     estimated_size: method_calc.estimated_size,
                 }),
                 is_virtual: method.is_virtual_method() && !method.is_final_method(),
-            }));
+            })
+            .into(),
+        );
 
         let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
             Some(cpp_type)
