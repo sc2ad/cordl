@@ -8,17 +8,15 @@ use std::io::Write;
 
 impl Writable for CppTemplate {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if !self.names.is_empty() {
-            writeln!(
-                writer,
-                "template<{}>",
-                self.names
-                    .iter()
-                    .map(|s| format!("typename {s}"))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )?;
-        }
+        writeln!(
+            writer,
+            "template<{}>",
+            self.names
+                .iter()
+                .map(|s| format!("typename {s}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        )?;
 
         Ok(())
     }

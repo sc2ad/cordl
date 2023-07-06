@@ -287,7 +287,16 @@ impl CppType {
                 generic_args.write(writer)?;
             }
 
-            writeln!(writer, "{} {};", &type_kind, self.name())?;
+            match &self.generic_instantiation_args {
+                Some(literals) => writeln!(
+                    writer,
+                    "{} {}<{}>;",
+                    &type_kind,
+                    self.name(),
+                    literals.join(", ")
+                ),
+                None => writeln!(writer, "{} {};", &type_kind, self.name()),
+            }?;
 
             if let Some(n) = &namespace {
                 writeln!(writer, "}} // end namespace {n}")?;

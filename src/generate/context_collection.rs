@@ -284,6 +284,11 @@ impl CppContextCollection {
 
         self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
 
+        // this might cause problems, hopefully not
+        // since two types can coexist with the TDI though only one is nested
+        let mut stub = new_cpp_type.clone();
+        stub.self_tag = type_data;
+
         new_cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
 
         // if generic type is a nested type
@@ -292,6 +297,7 @@ impl CppContextCollection {
 
         let context = self.get_context_mut(generic_class_ty_data).unwrap();
 
+        context.insert_cpp_type(stub);
         context.insert_cpp_type(new_cpp_type);
 
         Some(context)

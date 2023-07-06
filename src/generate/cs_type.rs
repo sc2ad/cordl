@@ -91,7 +91,7 @@ pub trait CSType: Sized {
         cpp_type.generic_instantiations_args_types =
             Some(inst.types.iter().map(|t| *t as TypeIndex).collect());
 
-        cpp_type.cpp_template = None;
+        cpp_type.cpp_template = Some(CppTemplate { names: vec![] });
         cpp_type.is_stub = false;
 
         cpp_type
@@ -326,51 +326,55 @@ pub trait CSType: Sized {
         // which are created in the make_generic type func
         // TODO: Base off a CppType the alias path
         {
-            let aliases = cpp_type.nested_types.values().map(|n| {
-                let (literals, template) = match &n.cpp_template {
-                    Some(template) => {
-                        // Skip the first args as those aren't necessary
-                        let extra_args = template
-                            .names
-                            .iter()
-                            .skip(generic_instantiation_args.len())
-                            .cloned()
-                            .collect_vec();
+            let aliases = cpp_type
+                .nested_types
+                .values()
+                .filter(|c| c.cpp_template.is_some())
+                .map(|n| {
+                    let (literals, template) = match &n.cpp_template {
+                        Some(template) => {
+                            // Skip the first args as those aren't necessary
+                            let extra_args = template
+                                .names
+                                .iter()
+                                .skip(generic_instantiation_args.len())
+                                .cloned()
+                                .collect_vec();
 
-                        let new_cpp_template = match !extra_args.is_empty() {
-                            true => Some(CppTemplate { names: extra_args }),
-                            false => None,
-                        };
+                            let new_cpp_template = match !extra_args.is_empty() {
+                                true => Some(CppTemplate { names: extra_args }),
+                                false => None,
+                            };
 
-                        // Essentially, all nested types inherit their declaring type's generic params.
-                        // Append the rest of the template params as generic parameters
-                        match new_cpp_template {
-                            Some(template) => (
-                                generic_instantiation_args
-                                    .iter()
-                                    .chain(&template.names)
-                                    .cloned()
-                                    .collect_vec(),
-                                Some(template),
-                            ),
-                            None => (generic_instantiation_args.clone(), None),
+                            // Essentially, all nested types inherit their declaring type's generic params.
+                            // Append the rest of the template params as generic parameters
+                            match new_cpp_template {
+                                Some(template) => (
+                                    generic_instantiation_args
+                                        .iter()
+                                        .chain(&template.names)
+                                        .cloned()
+                                        .collect_vec(),
+                                    Some(template),
+                                ),
+                                None => (generic_instantiation_args.clone(), None),
+                            }
                         }
-                    }
-                    None => (generic_instantiation_args.clone(), None),
-                };
+                        None => (generic_instantiation_args.clone(), None),
+                    };
 
-                CppUsingAlias {
-                    alias: n.cpp_name.clone(),
-                    namespaze: None,
-                    result: format!(
-                        "{}::{}",
-                        n.cpp_namespace,
-                        STATIC_CONFIG.generic_nested_name(&n.cpp_full_name)
-                    ),
-                    template,
-                    result_literals: literals,
-                }
-            });
+                    CppUsingAlias {
+                        alias: n.cpp_name.clone(),
+                        namespaze: None,
+                        result: format!(
+                            "{}::{}",
+                            n.cpp_namespace,
+                            STATIC_CONFIG.generic_nested_name(&n.cpp_full_name)
+                        ),
+                        template,
+                        result_literals: literals,
+                    }
+                });
 
             aliases.for_each(|a| {
                 cpp_type
@@ -378,7 +382,10 @@ pub trait CSType: Sized {
                     .insert(0, CppMember::CppUsingAlias(a).into())
             });
             // replaced by using statements
-            cpp_type.nested_types.clear();
+            // only for generic nested types
+            cpp_type
+                .nested_types
+                .retain(|_, c| c.cpp_template.is_none());
         }
 
         cpp_type.generic_instantiation_args = Some(generic_instantiation_args);
