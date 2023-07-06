@@ -1,11 +1,12 @@
 use core::panic;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+};
 
 use brocolib::{
     global_metadata::TypeDefinitionIndex,
     runtime_metadata::{Il2CppMethodSpec, TypeData},
 };
-use color_eyre::eyre::bail;
 
 use crate::generate::{cpp_type::CppType, cs_type::CSType};
 
@@ -123,7 +124,7 @@ impl CppContextCollection {
             .remove_entry(&type_tag);
 
         // In some occasions, the CppContext can be empty
-        if let Some((t, mut cpp_type)) = cpp_type_entry {
+        if let Some((_t, mut cpp_type)) = cpp_type_entry {
             assert!(!cpp_type.nested, "Cannot fill a nested type!");
 
             self.fill_cpp_type(&mut cpp_type, metadata, config);
@@ -292,7 +293,7 @@ impl CppContextCollection {
 
         context.insert_cpp_type(new_cpp_type);
 
-        return Some(self.all_contexts.get_mut(&context_root_tag).unwrap());
+        Some(context)
     }
 
     pub fn fill_generic_inst(
@@ -405,51 +406,51 @@ impl CppContextCollection {
             panic!("Already borrowing this context!");
         }
 
-        // TODO: Do this without removing or cloning
-        let mut context = self
-            .all_contexts
-            .get(&context_ty)
-            .cloned()
-            .expect("No context ty?");
+        let declaring_ty = self.get_parent_or_self_tag(ty);
 
-        let parent = self.get_parent_or_self_tag(ty);
+        let (result_cpp_type, old_tag);
 
-        // TODO: Needed
-        // self.borrowing_types.insert(context_ty);
+        {
+            let context = self.all_contexts.get_mut(&context_ty).unwrap();
 
-        // search in root
-        // clone to avoid failing il2cpp_name
-        let in_context_cpp_type = context.typedef_types.get(&parent);
-        match in_context_cpp_type {
-            Some(old_cpp_type) => {
-                let old_tag = old_cpp_type.self_tag;
-                let new_cpp_ty = func(self, old_cpp_type.clone());
+            // TODO: Needed?
+            // self.borrowing_types.insert(context_ty);
 
-                context.typedef_types.remove(&old_tag);
-                context.insert_cpp_type(new_cpp_ty);
-            }
-            None => {
-                let owner = context
-                    .typedef_types
-                    .get_mut(&parent)
-                    .expect("Parent ty not found in context");
+            // search in root
+            // clone to avoid failing il2cpp_name
+            let declaring_cpp_type = context.typedef_types.get(&declaring_ty).cloned();
+            (result_cpp_type, old_tag) = match declaring_cpp_type {
+                Some(old_cpp_type) => {
+                    let old_tag = old_cpp_type.self_tag;
+                    let new_cpp_ty = func(self, old_cpp_type);
 
-                let found = owner.borrow_nested_type_mut(ty, self, &func);
-                // for nested_type in context.typedef_types.values_mut() {
-                //     if nested_type.borrow_nested_type_mut(ty, self, &func) {
-                //         found = true;
-                //         break;
-                //     }
-                // }
-
-                if !found {
-                    panic!("No nested or parent type found for type {ty:?}!");
+                    (new_cpp_ty, Some(old_tag))
                 }
-            }
-        }
-        self.borrowing_types.remove(&context_ty);
+                None => {
+                    let mut declaring_ty = context
+                        .typedef_types
+                        .get(&declaring_ty)
+                        .expect("Parent ty not found in context")
+                        .clone();
 
-        self.all_contexts.insert(context_ty, context);
+                    let found = declaring_ty.borrow_nested_type_mut(ty, self, &func);
+
+                    if !found {
+                        panic!("No nested or parent type found for type {ty:?}!");
+                    }
+
+                    (declaring_ty, None)
+                }
+            };
+        }
+
+        // avoid the borrow checker's wrath
+        let context = self.all_contexts.get_mut(&context_ty).unwrap();
+        if let Some(old_tag) = old_tag {
+            context.typedef_types.remove(&old_tag);
+        }
+        context.insert_cpp_type(result_cpp_type);
+        self.borrowing_types.remove(&context_ty);
     }
 
     pub fn get_context(&self, type_tag: CppTypeTag) -> Option<&CppContext> {

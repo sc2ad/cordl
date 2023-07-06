@@ -1,15 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
 use brocolib::{
-    global_metadata::{GlobalMetadata, Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex},
-    runtime_metadata::{
-        Il2CppGenericClass, Il2CppGenericContext, Il2CppMetadataRegistration, Il2CppMethodSpec,
-        Il2CppType, TypeData,
-    },
+    global_metadata::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex},
 };
 use itertools::Itertools;
 
-use super::{context_collection::GenericInstantiation, cpp_type::CppType};
+use super::{cpp_type::CppType};
 
 pub struct MethodCalculations {
     pub estimated_size: usize,
@@ -45,8 +41,6 @@ pub struct Metadata<'a> {
     pub parent_to_child_map: HashMap<TypeDefinitionIndex, Vec<TypeDefinitionPair<'a>>>,
     pub child_to_parent_map: HashMap<TypeDefinitionIndex, TypeDefinitionPair<'a>>,
 
-    pub generic_instantiation_map: HashMap<GenericInstantiation, &'a Il2CppMethodSpec>,
-
     //
     pub custom_type_handler: HashMap<TypeDefinitionIndex, TypeHandlerFn>,
     pub name_to_tdi: HashMap<Il2cppFullName<'a>, TypeDefinitionIndex>,
@@ -59,8 +53,6 @@ impl<'a> Metadata<'a> {
         self.parse_name_tdi(gm);
         self.parse_type_hierarchy(gm);
         self.parse_method_size(gm);
-        let rm = &self.metadata_registration;
-        self.parse_generic_instantiations(gm, rm);
     }
 
     fn parse_type_hierarchy(&mut self, gm: &'a brocolib::global_metadata::GlobalMetadata) {
@@ -196,68 +188,4 @@ impl<'a> Metadata<'a> {
             })
             .collect();
     }
-
-    fn parse_generic_instantiations(
-        &mut self,
-        gm: &'a GlobalMetadata,
-        rm: &'a Il2CppMetadataRegistration,
-    ) {
-        let generic_map: HashMap<_, _> = rm
-            .generic_method_table
-            .iter()
-            .map(|m| {
-                let method_spec = rm
-                    .method_specs
-                    .get(m.generic_method_index as usize)
-                    .unwrap();
-                method_spec
-            })
-            .filter(|m| m.method_inst_index == u32::MAX)
-            .map(|method_spec| {
-                let method = &gm.methods[method_spec.method_definition_index];
-
-                (
-                    GenericInstantiation {
-                        tdi: method.declaring_type,
-                        inst: method_spec.class_inst_index as usize,
-                    },
-                    method_spec,
-                )
-            })
-            .collect();
-
-        self.generic_instantiation_map = generic_map;
-    }
-}
-
-pub fn find_generic_il2cpp_type_data<'a>(
-    ty_def: &Il2CppTypeDefinition,
-    method_spec: &Il2CppMethodSpec,
-    metadata: &'a mut Metadata,
-) -> (Option<&'a Il2CppType>, Il2CppGenericClass) {
-    let generic_class: Il2CppGenericClass = Il2CppGenericClass {
-        type_index: ty_def.byval_type_index as usize,
-        context: Il2CppGenericContext {
-            class_inst_idx: Some(method_spec.class_inst_index as usize),
-            method_inst_idx: None,
-        },
-    };
-    let generic_class_ty_opt = metadata
-        .metadata_registration
-        .types
-        .iter()
-        .find(|t| match t.data {
-            TypeData::GenericClassIndex(index) => {
-                let o = metadata
-                    .metadata_registration
-                    .generic_classes
-                    .get(index)
-                    .unwrap();
-
-                *o == generic_class
-            }
-            _ => false,
-        });
-
-    (generic_class_ty_opt, generic_class)
 }
