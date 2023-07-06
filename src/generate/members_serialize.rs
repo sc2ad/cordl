@@ -674,6 +674,17 @@ impl Writable for CppStructSpecialization {
     }
 }
 
+impl Writable for CppStaticAssert {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        let condition = &self.condition;
+        match &self.message {
+            None => writeln!(writer, "static_assert({condition})"),
+            Some(message) => writeln!(writer, "static_assert({condition}, \"{message}\")"),
+        }?;
+        Ok(())
+    }
+}
+
 impl Writable for CppMember {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         match self {

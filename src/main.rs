@@ -19,7 +19,7 @@ use crate::{
         context_collection::{CppContextCollection, CppTypeTag},
         members::CppMember,
     },
-    handlers::unity,
+    handlers::{unity, value_type},
 };
 mod generate;
 mod handlers;
@@ -147,7 +147,8 @@ fn main() -> color_eyre::Result<()> {
     }
 
     println!("Registering handlers!");
-    unity::register_unity(&cpp_context_collection, &mut metadata)?;
+    unity::register_unity(&mut metadata)?;
+    value_type::register_value_type(&mut metadata)?;
     println!("Handlers registered!");
 
     {

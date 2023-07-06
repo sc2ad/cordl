@@ -27,11 +27,11 @@ use super::{
         TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
     },
     context_collection::{CppContextCollection, CppTypeTag},
-    cpp_type::CppType,
+    cpp_type::{self, CppType},
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppMember, CppMethodData, CppMethodDecl, CppMethodImpl,
-        CppMethodSizeStruct, CppParam, CppProperty, CppTemplate,
+        CppMethodSizeStruct, CppParam, CppProperty, CppStaticAssert, CppTemplate,
     },
     metadata::Metadata,
 };
@@ -207,6 +207,27 @@ pub trait CSType: Sized {
         }
 
         cpptype.make_nested_types(metadata, config, tdi);
+
+        if let Some(size_table) = &metadata
+            .metadata
+            .runtime_metadata
+            .metadata_registration
+            .type_definition_sizes
+        {
+            if cpptype.is_value_type {
+                let size = &size_table[tdi.index() as usize];
+
+                cpptype
+                    .nonmember_declarations
+                    .push(Rc::new(CppStaticAssert {
+                        condition: format!(
+                            "sizeof({}) == 0x{:X}",
+                            cpptype.cpp_full_name, size.instance_size
+                        ),
+                        message: Some("Type {} does not match expected size!".to_string()),
+                    }))
+            }
+        }
 
         Some(cpptype)
     }
@@ -624,7 +645,8 @@ pub trait CSType: Sized {
                 .get(p_type_index)
                 .unwrap();
 
-            let p_ty_cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
+            let p_ty_cpp_name =
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
 
             let method_map = |p: MethodIndex| {
                 let method_calc = metadata.method_calculations.get(&p).unwrap();

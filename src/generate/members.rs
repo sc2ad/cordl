@@ -11,6 +11,11 @@ use std::path::{Path, PathBuf};
 pub struct CppTemplate {
     pub names: Vec<String>,
 }
+#[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
+pub struct CppStaticAssert {
+    pub condition: String,
+    pub message: Option<String>
+}
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
 pub struct CppStructSpecialization {

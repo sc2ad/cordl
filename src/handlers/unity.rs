@@ -10,30 +10,18 @@ use crate::generate::{
 };
 
 pub fn register_unity(
-    cpp_context_collection: &CppContextCollection,
     metadata: &mut Metadata,
 ) -> Result<()> {
     println!("Registering unity handler!");
-    register_unity_object_type_handler(cpp_context_collection, metadata)?;
+    register_unity_object_type_handler(metadata)?;
 
     Ok(())
 }
 
 fn register_unity_object_type_handler(
-    cpp_context_collection: &CppContextCollection,
     metadata: &mut Metadata,
 ) -> Result<()> {
     println!("Registering UnityEngine.Object handler!");
-
-    let (_tag, _unity_cpp_context) = cpp_context_collection
-        .get()
-        .iter()
-        .find(|(_, c)| {
-            c.get_types()
-                .iter()
-                .any(|(_, t)| t.name == "Object" && t.namespace == "UnityEngine")
-        })
-        .unwrap_or_else(|| panic!("No UnityEngine.Object type found!"));
 
     let unity_object_tdi = metadata
         .name_to_tdi
