@@ -276,7 +276,8 @@ impl CppContextCollection {
         if ty_def.declaring_type_index != u32::MAX {
             new_cpp_type.cpp_name = config.generic_nested_name(&new_cpp_type.cpp_full_name);
             new_cpp_type.nested = false; // set this to false, no longer nested
-            let declaring_ty = metadata.child_to_parent_map.get(&tdi).unwrap().ty;
+            let declaring_tdi: TypeDefinitionIndex = self.get_parent_or_self_tag(type_data).into();
+            let declaring_ty = &metadata.metadata.global_metadata.type_definitions[declaring_tdi];
             new_cpp_type.cpp_namespace =
                 config.namespace_cpp(declaring_ty.namespace(metadata.metadata));
         }
