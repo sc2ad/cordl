@@ -288,7 +288,7 @@ pub trait CSType: Sized {
                 _ => return,
             };
 
-        let generics_instantiation_args: Vec<String> = generic_instantiations_args_types
+        let generic_instantiation_args: Vec<String> = generic_instantiations_args_types
             .iter()
             .map(|u| {
                 metadata
@@ -301,6 +301,9 @@ pub trait CSType: Sized {
             .collect();
 
         // Handle nested types
+        // Assumes these nested types exist, 
+        // which are created in the make_generic type func
+        // TODO: Base off a CppType the alias path
         {
             let aliases = cpp_type.nested_types.values().map(|n| {
                 let (literals, template) = match &n.cpp_template {
@@ -309,7 +312,7 @@ pub trait CSType: Sized {
                         let extra_args = template
                             .names
                             .iter()
-                            .skip(generics_instantiation_args.len())
+                            .skip(generic_instantiation_args.len())
                             .cloned()
                             .collect_vec();
 
@@ -322,17 +325,17 @@ pub trait CSType: Sized {
                         // Append the rest of the template params as generic parameters
                         match new_cpp_template {
                             Some(template) => (
-                                generics_instantiation_args
+                                generic_instantiation_args
                                     .iter()
                                     .chain(&template.names)
                                     .cloned()
                                     .collect_vec(),
                                 Some(template),
                             ),
-                            None => (generics_instantiation_args.clone(), None),
+                            None => (generic_instantiation_args.clone(), None),
                         }
                     }
-                    None => (generics_instantiation_args.clone(), None),
+                    None => (generic_instantiation_args.clone(), None),
                 };
 
                 CppUsingAlias {
@@ -353,7 +356,7 @@ pub trait CSType: Sized {
             cpp_type.nested_types.clear();
         }
 
-        cpp_type.generic_instantiation_args = Some(generics_instantiation_args);
+        cpp_type.generic_instantiation_args = Some(generic_instantiation_args);
     }
 
     fn make_methods(

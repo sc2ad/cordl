@@ -1,7 +1,5 @@
 use core::panic;
-use std::{
-    collections::{HashMap, HashSet},
-};
+use std::collections::{HashMap, HashSet};
 
 use brocolib::{
     global_metadata::TypeDefinitionIndex,
@@ -278,7 +276,9 @@ impl CppContextCollection {
         if ty_def.declaring_type_index != u32::MAX {
             new_cpp_type.cpp_name = config.generic_nested_name(&new_cpp_type.cpp_full_name);
             new_cpp_type.nested = false; // set this to false, no longer nested
-            new_cpp_type.cpp_namespace = config.namespace_cpp(ty_def.namespace(metadata.metadata));
+            let declaring_ty = metadata.child_to_parent_map.get(&tdi).unwrap().ty;
+            new_cpp_type.cpp_namespace =
+                config.namespace_cpp(declaring_ty.namespace(metadata.metadata));
         }
 
         self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
