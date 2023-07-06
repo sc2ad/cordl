@@ -132,8 +132,7 @@ impl CppContextCollection {
             self.all_contexts
                 .get_mut(&context_tag)
                 .expect("No cpp context")
-                .typedef_types
-                .insert(t, cpp_type);
+                .insert_cpp_type(cpp_type);
         }
     }
 
@@ -260,48 +259,6 @@ impl CppContextCollection {
             inst: method_spec.class_inst_index as usize,
         });
 
-        // get parent type if required
-        let parent_tdi_data = metadata.child_to_parent_map.get(&tdi);
-
-        let declaring_type_generic_data = parent_tdi_data.and_then(|parent_tdi_data| {
-            let parent_generic_inst = GenericInstantiation {
-                tdi: parent_tdi_data.tdi,
-                inst: method_spec.class_inst_index as usize,
-            };
-
-            metadata
-                .generic_instantiation_map
-                .get(&parent_generic_inst)
-                .map(|m| (*m, parent_generic_inst))
-        });
-
-        let declaring_type_data = declaring_type_generic_data
-            .map(|(_, declaring_generic)| CppTypeTag::GenericInstantiation(declaring_generic))
-            .or(parent_tdi_data.map(|t| CppTypeTag::TypeDefinitionIndex(t.tdi)));
-
-        // let declaring_type_data: Option<CppTypeTag> = if ty_def.declaring_type_index != u32::MAX {
-        //     let declaring_ty =
-        //         metadata.metadata_registration.types[ty_def.declaring_type_index as usize];
-
-        //     match declaring_ty.data {
-        //         TypeData::TypeDefinitionIndex(tdi) => Some(CppTypeTag::TypeDefinitionIndex(tdi)),
-        //         TypeData::GenericClassIndex(declaring_generic_inst) => {
-        //             panic!();
-        //             Some(CppTypeTag::GenericInstantiation(GenericInstantiation {
-        //                 tdi: parent_tdi_data.unwrap().tdi,
-        //                 inst: declaring_generic_inst,
-        //             }))
-        //         }
-        //         _ => todo!(),
-        //     }
-        // } else {
-        //     None
-        // };
-
-        if let Some((declaring_method_spec, _)) = declaring_type_generic_data {
-            self.make_generic_from(declaring_method_spec, metadata, config);
-        }
-
         // Why is the borrow checker so dumb?
         // Using entries causes borrow checker to die :(
         if self.filled_types.contains(&generic_class_ty_data) {
@@ -317,6 +274,12 @@ impl CppContextCollection {
             .expect("Failed to make generic type");
         new_cpp_type.self_tag = generic_class_ty_data;
 
+        if ty_def.declaring_type_index != u32::MAX {
+            new_cpp_type.cpp_name = config.generic_nested_name(&new_cpp_type.cpp_full_name);
+            new_cpp_type.nested = false; // set this to false, no longer nested
+            new_cpp_type.cpp_namespace = config.namespace_cpp(ty_def.namespace(metadata.metadata));
+        }
+
         self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
 
         new_cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
@@ -324,28 +287,10 @@ impl CppContextCollection {
         // if generic type is a nested type
         // put it under the parent's `nested_types` field
         // otherwise put it in the typedef's hashmap
-        match declaring_type_data {
-            Some(declaring_ty) => {
-                self.borrow_cpp_type(
-                    declaring_ty,
-                    |_collection: &mut CppContextCollection, mut cpp_type| {
-                        cpp_type
-                            .nested_types
-                            .insert(new_cpp_type.self_tag, new_cpp_type.clone());
 
-                        cpp_type
-                    },
-                );
-                self.alias_type_to_parent(generic_class_ty_data, declaring_ty, true);
-            }
-            None => {
-                let context = self.get_context_mut(generic_class_ty_data).unwrap();
+        let context = self.get_context_mut(generic_class_ty_data).unwrap();
 
-                context
-                    .typedef_types
-                    .insert(generic_class_ty_data, new_cpp_type);
-            }
-        }
+        context.insert_cpp_type(new_cpp_type);
 
         return Some(self.all_contexts.get_mut(&context_root_tag).unwrap());
     }
@@ -381,13 +326,7 @@ impl CppContextCollection {
                 cpp_type.create_method(method, ty_def, method_index, metadata, collection, config);
             }
 
-
-            if cpp_type.cpp_name == "Enumerator" && (cpp_type.namespace == "System::Collections::Generic") {
-                println!("HI!");
-            }
-
             if method_spec.class_inst_index != u32::MAX {
-                println!("Filling {}", cpp_type.cpp_full_name);
                 collection.fill_cpp_type(&mut cpp_type, metadata, config);
             }
             cpp_type
@@ -487,9 +426,7 @@ impl CppContextCollection {
                 let new_cpp_ty = func(self, old_cpp_type.clone());
 
                 context.typedef_types.remove(&old_tag);
-                context
-                    .typedef_types
-                    .insert(new_cpp_ty.self_tag, new_cpp_ty);
+                context.insert_cpp_type(new_cpp_ty);
             }
             None => {
                 let owner = context

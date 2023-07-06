@@ -1,4 +1,3 @@
-
 use std::io::Write;
 use std::{
     collections::{HashMap, HashSet},
@@ -8,7 +7,6 @@ use std::{
 
 use brocolib::global_metadata::TypeDefinitionIndex;
 use color_eyre::eyre::ContextCompat;
-
 
 use itertools::Itertools;
 use pathdiff::diff_paths;
@@ -129,6 +127,7 @@ impl CppContext {
                         Some(ns.to_string())
                     },
                     template: Default::default(),
+                    result_literals: vec![],
                 });
             }
             // TODO: Make this create a struct with matching size or a using statement appropiately
@@ -137,7 +136,7 @@ impl CppContext {
 
         match CppType::make_cpp_type(metadata, config, tag, tdi) {
             Some(cpptype) => {
-                x.typedef_types.insert(tag, cpptype);
+                x.insert_cpp_type(cpptype);
             }
             None => {
                 println!("Unable to create valid CppContext for type: {ns}::{name}!");
@@ -145,6 +144,16 @@ impl CppContext {
         }
 
         x
+    }
+
+    pub fn insert_cpp_type(&mut self, cpp_type: CppType) {
+        if cpp_type.nested {
+            panic!(
+                "Cannot have a root type as a nested type! {}",
+                &cpp_type.cpp_full_name
+            );
+        }
+        self.typedef_types.insert(cpp_type.self_tag, cpp_type);
     }
 
     pub fn write(&self) -> color_eyre::Result<()> {
@@ -225,7 +234,10 @@ impl CppContext {
 
         for t in self.typedef_types.values() {
             if t.nested {
-                continue;
+                panic!(
+                    "Cannot have a root type as a nested type! {}",
+                    &t.cpp_full_name
+                );
             }
             if t.generic_instantiation_args.is_none() {
                 t.write_def(&mut typedef_writer)?;

@@ -92,7 +92,17 @@ impl Writable for CppUsingAlias {
             writeln!(writer, "namespace {namespaze} {{")?;
         }
 
-        writeln!(writer, "using {} = {};", self.alias, self.result)?;
+        if self.result_literals.is_empty() {
+            writeln!(writer, "using {} = {};", self.alias, self.result)?;
+        } else {
+            writeln!(
+                writer,
+                "using {} = {}<{}>;",
+                self.alias,
+                self.result,
+                self.result_literals.join(",")
+            )?;
+        }
 
         if let Some(namespaze) = &self.namespaze {
             writeln!(writer, "}} // {namespaze}")?;
@@ -441,6 +451,7 @@ impl Writable for CppMember {
             CppMember::MethodImpl(i) => i.write(writer),
             CppMember::ConstructorDecl(c) => c.write(writer),
             CppMember::ConstructorImpl(ci) => ci.write(writer),
+            CppMember::CppUsingAlias(alias) => alias.write(writer),
         }
     }
 }

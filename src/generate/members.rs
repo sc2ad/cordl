@@ -50,8 +50,10 @@ pub struct CppInclude {
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct CppUsingAlias {
-    pub alias: String,
     pub result: String,
+    pub result_literals: Vec<String>,
+
+    pub alias: String,
     pub namespaze: Option<String>,
     pub template: Option<CppTemplate>,
 }
@@ -65,6 +67,7 @@ pub enum CppMember {
     Comment(CppCommentedString),
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
+    CppUsingAlias(CppUsingAlias)
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
