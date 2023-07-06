@@ -334,6 +334,9 @@ impl CppType {
 
             writer.indent();
 
+            // add public access
+            writeln!(writer, "public:")?;
+
             self.nested_types
                 .values()
                 .map(|t| (t, CppForwardDeclare::from_cpp_type(t)))
