@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::io::Write;
 use std::{
     collections::{HashMap, HashSet},
@@ -201,6 +202,15 @@ impl CppContext {
             .typedef_types
             .values()
             .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
+            .sorted_by(|a, b| {
+                if a.is_stub {
+                    Ordering::Less
+                } else if b.is_stub {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
             .collect_vec();
 
         // Write includes for typedef

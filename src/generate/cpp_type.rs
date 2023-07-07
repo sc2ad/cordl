@@ -214,7 +214,7 @@ impl CppType {
             .try_for_each(|(_tag, n)| n.write_impl_internal(writer, None))?;
 
         if let Some(namespace) = namespace {
-            writeln!(writer, "}} // end namespace {namespace}")?;
+            writeln!(writer, "}} // end namespace impl {namespace}")?;
         }
 
         Ok(())
@@ -278,7 +278,7 @@ impl CppType {
             )?;
 
             if let Some(n) = &namespace {
-                writeln!(writer, "namespace {n} {{")?;
+                writeln!(writer, "namespace  {n} {{")?;
                 writer.indent();
             }
 
@@ -299,7 +299,7 @@ impl CppType {
             }?;
 
             if let Some(n) = &namespace {
-                writeln!(writer, "}} // end namespace {n}")?;
+                writeln!(writer, "}} // end namespace def fd {n}")?;
             }
 
             write_il2cpp_arg_macros(self, writer)?;
@@ -410,7 +410,7 @@ impl CppType {
         // Namespace complete
         if let Some(n) = namespace {
             writer.dedent();
-            writeln!(writer, "}} // namespace {n}")?;
+            writeln!(writer, "}} // namespace end def {n}")?;
         }
 
         if !fd {
