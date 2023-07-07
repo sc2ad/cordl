@@ -11,3 +11,4 @@ PointerAlignment: Left
 UseTab: Never
 Cpp11BracedListStyle: false
 QualifierAlignment: Right
+SortIncludes: Never
