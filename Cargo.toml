@@ -16,3 +16,4 @@ byteorder = "1"
 
 # utils
 pathdiff = "0.2"
+walkdir = "2"

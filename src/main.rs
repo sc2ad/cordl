@@ -6,13 +6,24 @@
 #![feature(map_try_insert)]
 #![feature(return_position_impl_trait_in_trait)]
 #![feature(lazy_cell)]
+#![feature(exit_status_error)]
+#![feature(available_parallelism)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
+use color_eyre::Result;
 use generate::{config::GenerationConfig, metadata::Metadata};
+use itertools::Itertools;
+use walkdir::DirEntry;
 
-use std::{fs, path::PathBuf, sync::LazyLock, time};
+use std::{
+    fs, os,
+    path::{self, PathBuf},
+    process::{self, Child, Command},
+    sync::LazyLock,
+    thread, time,
+};
 
-use clap::{Parser, Subcommand};
+use clap::{command, Parser, Subcommand};
 
 use crate::{
     generate::{
@@ -345,6 +356,52 @@ fn main() -> color_eyre::Result<()> {
         //     context.write().unwrap();
         // }
     }
+
+    format_files()?;
+
+    Ok(())
+}
+
+fn format_files() -> Result<()> {
+    println!("Formatting!");
+
+    use walkdir::WalkDir;
+
+    let files: Vec<DirEntry> = WalkDir::new(&STATIC_CONFIG.header_path)
+        .into_iter()
+        .filter(|f| f.as_ref().is_ok_and(|f| f.path().is_file()))
+        .try_collect()?;
+    let file_count = files.len();
+
+    let thread_count = thread::available_parallelism()?;
+    let chunks = file_count / thread_count;
+
+    println!("{chunks} per thread for {thread_count} threads");
+
+    let file_chunks = files
+        .into_iter()
+        // .unique_by(|f| f.path().to_str().unwrap().to_string())
+        .chunks(chunks);
+
+    let commands: Vec<Child> = file_chunks
+        .into_iter()
+        .map(|files| -> Result<Child> {
+            let mut command = Command::new("clang-format");
+            command.arg("--verbose").arg("-i");
+            command.args(
+                files
+                    .into_iter()
+                    .map(|f| f.into_path().into_os_string().into_string().unwrap()),
+            );
+
+            Ok(command.spawn()?)
+        })
+        .try_collect()?;
+
+    commands.into_iter().try_for_each(|mut c| -> Result<()> {
+        c.wait()?.exit_ok()?;
+        Ok(())
+    })?;
 
     Ok(())
 }
