@@ -172,6 +172,7 @@ pub trait CSType: Sized {
             parent_ty_cpp_name: parent_pair
                 .map(|p| Self::parent_joined_cpp_name(metadata, config, p.tdi)),
             cpp_full_name,
+            full_name,
 
             declarations: Default::default(),
             implementations: Default::default(),
@@ -754,6 +755,7 @@ pub trait CSType: Sized {
         let m_ret_cpp_type_name =
             cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, m_ret_type, false);
 
+        // Reference type constructor
         if m_name == ".ctor" && !declaring_type.is_value_type() {
             cpp_type.implementations.push(
                 CppMember::ConstructorImpl(CppConstructorImpl {

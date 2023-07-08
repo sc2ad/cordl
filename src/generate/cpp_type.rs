@@ -39,7 +39,10 @@ pub struct CppType {
     pub(crate) parent_ty_tdi: Option<TypeDefinitionIndex>,
     pub(crate) parent_ty_cpp_name: Option<String>,
 
+    // Computed by TypeDefinition.full_name()
+    // Then fixed for generic types in CppContextCollection::make_generic_from/fill_generic_inst
     pub cpp_full_name: String,
+    pub full_name: String,
 
     pub declarations: Vec<Rc<CppMember>>,
     pub implementations: Vec<Rc<CppMember>>,
@@ -247,23 +250,27 @@ impl CppType {
             }
 
             if ty.nested {
-                // TODO: for nested types, the ns & name might differ
                 writeln!(
                     writer,
                     "// TODO: Nested type, check correct definition print!"
                 )?;
-                writeln!(
-                    writer,
-                    "DEFINE_IL2CPP_ARG_TYPE({}, \"{}\", \"{}\");",
-                    ty.cpp_full_name, ty.namespace, ty.name
-                )?;
-            } else {
-                writeln!(
-                    writer,
-                    "DEFINE_IL2CPP_ARG_TYPE({}, \"{}\", \"{}\");",
-                    ty.cpp_full_name, ty.namespace, ty.name
-                )?;
             }
+
+            let macro_arg_define = {
+                match ty.generic_instantiation_args.is_some() {
+                    true => match ty.is_value_type {
+                        true => "DEFINE_IL2CPP_ARG_TYPE_GENERIC_STRUCT",
+                        false => "DEFINE_IL2CPP_ARG_TYPE_GENERIC_CLASS",
+                    },
+                    false => "DEFINE_IL2CPP_ARG_TYPE",
+                }
+            };
+
+            writeln!(
+                writer,
+                "{macro_arg_define}({}, \"{}\", \"{}\");",
+                ty.cpp_full_name, ty.namespace, ty.name
+            )?;
 
             Ok(())
         }
