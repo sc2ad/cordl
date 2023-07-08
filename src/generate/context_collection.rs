@@ -274,12 +274,16 @@ impl CppContextCollection {
         new_cpp_type.self_tag = generic_class_ty_data;
 
         if ty_def.declaring_type_index != u32::MAX {
-            new_cpp_type.cpp_name = config.generic_nested_name(&new_cpp_type.cpp_full_name);
             new_cpp_type.nested = false; // set this to false, no longer nested
             let declaring_tdi: TypeDefinitionIndex = self.get_parent_or_self_tag(type_data).into();
             let declaring_ty = &metadata.metadata.global_metadata.type_definitions[declaring_tdi];
             new_cpp_type.cpp_namespace =
                 config.namespace_cpp(declaring_ty.namespace(metadata.metadata));
+            new_cpp_type.cpp_name = config.generic_nested_name(&new_cpp_type.cpp_full_name);
+            new_cpp_type.cpp_full_name = format!(
+                "{}::{}<>",
+                new_cpp_type.cpp_namespace, new_cpp_type.cpp_name
+            );
         }
 
         self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
@@ -336,6 +340,16 @@ impl CppContextCollection {
 
             if method_spec.class_inst_index != u32::MAX {
                 collection.fill_cpp_type(&mut cpp_type, metadata, config);
+                cpp_type.cpp_full_name = format!(
+                    "{}::{}<{}>",
+                    cpp_type.cpp_namespace,
+                    cpp_type.cpp_name,
+                    cpp_type
+                        .generic_instantiation_args
+                        .as_ref()
+                        .unwrap()
+                        .join(", ")
+                );
             }
             cpp_type
         });
