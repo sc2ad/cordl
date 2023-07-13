@@ -8,7 +8,10 @@ use brocolib::{
 
 use crate::generate::{cpp_type::CppType, cs_type::CSType};
 
-use super::{config::GenerationConfig, context::CppContext, metadata::Metadata};
+use super::{
+    config::GenerationConfig, constants::TypeDefinitionExtensions, context::CppContext,
+    metadata::Metadata,
+};
 
 // TODO:
 type GenericClassIndex = usize;
@@ -243,7 +246,10 @@ impl CppContextCollection {
 
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
-        let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
+        let ty_def = get_root_parent(
+            metadata,
+            &metadata.metadata.global_metadata.type_definitions[method.declaring_type],
+        )?;
 
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
@@ -315,7 +321,13 @@ impl CppContextCollection {
     ) -> Option<&mut CppContext> {
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
-        let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
+
+        // is reference type
+        // only make generic spatialization
+        let ty_def = get_root_parent(
+            metadata,
+            &metadata.metadata.global_metadata.type_definitions[method.declaring_type],
+        )?;
 
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
@@ -519,5 +531,52 @@ impl CppContextCollection {
                 );
                 c.write()
             })
+    }
+}
+
+// Get root parent for a reference type, which is System.Object
+// for generic sharing
+fn get_root_parent<'a>(
+    metadata: &mut Metadata<'a>,
+    ty_def: &'a brocolib::global_metadata::Il2CppTypeDefinition,
+) -> Option<&'a brocolib::global_metadata::Il2CppTypeDefinition> {
+    // is reference type
+    // only make generic spatialization
+    if ty_def.is_value_type() || ty_def.is_enum_type() {
+        return Some(ty_def);
+    }
+
+    let mut parent_index = ty_def.parent_index;
+    loop {
+        if parent_index == u32::MAX {
+            break;
+        }
+
+        let parent_ty = metadata
+            .metadata_registration
+            .types
+            .get(parent_index as usize)
+            .unwrap();
+        if let TypeData::TypeDefinitionIndex(parent_tdi) = parent_ty.data {
+            let parent_ty_def = &metadata.metadata.global_metadata.type_definitions[parent_tdi];
+
+            parent_index = parent_ty_def.parent_index;
+        } else {
+            break;
+        }
+    }
+    if parent_index == u32::MAX {
+        return Some(ty_def);
+    }
+
+    let parent_ty = metadata
+        .metadata_registration
+        .types
+        .get(parent_index as usize)
+        .unwrap();
+    if let TypeData::TypeDefinitionIndex(parent_tdi) = parent_ty.data {
+        Some(&metadata.metadata.global_metadata.type_definitions[parent_tdi])
+    } else {
+        Some(ty_def)
     }
 }

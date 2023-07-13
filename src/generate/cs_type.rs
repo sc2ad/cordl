@@ -581,7 +581,7 @@ pub trait CSType: Sized {
         for &interface_index in t.interfaces(metadata.metadata) {
             let int_ty = &metadata.metadata_registration.types[interface_index as usize];
 
-            // We have a parent, lets do something with it
+            // We have an interface, lets do something with it
             let inherit_type = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, true);
             cpp_type.inherit.push(inherit_type);
         }
