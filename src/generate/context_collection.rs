@@ -246,10 +246,7 @@ impl CppContextCollection {
 
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
-        let ty_def = get_root_parent(
-            metadata,
-            &metadata.metadata.global_metadata.type_definitions[method.declaring_type],
-        )?;
+        let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
 
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
@@ -324,10 +321,7 @@ impl CppContextCollection {
 
         // is reference type
         // only make generic spatialization
-        let ty_def = get_root_parent(
-            metadata,
-            &metadata.metadata.global_metadata.type_definitions[method.declaring_type],
-        )?;
+        let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
 
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
