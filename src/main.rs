@@ -45,6 +45,9 @@ struct Cli {
     /// The libil2cpp.so file to use
     #[clap(short, long, value_parser, value_name = "FILE")]
     libil2cpp: PathBuf,
+    /// The libil2cpp.so file to use
+    #[clap(short, long)]
+    format: bool,
 
     #[clap(subcommand)]
     command: Option<Commands>,
@@ -61,6 +64,9 @@ pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| Generati
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let cli: Cli = Cli::parse();
+    if !cli.format {
+        println!("Add --format/-f to format with clang-format at end")
+    }
     // let cli = Cli {
     //     metadata: PathBuf::from("global-metadata.dat"),
     //     libil2cpp: PathBuf::from("libil2cpp.so"),
@@ -357,7 +363,9 @@ fn main() -> color_eyre::Result<()> {
         // }
     }
 
-    format_files()?;
+    if cli.format {
+        format_files()?;
+    }
 
     Ok(())
 }
