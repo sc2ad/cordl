@@ -24,7 +24,7 @@ impl Writable for CppTemplate {
 
 impl Writable for CppForwardDeclare {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if let Some(namespace) = &self.namespace {
+        if let Some(namespace) = &self.cpp_namespace {
             writeln!(writer, "namespace {namespace} {{")?;
         }
 
@@ -34,9 +34,9 @@ impl Writable for CppForwardDeclare {
 
         let name = match &self.literals {
             Some(literals) => {
-                format!("{}<{}>", self.name, literals.join(","))
+                format!("{}<{}>", self.cpp_name, literals.join(","))
             }
-            None => self.name.clone(),
+            None => self.cpp_name.clone(),
         };
 
         if self.literals.is_some() {
@@ -53,7 +53,7 @@ impl Writable for CppForwardDeclare {
             }
         )?;
 
-        if self.namespace.is_some() {
+        if self.cpp_namespace.is_some() {
             writeln!(writer, "}}")?;
         }
 

@@ -36,8 +36,8 @@ pub struct CppForwardDeclareGroup {
 pub struct CppForwardDeclare {
     // TODO: Make this group lots into a single namespace
     pub is_struct: bool,
-    pub namespace: Option<String>,
-    pub name: String,
+    pub cpp_namespace: Option<String>,
+    pub cpp_name: String,
     pub templates: Option<CppTemplate>, // names of template arguments, T, TArgs etc.
     pub literals: Option<Vec<String>>,
 }
@@ -218,16 +218,12 @@ pub struct CppProperty {
 
 impl CppForwardDeclare {
     pub fn from_cpp_type(cpp_type: &CppType) -> Self {
-        let ns = if cpp_type.nested {
-            None
-        } else {
-            Some(cpp_type.cpp_namespace().to_string())
-        };
+        let ns = cpp_type.cpp_namespace().to_string();
 
         Self {
             is_struct: cpp_type.is_value_type,
-            namespace: ns,
-            name: cpp_type.name().clone(),
+            cpp_namespace: Some(ns.clone()),
+            cpp_name: cpp_type.cpp_name().clone(),
             templates: cpp_type.cpp_template.clone(),
             literals: cpp_type.generic_instantiation_args.clone(),
         }
