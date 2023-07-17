@@ -641,10 +641,10 @@ impl Writable for CppMethodSizeStruct {
             writer,
             "template<>
 struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({f_ptr_prefix}*)({params_format})>(&{}::{})> {{
-  constexpr static const std::size_t size() {{
+  constexpr static std::size_t size() {{
     return 0x{:x};
   }}
-  constexpr static const std::size_t addrs() {{
+  constexpr static std::size_t addrs() {{
     return 0x{:x};
   }}
 
