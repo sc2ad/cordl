@@ -268,20 +268,12 @@ impl CppType {
 
             let (namespace, name): (&str, String) = match &ty.parent_ty_name {
                 Some(parent_name) => {
-                    let (namespace, parent_clazz) =
-                        match parent_name.rsplit_once('.') {
-                            Some(a) => a,
-                            None => ("", parent_name.as_str()),
-                        };
+                    let (namespace, parent_clazz) = match parent_name.rsplit_once('.') {
+                        Some(a) => a,
+                        None => ("", parent_name.as_str()),
+                    };
 
-                    (
-                        namespace,
-                        format!(
-                            "{}/{}",
-                            parent_clazz,
-                            ty.name()
-                        ),
-                    )
+                    (namespace, format!("{}/{}", parent_clazz, ty.name()))
                 }
                 None => ((ty.namespace()), (ty.name()).to_string()),
             };
@@ -332,13 +324,13 @@ impl CppType {
             write_il2cpp_arg_macros(self, writer)?;
         }
 
-        if let Some(n) = &namespace {
-            writeln!(writer, "namespace {n} {{")?;
-            writer.indent();
-        }
-
         // Just forward declare
         if !self.is_stub {
+            if let Some(n) = &namespace {
+                writeln!(writer, "namespace {n} {{")?;
+                writer.indent();
+            }
+
             // Write type definition
             if let Some(generic_args) = &self.cpp_template {
                 generic_args.write(writer)?;
@@ -432,17 +424,17 @@ impl CppType {
                     writeln!(writer)?;
                     Ok(())
                 })?;
-        }
 
-        // Namespace complete
-        if let Some(n) = namespace {
-            writer.dedent();
-            writeln!(writer, "}} // namespace end def {n}")?;
-        }
+            // Namespace complete
+            if let Some(n) = namespace {
+                writer.dedent();
+                writeln!(writer, "}} // namespace end def {n}")?;
+            }
 
-        if !fd {
-            // if we did not FD we still need to provide an il2cpp arg type definition for class resolution
-            write_il2cpp_arg_macros(self, writer)?;
+            if !fd {
+                // if we did not FD we still need to provide an il2cpp arg type definition for class resolution
+                write_il2cpp_arg_macros(self, writer)?;
+            }
         }
 
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
