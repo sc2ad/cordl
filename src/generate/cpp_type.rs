@@ -333,6 +333,7 @@ impl CppType {
 
             // Write type definition
             if let Some(generic_args) = &self.cpp_template {
+                writeln!(writer, "// cpp template")?;
                 generic_args.write(writer)?;
             }
             writeln!(writer, "// Is value type: {}", self.is_value_type)?;
@@ -343,9 +344,10 @@ impl CppType {
                 None => self.cpp_name().to_string(),
             };
 
-            if self.generic_instantiation_args.is_some() {
-                writeln!(writer, "template<>")?;
-            }
+            // add_generic_inst sets template to []
+            // if self.generic_instantiation_args.is_some() {
+            //     writeln!(writer, "template<>")?;
+            // }
 
             match self.inherit.is_empty() {
                 true => writeln!(writer, "{} {clazz_name} {{", &type_kind)?,
