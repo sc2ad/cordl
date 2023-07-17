@@ -27,7 +27,7 @@ use super::{
         TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
     },
     context_collection::{CppContextCollection, CppTypeTag},
-    cpp_type::{self, CppType},
+    cpp_type::CppType,
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppMember, CppMethodData, CppMethodDecl, CppMethodImpl,
@@ -170,7 +170,6 @@ pub trait CSType: Sized {
             name: name.to_string(),
             cpp_name: config.name_cpp(name),
             parent_ty_tdi: parent_pair.map(|p| p.tdi),
-
 
             parent_ty_name: parent_pair
                 .map(|p| Self::parent_joined_cpp_name(metadata, config, p.tdi)),
@@ -1089,9 +1088,9 @@ pub trait CSType: Sized {
                 if add_include && parent_context_ty != cpp_type.self_tag {
                     requirements
                         .required_includes
-                        .insert(CppInclude::new_context(to_incl));
+                        .insert(CppInclude::new_context_typedef(to_incl));
                 }
-                let inc = CppInclude::new_context(to_incl);
+                let inc = CppInclude::new_context_typedef(to_incl);
                 let to_incl_ty = ctx_collection
                     .get_cpp_type(typ.data.into())
                     .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));

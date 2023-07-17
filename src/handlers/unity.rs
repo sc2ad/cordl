@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use color_eyre::Result;
 
 use crate::generate::{
-    context_collection::CppContextCollection,
     cpp_type::CppType,
     members::CppInclude,
     metadata::{Il2cppFullName, Metadata},

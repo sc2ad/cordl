@@ -1,12 +1,22 @@
 use core::panic;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use brocolib::{
     global_metadata::TypeDefinitionIndex,
     runtime_metadata::{Il2CppMethodSpec, TypeData},
 };
+use itertools::Itertools;
+use pathdiff::diff_paths;
 
-use crate::generate::{cpp_type::CppType, cs_type::CSType};
+use crate::{
+    generate::{cpp_type::CppType, cs_type::CSType},
+    STATIC_CONFIG,
+};
 
 use super::{
     config::GenerationConfig, constants::TypeDefinitionExtensions, context::CppContext,
@@ -525,6 +535,57 @@ impl CppContextCollection {
                 );
                 c.write()
             })
+    }
+
+    pub fn write_namespace_headers(&self) -> color_eyre::Result<()> {
+        self.all_contexts
+            .iter()
+            .into_group_map_by(|(_, c)| c.fundamental_path.parent())
+            .into_iter()
+            .try_for_each(|(dir, contexts)| -> color_eyre::Result<()> {
+                let namespace = if dir.unwrap() == STATIC_CONFIG.header_path {
+                    "GlobalNamespace"
+                } else {
+                    dir.unwrap().file_name().unwrap().to_str().unwrap()
+                };
+
+                let str = contexts
+                    .iter()
+                    // ignore empty contexts
+                    .filter(|(_, c)| !c.typedef_types.is_empty())
+                    // ignore weird named types
+                    .filter(|(_, c)| {
+                        !c.fundamental_path
+                            .file_name()
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .starts_with('_')
+                    })
+                    // add includes
+                    .map(|(_, c)| {
+                        let stripped_path =
+                            diff_paths(&c.fundamental_path, &STATIC_CONFIG.header_path).unwrap();
+                        format!("#include \"{}\"", stripped_path.display())
+                    })
+                    .sorted()
+                    .unique()
+                    .join("\n");
+
+                let path = dir.unwrap().join(namespace).with_extension("hpp");
+
+                println!(
+                    "Creating namespace glob include {path:?} for {} files",
+                    contexts.len()
+                );
+
+                let mut file = File::create(path)?;
+
+                file.write_all(str.as_bytes())?;
+
+                Ok(())
+            })?;
+        Ok(())
     }
 }
 

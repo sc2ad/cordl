@@ -7,7 +7,6 @@
 #![feature(return_position_impl_trait_in_trait)]
 #![feature(lazy_cell)]
 #![feature(exit_status_error)]
-#![feature(available_parallelism)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use color_eyre::Result;
@@ -16,14 +15,14 @@ use itertools::Itertools;
 use walkdir::DirEntry;
 
 use std::{
-    fs, os,
-    path::{self, PathBuf},
-    process::{self, Child, Command},
+    fs,
+    path::PathBuf,
+    process::{Child, Command},
     sync::LazyLock,
     thread, time,
 };
 
-use clap::{command, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 
 use crate::{
     generate::{
@@ -54,7 +53,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {}
 
-static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| GenerationConfig {
+pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| GenerationConfig {
     header_path: PathBuf::from("./codegen/include"),
     source_path: PathBuf::from("./codegen/src"),
 });
@@ -211,9 +210,10 @@ fn main() -> color_eyre::Result<()> {
         }
     }
 
-    let write_all = false;
+    let write_all = true;
     if write_all {
         cpp_context_collection.write_all()?;
+        cpp_context_collection.write_namespace_headers()?;
     } else {
         // for t in &metadata.type_definitions {
         //     // Handle the generation for a single type

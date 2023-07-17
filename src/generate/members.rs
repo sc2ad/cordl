@@ -4,7 +4,6 @@ use crate::STATIC_CONFIG;
 
 use super::{context::CppContext, cpp_type::CppType};
 
-
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
@@ -14,7 +13,7 @@ pub struct CppTemplate {
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
 pub struct CppStaticAssert {
     pub condition: String,
-    pub message: Option<String>
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
@@ -263,9 +262,15 @@ impl CppParam {
 
 impl CppInclude {
     // smelly use of config but whatever
-    pub fn new_context(context: &CppContext) -> Self {
+    pub fn new_context_typedef(context: &CppContext) -> Self {
         Self {
             include: diff_paths(&context.typedef_path, &STATIC_CONFIG.header_path).unwrap(),
+            system: false,
+        }
+    }
+    pub fn new_context_fundamental(context: &CppContext) -> Self {
+        Self {
+            include: diff_paths(&context.fundamental_path, &STATIC_CONFIG.header_path).unwrap(),
             system: false,
         }
     }
@@ -284,4 +289,3 @@ impl CppInclude {
         }
     }
 }
-
