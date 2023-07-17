@@ -142,40 +142,38 @@ impl<'a> Metadata<'a> {
                     .find(|i| cgm.name == i.name(self.metadata))
                     .unwrap();
 
-                let method_calculations: HashMap<MethodIndex, MethodCalculations> = img
-                    .types(self.metadata)
-                    .iter()
-                    // get all methods
-                    .flat_map(|ty| {
-                        ty.methods(self.metadata)
-                            .iter()
-                            .enumerate()
-                            .map(|(i, m)| (MethodIndex::new(ty.method_start.index() + i as u32), m))
-                            .collect_vec()
-                    })
-                    // get method calculations
-                    .map(|(method_index, method)| {
-                        let method_pointer_index = method.token.rid() as usize - 1;
-                        let method_pointer =
-                            *cgm.method_pointers.get(method_pointer_index).unwrap();
+                let method_calculations: HashMap<MethodIndex, MethodCalculations> =
+                    img.types(self.metadata)
+                        .iter()
+                        // get all methods
+                        .flat_map(|ty| {
+                            ty.methods(self.metadata).iter().enumerate().map(|(i, m)| {
+                                (MethodIndex::new(ty.method_start.index() + i as u32), m)
+                            })
+                        })
+                        // get method calculations
+                        .map(|(method_index, method)| {
+                            let method_pointer_index = method.token.rid() as usize - 1;
+                            let method_pointer =
+                                *cgm.method_pointers.get(method_pointer_index).unwrap();
 
-                        let sorted_address_index =
-                            *method_addresses_sorted_map.get(&method_pointer).unwrap();
-                        let next_method_pointer = method_addresses_sorted
-                            .get(sorted_address_index + 1)
-                            .cloned()
-                            .unwrap_or(0);
+                            let sorted_address_index =
+                                *method_addresses_sorted_map.get(&method_pointer).unwrap();
+                            let next_method_pointer = method_addresses_sorted
+                                .get(sorted_address_index + 1)
+                                .cloned()
+                                .unwrap_or(0);
 
-                        (
-                            method_index,
-                            MethodCalculations {
-                                estimated_size: method_pointer.abs_diff(next_method_pointer)
-                                    as usize,
-                                addrs: method_pointer,
-                            },
-                        )
-                    })
-                    .collect();
+                            (
+                                method_index,
+                                MethodCalculations {
+                                    estimated_size: method_pointer.abs_diff(next_method_pointer)
+                                        as usize,
+                                    addrs: method_pointer,
+                                },
+                            )
+                        })
+                        .collect();
 
                 method_calculations
             })
