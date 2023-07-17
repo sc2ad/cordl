@@ -527,11 +527,11 @@ impl CppContextCollection {
             .enumerate()
             .try_for_each(|(i, (_, c))| {
                 println!(
-                    "Writing {} {:.4}% ({}/{})",
-                    c.fundamental_path.display(),
+                    "Writing {:.4}% ({}/{}) {}",
                     (i as f64 / amount * 100.0),
                     i,
-                    amount
+                    amount,
+                    c.fundamental_path.display(),
                 );
                 c.write()
             })
