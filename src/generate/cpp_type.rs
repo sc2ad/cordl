@@ -300,8 +300,8 @@ impl CppType {
             writeln!(
                 writer,
                 "// Forward declaring type: {}::{}",
-                namespace.unwrap_or(""),
-                self.name()
+                self.cpp_namespace,
+                self.cpp_name()
             )?;
 
             if let Some(n) = &namespace {
@@ -319,10 +319,10 @@ impl CppType {
                     writer,
                     "{} {}<{}>;",
                     &type_kind,
-                    self.name(),
+                    self.cpp_name(),
                     literals.join(", ")
                 ),
-                None => writeln!(writer, "{} {};", &type_kind, self.name()),
+                None => writeln!(writer, "{} {};", &type_kind, self.cpp_name()),
             }?;
 
             if let Some(n) = &namespace {

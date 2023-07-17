@@ -158,8 +158,10 @@ pub trait CSType: Sized {
 
         let ns = t.namespace(metadata.metadata);
         let name = t.name(metadata.metadata);
-        let full_name = t.full_name(metadata.metadata, true);
+        let full_name = t.full_name(metadata.metadata, false);
+        let full_name_no_generics = t.full_name(metadata.metadata, false);
         let cpp_full_name = config.namespace_cpp(&full_name);
+        let cpp_full_name_no_generics = config.namespace_cpp(&full_name_no_generics);
 
         let mut cpptype = CppType {
             self_tag: tag,
