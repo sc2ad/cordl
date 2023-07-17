@@ -785,10 +785,7 @@ pub trait CSType: Sized {
                 cpp_method_name: config.name_cpp(m_name),
                 cs_method_name: m_name.to_string(),
                 holder_cpp_namespaze: cpp_type.cpp_namespace().to_string(),
-                holder_cpp_name: match &cpp_type.parent_ty_cpp_name {
-                    Some(p) => format!("{p}::{}", cpp_type.cpp_name().clone()),
-                    None => cpp_type.cpp_name().clone(),
-                },
+                holder_cpp_name: cpp_type.cpp_full_name.clone(),
                 return_type: m_ret_cpp_type_name.clone(),
                 parameters: m_params.clone(),
                 instance: !method.is_static_method(),
