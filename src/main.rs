@@ -399,9 +399,7 @@ fn format_files() -> Result<()> {
         .try_collect()?;
 
     commands.into_iter().try_for_each(|mut c| -> Result<()> {
-        if let Some(w) = c.try_wait()? {
-            w.exit_ok()?;
-        };
+        c.wait()?.exit_ok()?;
         Ok(())
     })?;
 
