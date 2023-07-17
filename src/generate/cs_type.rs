@@ -57,20 +57,22 @@ pub trait CSType: Sized {
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
     ) -> String {
-        let parent = metadata.child_to_parent_map.get(&tdi);
-        let ty = &metadata.metadata.global_metadata.type_definitions[tdi];
+        let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
 
-        let self_name = ty.name(metadata.metadata);
+        let name = ty_def.name(metadata.metadata);
 
-        match parent {
-            Some(parent_ty_cpp_name) => {
-                let parent_name =
-                    Self::parent_joined_cpp_name(metadata, config, parent_ty_cpp_name.tdi);
+        if ty_def.declaring_type_index != u32::MAX {
+            let declaring_ty =
+                metadata.metadata_registration.types[ty_def.declaring_type_index as usize];
 
-                format!("{parent_name}::{self_name}")
+            if let TypeData::TypeDefinitionIndex(declaring_tdi) = declaring_ty.data {
+                return Self::parent_joined_cpp_name(metadata, config, declaring_tdi) + "/" + name;
+            } else {
+                return declaring_ty.full_name(metadata.metadata) + "/" + name;
             }
-            None => config.name_cpp(self_name),
         }
+
+        ty_def.full_name(metadata.metadata, true)
     }
 
     fn add_generic_inst(&mut self, generic_il2cpp_inst: u32, metadata: &Metadata) -> &mut CppType {
@@ -163,13 +165,14 @@ pub trait CSType: Sized {
             self_tag: tag,
             nested: parent_pair.is_some(),
             prefix_comments: vec![format!("Type: {ns}::{name}")],
-            namespace: config.namespace_cpp(ns),
+            namespace: ns.to_string(),
             cpp_namespace: config.namespace_cpp(ns),
-            name: config.name_cpp(name),
+            name: name.to_string(),
             cpp_name: config.name_cpp(name),
             parent_ty_tdi: parent_pair.map(|p| p.tdi),
 
-            parent_ty_cpp_name: parent_pair
+
+            parent_ty_name: parent_pair
                 .map(|p| Self::parent_joined_cpp_name(metadata, config, p.tdi)),
             cpp_full_name,
             full_name,

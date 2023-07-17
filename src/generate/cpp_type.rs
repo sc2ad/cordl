@@ -37,7 +37,7 @@ pub struct CppType {
     pub(crate) cpp_name: String,
 
     pub(crate) parent_ty_tdi: Option<TypeDefinitionIndex>,
-    pub(crate) parent_ty_cpp_name: Option<String>,
+    pub(crate) parent_ty_name: Option<String>,
 
     // Computed by TypeDefinition.full_name()
     // Then fixed for generic types in CppContextCollection::make_generic_from/fill_generic_inst
@@ -266,10 +266,30 @@ impl CppType {
                 }
             };
 
+            let (namespace, name): (&str, String) = match &ty.parent_ty_name {
+                Some(parent_name) => {
+                    let (namespace, parent_clazz) =
+                        match parent_name.rsplit_once('.') {
+                            Some(a) => a,
+                            None => ("", parent_name.as_str()),
+                        };
+
+                    (
+                        namespace,
+                        format!(
+                            "{}/{}",
+                            parent_clazz,
+                            ty.name()
+                        ),
+                    )
+                }
+                None => ((ty.namespace()), (ty.name()).to_string()),
+            };
+
             writeln!(
                 writer,
-                "{macro_arg_define}({}, \"{}\", \"{}\");",
-                ty.cpp_full_name, ty.namespace, ty.name
+                "{macro_arg_define}({}, \"{namespace}\", \"{name}\");",
+                ty.cpp_full_name,
             )?;
 
             Ok(())
