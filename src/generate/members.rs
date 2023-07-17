@@ -190,7 +190,7 @@ pub struct CppMethodImpl {
 // TODO: Generics
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppConstructorDecl {
-    pub ty: String,
+    pub cpp_name: String,
     pub parameters: Vec<CppParam>,
     pub template: Option<CppTemplate>,
 }

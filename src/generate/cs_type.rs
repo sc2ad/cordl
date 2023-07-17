@@ -764,7 +764,7 @@ pub trait CSType: Sized {
         if m_name == ".ctor" && !declaring_type.is_value_type() {
             cpp_type.implementations.push(
                 CppMember::ConstructorImpl(CppConstructorImpl {
-                    holder_cpp_ty_name: cpp_type.cpp_name().clone(),
+                    holder_cpp_ty_name: cpp_type.formatted_complete_cpp_name().clone(),
                     parameters: m_params.clone(),
                     is_constexpr: false,
                     template: template.clone(),
@@ -773,7 +773,7 @@ pub trait CSType: Sized {
             );
             cpp_type.declarations.push(
                 CppMember::ConstructorDecl(CppConstructorDecl {
-                    ty: cpp_type.formatted_complete_cpp_name().clone(),
+                    cpp_name: cpp_type.cpp_name.clone(),
                     parameters: m_params.clone(),
                     template: template.clone(),
                 })

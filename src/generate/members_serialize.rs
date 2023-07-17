@@ -406,7 +406,7 @@ impl Writable for CppMethodDecl {
                 )
             })?;
 
-        if let Some(template) =  &self.template {
+        if let Some(template) = &self.template {
             template.write(writer)?;
         }
 
@@ -492,13 +492,13 @@ impl Writable for CppConstructorDecl {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
 
-        if let Some(template) =  &self.template {
+        if let Some(template) = &self.template {
             template.write(writer)?;
         }
         writeln!(
             writer,
             "{}({});",
-            self.ty,
+            self.cpp_name,
             CppParam::params_as_args(&self.parameters).join(", ")
         )?;
         Ok(())
