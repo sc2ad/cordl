@@ -1,11 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use brocolib::{
-    global_metadata::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex},
-};
+use brocolib::global_metadata::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex};
 use itertools::Itertools;
 
-use super::{cpp_type::CppType};
+use super::cpp_type::CppType;
 
 pub struct MethodCalculations {
     pub estimated_size: usize,
@@ -143,11 +141,20 @@ impl<'a> Metadata<'a> {
                     .iter()
                     .find(|i| cgm.name == i.name(self.metadata))
                     .unwrap();
-                let mut method_calculations: HashMap<MethodIndex, MethodCalculations> =
-                    HashMap::new();
-                for ty in img.types(self.metadata) {
-                    for (i, method) in ty.methods(self.metadata).iter().enumerate() {
-                        let method_index = MethodIndex::new(ty.method_start.index() + i as u32);
+
+                let method_calculations: HashMap<MethodIndex, MethodCalculations> = img
+                    .types(self.metadata)
+                    .iter()
+                    // get all methods
+                    .flat_map(|ty| {
+                        ty.methods(self.metadata)
+                            .iter()
+                            .enumerate()
+                            .map(|(i, m)| (MethodIndex::new(ty.method_start.index() + i as u32), m))
+                            .collect_vec()
+                    })
+                    // get method calculations
+                    .map(|(method_index, method)| {
                         let method_pointer_index = method.token.rid() as usize - 1;
                         let method_pointer =
                             *cgm.method_pointers.get(method_pointer_index).unwrap();
@@ -159,16 +166,17 @@ impl<'a> Metadata<'a> {
                             .cloned()
                             .unwrap_or(0);
 
-                        method_calculations.insert(
+                        (
                             method_index,
                             MethodCalculations {
                                 estimated_size: method_pointer.abs_diff(next_method_pointer)
                                     as usize,
                                 addrs: method_pointer,
                             },
-                        );
-                    }
-                }
+                        )
+                    })
+                    .collect();
+
                 method_calculations
             })
             .collect();
