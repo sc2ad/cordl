@@ -6,14 +6,18 @@ edition = "2021"
 
 [dependencies]
 brocolib = { git = "https://github.com/StackDoubleFlow/brocolib.git", branch = "il2cpp_v29" }
-clap = { version = "3.1.8", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 anyhow = { version = "*" }
 indent_write = { version = "*" }
 color-eyre = "0.6"
-itertools = "0.10"
+itertools = "0.11"
 bytes = "*"
 byteorder = "1"
 
 # utils
 pathdiff = "0.2"
 walkdir = "2"
+
+[profiles.release]
+opt-level = 3
+lto = true
