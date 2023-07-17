@@ -436,7 +436,7 @@ pub trait CSType: Sized {
                     holder_cpp_ty_name: cpp_type.cpp_name().clone(),
                     parameters: fields,
                     is_constexpr: true,
-                    template: CppTemplate::default(),
+                    template: None,
                 })
                 .into(),
             );
@@ -741,19 +741,20 @@ pub trait CSType: Sized {
             });
         }
 
-        let generics = if method.generic_container_index.is_valid() {
-            method
+        let template = if method.generic_container_index.is_valid() {
+            let generics = method
                 .generic_container(metadata.metadata)
                 .unwrap()
                 .generic_parameters(metadata.metadata)
                 .iter()
                 .map(|param| param.name(metadata.metadata).to_string())
-                .collect_vec()
+                .collect_vec();
+
+            Some(CppTemplate { names: generics })
         } else {
-            vec![]
+            None
         };
 
-        let template = CppTemplate { names: generics };
         let m_ret_cpp_type_name =
             cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, m_ret_type, false);
 

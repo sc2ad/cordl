@@ -92,7 +92,7 @@ pub struct CppMethodSizeStruct {
     pub params: Vec<CppParam>,
     pub method_data: CppMethodData,
 
-    pub template: CppTemplate,
+    pub template: Option<CppTemplate>,
 
     pub interface_clazz_of: String,
     pub is_final: bool,
@@ -139,7 +139,7 @@ pub struct CppMethodDecl {
     pub return_type: String,
     pub parameters: Vec<CppParam>,
     pub instance: bool,
-    pub template: CppTemplate,
+    pub template: Option<CppTemplate>,
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:
     // const
@@ -171,7 +171,7 @@ pub struct CppMethodImpl {
     pub parameters: Vec<CppParam>,
     pub instance: bool,
 
-    pub template: CppTemplate,
+    pub template: Option<CppTemplate>,
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:
     // const
@@ -192,7 +192,7 @@ pub struct CppMethodImpl {
 pub struct CppConstructorDecl {
     pub ty: String,
     pub parameters: Vec<CppParam>,
-    pub template: CppTemplate,
+    pub template: Option<CppTemplate>,
 }
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppConstructorImpl {
@@ -200,7 +200,7 @@ pub struct CppConstructorImpl {
 
     pub parameters: Vec<CppParam>,
     pub is_constexpr: bool,
-    pub template: CppTemplate,
+    pub template: Option<CppTemplate>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]

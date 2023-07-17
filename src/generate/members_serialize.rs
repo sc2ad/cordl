@@ -406,7 +406,9 @@ impl Writable for CppMethodDecl {
                 )
             })?;
 
-        self.template.write(writer)?;
+        if let Some(template) =  &self.template {
+            template.write(writer)?;
+        }
 
         if !self.instance {
             write!(writer, "static ")?;
@@ -428,7 +430,9 @@ impl Writable for CppMethodDecl {
 impl Writable for CppMethodImpl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        self.template.write(writer)?;
+        if let Some(template) = &self.template {
+            template.write(writer)?;
+        }
 
         // Start
         writeln!(
@@ -488,7 +492,9 @@ impl Writable for CppConstructorDecl {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
 
-        self.template.write(writer)?;
+        if let Some(template) =  &self.template {
+            template.write(writer)?;
+        }
         writeln!(
             writer,
             "{}({});",
@@ -505,7 +511,9 @@ impl Writable for CppConstructorImpl {
         writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
 
         // Constructor
-        self.template.write(writer)?;
+        if let Some(template) = &self.template {
+            template.write(writer)?;
+        }
 
         if self.is_constexpr {
             // TODO:
