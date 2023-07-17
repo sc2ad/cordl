@@ -257,7 +257,7 @@ impl CppType {
             }
 
             let macro_arg_define = {
-                match ty.generic_instantiation_args.is_some() {
+                match ty.generic_instantiation_args.is_some() || ty.cpp_template.is_some() {
                     true => match ty.is_value_type {
                         true => "DEFINE_IL2CPP_ARG_TYPE_GENERIC_STRUCT",
                         false => "DEFINE_IL2CPP_ARG_TYPE_GENERIC_CLASS",
