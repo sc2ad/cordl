@@ -581,6 +581,7 @@ impl CppContextCollection {
 
                 let mut file = File::create(path)?;
 
+                writeln!(file, "#pragma once")?;
                 file.write_all(str.as_bytes())?;
 
                 Ok(())
