@@ -58,6 +58,7 @@ impl From<CppTypeTag> for TypeData {
     fn from(value: CppTypeTag) -> Self {
         match value {
             CppTypeTag::TypeDefinitionIndex(i) => TypeData::TypeDefinitionIndex(i),
+            CppTypeTag::GenericInstantiation(gen) => TypeData::GenericClassIndex(gen.inst), // TODO:?
             _ => panic!("Can't go from {value:?} to TypeData"),
         }
     }

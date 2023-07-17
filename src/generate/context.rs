@@ -255,7 +255,7 @@ impl CppContext {
                     &t.cpp_full_name
                 );
             }
-            if t.generic_instantiation_args.is_none() {
+            if t.generic_instantiation_args.is_none() || true {
                 t.write_def(&mut typedef_writer)?;
                 t.write_impl(&mut typeimpl_writer)?;
             } else {

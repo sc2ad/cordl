@@ -1062,7 +1062,6 @@ pub trait CSType: Sized {
                 let typ_cpp_tag: CppTypeTag = typ_tag.into();
                 // Self
                 if typ_cpp_tag == cpp_type.self_tag {
-                    // TODO: println!("Warning! This is self referencing, handle this better in the future");
                     return cpp_type.formatted_complete_cpp_name().clone();
                 }
 
@@ -1085,18 +1084,18 @@ pub trait CSType: Sized {
                 });
 
                 let parent_context_ty = ctx_collection.get_context_root_tag(typ_cpp_tag);
+                let cpp_type_context_ty = ctx_collection.get_context_root_tag(cpp_type.self_tag);
 
-                // - Include it
-                // Skip including the context if we're already in it
-                if add_include && parent_context_ty != cpp_type.self_tag {
-                    requirements
-                        .required_includes
-                        .insert(CppInclude::new_context_typedef(to_incl));
-                }
                 let inc = CppInclude::new_context_typedef(to_incl);
                 let to_incl_ty = ctx_collection
                     .get_cpp_type(typ.data.into())
                     .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));
+
+                // - Include it
+                // Skip including the context if we're already in it
+                if add_include && parent_context_ty != cpp_type_context_ty {
+                    requirements.required_includes.insert(inc.clone());
+                }
 
                 // Forward declare it
                 if !add_include {
@@ -1108,13 +1107,14 @@ pub trait CSType: Sized {
                 to_incl_ty.formatted_complete_cpp_name().clone()
             }
             // TODO: MVAR and VAR
+            // Single dimension array
             Il2CppTypeEnum::Szarray => {
                 requirements.needs_arrayw_include();
 
                 let generic: String = match typ.data {
                     TypeData::TypeIndex(e) => {
                         let ty = &metadata.metadata_registration.types[e];
-                        self.cppify_name_il2cpp(ctx_collection, metadata, ty, false)
+                        self.cppify_name_il2cpp(ctx_collection, metadata, ty, add_include)
                     }
 
                     _ => panic!("Unknown type data for array {typ:?}!"),
@@ -1158,7 +1158,7 @@ pub trait CSType: Sized {
                         .get(ty_idx as usize)
                         .unwrap();
 
-                    self.cppify_name_il2cpp(ctx_collection, metadata, ty, true)
+                    self.cppify_name_il2cpp(ctx_collection, metadata, ty, add_include)
                 }
                 _ => todo!(),
             },
@@ -1187,7 +1187,7 @@ pub trait CSType: Sized {
                         .types
                         .get(ty_idx as usize)
                         .unwrap();
-                    self.cppify_name_il2cpp(ctx_collection, metadata, ty, false)
+                    self.cppify_name_il2cpp(ctx_collection, metadata, ty, add_include)
                 }
                 _ => todo!(),
             },
@@ -1200,19 +1200,23 @@ pub trait CSType: Sized {
                         .get(generic_class.context.class_inst_idx.unwrap())
                         .unwrap();
 
-                    let types = generic_inst
+                    let generic_types = generic_inst
                         .types
                         .iter()
                         .map(|t| mr.types.get(*t).unwrap())
-                        .map(|t| self.cppify_name_il2cpp(ctx_collection, metadata, t, false));
+                        .map(|t| self.cppify_name_il2cpp(ctx_collection, metadata, t, add_include));
 
-                    let generic_types = types.collect_vec();
+                    let generic_types_formatted = generic_types.collect_vec();
 
                     let generic_type_def = &mr.types[generic_class.type_index];
-                    let type_def_name =
-                        self.cppify_name_il2cpp(ctx_collection, metadata, generic_type_def, false);
+                    let type_def_name = self.cppify_name_il2cpp(
+                        ctx_collection,
+                        metadata,
+                        generic_type_def,
+                        add_include,
+                    );
 
-                    format!("{type_def_name}<{}>", generic_types.join(","))
+                    format!("{type_def_name}<{}>", generic_types_formatted.join(","))
                 }
 
                 _ => panic!("Unknown type data for generic inst {typ:?}!"),
