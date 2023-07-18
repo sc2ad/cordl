@@ -98,12 +98,12 @@ impl CppContext {
         };
         let mut x = CppContext {
             typedef_path: config.header_path.join(format!(
-                "{}__{}_def.hpp",
+                "{}zzzz__{}_def.hpp",
                 path,
                 &config.path_name(name)
             )),
             type_impl_path: config.header_path.join(format!(
-                "{}__{}_impl.hpp",
+                "{}zzzz__{}_impl.hpp",
                 path,
                 &config.path_name(name)
             )),
