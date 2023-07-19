@@ -229,7 +229,7 @@ pub trait CSType: Sized {
                             "sizeof({}) == 0x{:X}",
                             cpptype.cpp_full_name, size.instance_size
                         ),
-                        message: Some("Type {} does not match expected size!".to_string()),
+                        message: Some(format!("Type {} does not match expected size!",cpptype.cpp_full_name)),
                     }))
             }
         }
@@ -1106,7 +1106,6 @@ pub trait CSType: Sized {
 
                 to_incl_ty.formatted_complete_cpp_name().clone()
             }
-            // TODO: MVAR and VAR
             // Single dimension array
             Il2CppTypeEnum::Szarray => {
                 requirements.needs_arrayw_include();

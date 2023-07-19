@@ -685,7 +685,7 @@ impl Writable for CppStaticAssert {
         let condition = &self.condition;
         match &self.message {
             None => writeln!(writer, "static_assert({condition})"),
-            Some(message) => writeln!(writer, "static_assert({condition}, \"{message}\")"),
+            Some(message) => writeln!(writer, "static_assert({condition}, \"{message}\");"),
         }?;
         Ok(())
     }
