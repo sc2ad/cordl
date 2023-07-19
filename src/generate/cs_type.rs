@@ -30,13 +30,16 @@ use super::{
     cpp_type::CppType,
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
-        CppForwardDeclare, CppInclude, CppMember, CppMethodData, CppMethodDecl, CppMethodImpl,
-        CppMethodSizeStruct, CppParam, CppProperty, CppStaticAssert, CppTemplate,
+        CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
+        CppMethodImpl, CppMethodSizeStruct, CppParam, CppProperty, CppStaticAssert, CppTemplate,
     },
     metadata::Metadata,
 };
 
 type Endian = LittleEndian;
+
+// negative
+const VALUE_TYPE_SIZE_OFFSET:u32 = 0x10;
 
 pub trait CSType: Sized {
     fn get_mut_cpp_type(&mut self) -> &mut CppType; // idk how else to do this
@@ -227,9 +230,12 @@ pub trait CSType: Sized {
                     .push(Rc::new(CppStaticAssert {
                         condition: format!(
                             "sizeof({}) == 0x{:X}",
-                            cpptype.cpp_full_name, size.instance_size
+                            cpptype.cpp_full_name, size.instance_size - VALUE_TYPE_SIZE_OFFSET
                         ),
-                        message: Some(format!("Type {} does not match expected size!",cpptype.cpp_full_name)),
+                        message: Some(format!(
+                            "Type {} does not match expected size!",
+                            cpptype.cpp_full_name
+                        )),
                     }))
             }
         }
@@ -408,37 +414,54 @@ pub trait CSType: Sized {
 
         // default ctor
         if t.is_value_type() {
-            let fields = t
-                .fields(metadata.metadata)
-                .iter()
-                .filter_map(|field| {
-                    let f_type = metadata
-                        .metadata_registration
-                        .types
-                        .get(field.type_index as usize)
-                        .unwrap();
+            // let fields = t
+            //     .fields(metadata.metadata)
+            //     .iter()
+            //     .filter_map(|field| {
+            //         let f_type = metadata
+            //             .metadata_registration
+            //             .types
+            //             .get(field.type_index as usize)
+            //             .unwrap();
 
-                    if f_type.is_static() {
-                        return None;
-                    }
+            //         if f_type.is_static() {
+            //             return None;
+            //         }
 
-                    let cpp_name =
-                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+            //         let cpp_name =
+            //             cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
-                    Some(CppParam {
-                        name: field.name(metadata.metadata).to_string(),
-                        ty: cpp_name,
-                        modifiers: "".to_string(),
-                        def_value: Some("{}".to_string()),
-                    })
-                })
-                .collect_vec();
+            //         Some(CppParam {
+            //             name: field.name(metadata.metadata).to_string(),
+            //             ty: cpp_name,
+            //             modifiers: "".to_string(),
+            //             def_value: Some("{}".to_string()),
+            //         })
+            //     })
+            //     .collect_vec();
+            // cpp_type.declarations.push(
+            //     CppMember::ConstructorImpl(CppConstructorImpl {
+            //         holder_cpp_ty_name: cpp_type.cpp_name().clone(),
+            //         parameters: fields,
+            //         is_constexpr: true,
+            //         template: None,
+            //     })
+            //     .into(),
+            // );
+
+            let cpp_name = cpp_type.cpp_name();
             cpp_type.declarations.push(
-                CppMember::ConstructorImpl(CppConstructorImpl {
-                    holder_cpp_ty_name: cpp_type.cpp_name().clone(),
-                    parameters: fields,
-                    is_constexpr: true,
-                    template: None,
+                CppMember::CppLine(CppLine {
+                    line: format!(
+                        "
+                    constexpr {cpp_name}() = default;
+                    constexpr virtual ~{cpp_name}() = default;
+                    constexpr {cpp_name}({cpp_name} const&) = default;
+                    constexpr Color({cpp_name}&&) = default;
+                    constexpr {cpp_name}& operator=({cpp_name} const&) = default;
+                    constexpr {cpp_name}& operator=({cpp_name}&&) noexcept = default;
+                "
+                    ),
                 })
                 .into(),
             );
@@ -495,6 +518,9 @@ pub trait CSType: Sized {
             })
             .into(),
         );
+        // use u32 here just to avoid casting issues
+        let pos_field_offset_offset: u32 = if t.is_value_type() { VALUE_TYPE_SIZE_OFFSET } else { 0x0 };
+
         // Then, for each field, write it out
         cpp_type.declarations.reserve(t.field_count as usize);
         cpp_type.implementations.reserve(t.field_count as usize);
@@ -505,7 +531,8 @@ pub trait CSType: Sized {
                 .metadata_registration
                 .field_offsets
                 .as_ref()
-                .unwrap()[tdi.index() as usize][i];
+                .unwrap()[tdi.index() as usize][i]
+                - pos_field_offset_offset;
             let f_type = metadata
                 .metadata_registration
                 .types

@@ -17,6 +17,11 @@ pub struct CppStaticAssert {
 }
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
+pub struct CppLine {
+    pub line: String,
+}
+
+#[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
 pub struct CppStructSpecialization {
     pub name: String,
     pub namespace: Option<String>,
@@ -75,6 +80,7 @@ pub enum CppMember {
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
     CppUsingAlias(CppUsingAlias),
+    CppLine(CppLine)
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]

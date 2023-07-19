@@ -690,6 +690,12 @@ impl Writable for CppStaticAssert {
         Ok(())
     }
 }
+impl Writable for CppLine {
+    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        writer.write_all(self.line.as_bytes())?;
+        Ok(())
+    }
+}
 
 impl Writable for CppMember {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -703,6 +709,7 @@ impl Writable for CppMember {
             CppMember::ConstructorDecl(c) => c.write(writer),
             CppMember::ConstructorImpl(ci) => ci.write(writer),
             CppMember::CppUsingAlias(alias) => alias.write(writer),
+            CppMember::CppLine(line) => line.write(writer),
         }
     }
 }
