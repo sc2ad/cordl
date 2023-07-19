@@ -39,7 +39,7 @@ use super::{
 type Endian = LittleEndian;
 
 // negative
-const VALUE_TYPE_SIZE_OFFSET:u32 = 0x10;
+const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
 pub trait CSType: Sized {
     fn get_mut_cpp_type(&mut self) -> &mut CppType; // idk how else to do this
@@ -230,7 +230,8 @@ pub trait CSType: Sized {
                     .push(Rc::new(CppStaticAssert {
                         condition: format!(
                             "sizeof({}) == 0x{:X}",
-                            cpptype.cpp_full_name, size.instance_size - VALUE_TYPE_SIZE_OFFSET
+                            cpptype.cpp_full_name,
+                            size.instance_size - VALUE_TYPE_SIZE_OFFSET
                         ),
                         message: Some(format!(
                             "Type {} does not match expected size!",
@@ -412,6 +413,7 @@ pub trait CSType: Sized {
         let cpp_type = self.get_mut_cpp_type();
         let t = Self::get_type_definition(metadata, tdi);
 
+        let cpp_name = cpp_type.cpp_name();
         // default ctor
         if t.is_value_type() {
             // let fields = t
@@ -449,19 +451,24 @@ pub trait CSType: Sized {
             //     .into(),
             // );
 
-            let cpp_name = cpp_type.cpp_name();
             cpp_type.declarations.push(
                 CppMember::CppLine(CppLine {
                     line: format!(
                         "
                     constexpr {cpp_name}() = default;
-                    constexpr virtual ~{cpp_name}() = default;
                     constexpr {cpp_name}({cpp_name} const&) = default;
                     constexpr Color({cpp_name}&&) = default;
                     constexpr {cpp_name}& operator=({cpp_name} const&) = default;
                     constexpr {cpp_name}& operator=({cpp_name}&&) noexcept = default;
                 "
                     ),
+                })
+                .into(),
+            );
+        } else {
+            cpp_type.declarations.push(
+                CppMember::CppLine(CppLine {
+                    line: format!("constexpr virtual ~{cpp_name}() = default;"),
                 })
                 .into(),
             );
@@ -519,7 +526,11 @@ pub trait CSType: Sized {
             .into(),
         );
         // use u32 here just to avoid casting issues
-        let pos_field_offset_offset: u32 = if t.is_value_type() { VALUE_TYPE_SIZE_OFFSET } else { 0x0 };
+        let pos_field_offset_offset: u32 = if t.is_value_type() {
+            VALUE_TYPE_SIZE_OFFSET
+        } else {
+            0x0
+        };
 
         // Then, for each field, write it out
         cpp_type.declarations.reserve(t.field_count as usize);
