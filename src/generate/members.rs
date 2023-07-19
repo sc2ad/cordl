@@ -170,7 +170,7 @@ pub struct CppMethodImpl {
     pub cpp_method_name: String,
     pub cs_method_name: String,
 
-    pub holder_cpp_namespaze: String,
+    pub holder_cpp_full_name: String,
     pub holder_cpp_name: String,
 
     pub return_type: String,

@@ -231,7 +231,7 @@ pub trait CSType: Sized {
                         condition: format!(
                             "sizeof({}) == 0x{:X}",
                             cpptype.cpp_full_name,
-                            size.instance_size - VALUE_TYPE_SIZE_OFFSET
+                            size.instance_size /* - VALUE_TYPE_SIZE_OFFSET */
                         ),
                         message: Some(format!(
                             "Type {} does not match expected size!",
@@ -543,7 +543,7 @@ pub trait CSType: Sized {
                 .field_offsets
                 .as_ref()
                 .unwrap()[tdi.index() as usize][i]
-                - pos_field_offset_offset;
+                /*- pos_field_offset_offset*/;
             let f_type = metadata
                 .metadata_registration
                 .types
@@ -827,8 +827,8 @@ pub trait CSType: Sized {
             CppMember::MethodImpl(CppMethodImpl {
                 cpp_method_name: config.name_cpp(m_name),
                 cs_method_name: m_name.to_string(),
-                holder_cpp_namespaze: cpp_type.cpp_namespace().to_string(),
-                holder_cpp_name: cpp_type.cpp_full_name.clone(),
+                holder_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
+                holder_cpp_name: cpp_type.cpp_name.clone(),
                 return_type: m_ret_cpp_type_name.clone(),
                 parameters: m_params.clone(),
                 instance: !method.is_static_method(),

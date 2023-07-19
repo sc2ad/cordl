@@ -439,7 +439,7 @@ impl Writable for CppMethodImpl {
             writer,
             "{} {}::{}({}){{",
             self.return_type,
-            self.holder_cpp_name,
+            self.holder_cpp_full_name,
             self.cpp_method_name,
             CppParam::params_as_args_no_default(&self.parameters).join(", ")
         )?;
@@ -450,7 +450,7 @@ impl Writable for CppMethodImpl {
 
         // Body
 
-        let complete_type_name = format!("{}::{}", self.holder_cpp_namespaze, self.holder_cpp_name);
+        let complete_type_name = &self.holder_cpp_full_name;
         let params_format = CppParam::params_types(&self.parameters).join(", ");
 
         let f_ptr_prefix = if self.instance {
@@ -627,7 +627,7 @@ impl Writable for CppMethodSizeStruct {
             format!("THROW_UNLESS(::il2cpp_utils::FindMethod(classof({}), \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}))",
                 self.complete_type_name,
                 self.cpp_method_name,
-                CppParam::params_types(&self.params).map(|t| format!("&classof({t})->byval_arg")).join(", ")
+                CppParam::params_types(&self.params).map(|t| format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<ByRef<{t}>>::get()")).join(", ")
             )
         };
 
@@ -641,12 +641,8 @@ impl Writable for CppMethodSizeStruct {
             writer,
             "template<>
 struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({f_ptr_prefix}*)({params_format})>(&{}::{})> {{
-  constexpr static std::size_t size() {{
-    return 0x{:x};
-  }}
-  constexpr static std::size_t addrs() {{
-    return 0x{:x};
-  }}
+  constexpr static std::size_t size = 0x{:x};
+  constexpr static std::size_t addrs = 0x{:x};
 
   inline static const ::MethodInfo* methodInfo() {{
     return {method_info_rhs};
