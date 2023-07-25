@@ -140,8 +140,7 @@ impl Writable for CppFieldDecl {
             if ty == "::StringW" {
                 writeln!(
                     writer,
-                    "static ConstString<0x{:x}> {name}_default{{{literal}}};",
-                    literal.len() - 3
+                    "static ConstString {name}_default{{{literal}}};"
                 )?;
             } else {
                 writeln!(
