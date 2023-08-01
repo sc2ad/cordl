@@ -297,7 +297,7 @@ impl CppType {
             )?;
 
             if let Some(n) = &namespace {
-                writeln!(writer, "namespace  {n} {{")?;
+                writeln!(writer, "namespace {n} {{")?;
                 writer.indent();
             }
 
