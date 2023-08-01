@@ -141,6 +141,32 @@ fn main() -> color_eyre::Result<()> {
     }
     {
         let total = metadata.metadata_registration.generic_method_table.len() as f64;
+        println!("Filling generic methods!");
+        for (i, generic_class) in metadata
+            .metadata_registration
+            .generic_method_table
+            .iter()
+            .enumerate()
+        {
+            println!(
+                "Filling generic method instantiations {:.4}% ({i}/{total})",
+                (i as f64 / total * 100.0)
+            );
+            let method_spec = metadata
+                .metadata_registration
+                .method_specs
+                .get(generic_class.generic_method_index as usize)
+                .unwrap();
+
+            cpp_context_collection.fill_generic_method_inst(
+                method_spec,
+                &mut metadata,
+                &STATIC_CONFIG,
+            );
+        }
+    }
+    {
+        let total = metadata.metadata_registration.generic_method_table.len() as f64;
         println!("Filling generic types!");
         for (i, generic_class) in metadata
             .metadata_registration
@@ -158,7 +184,11 @@ fn main() -> color_eyre::Result<()> {
                 .get(generic_class.generic_method_index as usize)
                 .unwrap();
 
-            cpp_context_collection.fill_generic_inst(method_spec, &mut metadata, &STATIC_CONFIG);
+            cpp_context_collection.fill_generic_class_inst(
+                method_spec,
+                &mut metadata,
+                &STATIC_CONFIG,
+            );
         }
     }
 

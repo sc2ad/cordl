@@ -321,12 +321,16 @@ impl CppContextCollection {
         Some(context)
     }
 
-    pub fn fill_generic_inst(
+    pub fn fill_generic_method_inst(
         &mut self,
         method_spec: &Il2CppMethodSpec,
         metadata: &mut Metadata,
         config: &GenerationConfig,
     ) -> Option<&mut CppContext> {
+        if method_spec.method_inst_index == u32::MAX {
+            return None;
+        }
+
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
 
@@ -349,25 +353,58 @@ impl CppContextCollection {
         };
 
         self.borrow_cpp_type(generic_class_ty_data, |collection, mut cpp_type| {
-            if method_spec.method_inst_index != u32::MAX {
-                let method_index = method_spec.method_definition_index;
-                cpp_type.add_method_generic_inst(method_spec, metadata);
-                cpp_type.create_method(method, ty_def, method_index, metadata, collection, config);
-            }
+            let method_index = method_spec.method_definition_index;
+            cpp_type.add_method_generic_inst(method_spec, metadata);
+            cpp_type.create_method(method, ty_def, method_index, metadata, collection, config, true);
 
-            if method_spec.class_inst_index != u32::MAX {
-                collection.fill_cpp_type(&mut cpp_type, metadata, config);
-                cpp_type.cpp_full_name = format!(
-                    "{}::{}<{}>",
-                    cpp_type.cpp_namespace,
-                    cpp_type.cpp_name,
-                    cpp_type
-                        .generic_instantiation_args
-                        .as_ref()
-                        .unwrap()
-                        .join(", ")
-                );
-            }
+            cpp_type
+        });
+
+        self.all_contexts.get_mut(&context_root_tag)
+    }
+
+    pub fn fill_generic_class_inst(
+        &mut self,
+        method_spec: &Il2CppMethodSpec,
+        metadata: &mut Metadata,
+        config: &GenerationConfig,
+    ) -> Option<&mut CppContext> {
+        if method_spec.class_inst_index == u32::MAX {
+            return None;
+        }
+
+        let method =
+            &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
+
+        // is reference type
+        // only make generic spatialization
+        let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
+        let tdi = method.declaring_type;
+
+        let context_root_tag = self.get_context_root_tag(type_data);
+
+        let generic_class_ty_data = if method_spec.class_inst_index != u32::MAX {
+            CppTypeTag::GenericInstantiation(GenericInstantiation {
+                tdi,
+                inst: method_spec.class_inst_index as usize,
+            })
+        } else {
+            type_data
+        };
+
+        self.borrow_cpp_type(generic_class_ty_data, |collection, mut cpp_type| {
+            collection.fill_cpp_type(&mut cpp_type, metadata, config);
+            cpp_type.cpp_full_name = format!(
+                "{}::{}<{}>",
+                cpp_type.cpp_namespace,
+                cpp_type.cpp_name,
+                cpp_type
+                    .generic_instantiation_args
+                    .as_ref()
+                    .unwrap()
+                    .join(", ")
+            );
+
             cpp_type
         });
 

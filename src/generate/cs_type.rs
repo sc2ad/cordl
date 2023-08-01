@@ -10,7 +10,9 @@ use brocolib::{
         FieldIndex, Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, ParameterIndex,
         TypeDefinitionIndex, TypeIndex,
     },
-    runtime_metadata::{Il2CppMethodSpec, Il2CppType, Il2CppTypeEnum, TypeData},
+    runtime_metadata::{
+        Il2CppMethodSpec, Il2CppType, Il2CppTypeDefinitionSizes, Il2CppTypeEnum, TypeData,
+    },
 };
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -497,7 +499,15 @@ pub trait CSType: Sized {
             // Then, for each method, write it out
             for (i, method) in t.methods(metadata.metadata).iter().enumerate() {
                 let method_index = MethodIndex::new(t.method_start.index() + i as u32);
-                self.create_method(method, t, method_index, metadata, ctx_collection, config);
+                self.create_method(
+                    method,
+                    t,
+                    method_index,
+                    metadata,
+                    ctx_collection,
+                    config,
+                    false,
+                );
             }
         }
     }
@@ -525,12 +535,6 @@ pub trait CSType: Sized {
             })
             .into(),
         );
-        // use u32 here just to avoid casting issues
-        let pos_field_offset_offset: u32 = if t.is_value_type() {
-            VALUE_TYPE_SIZE_OFFSET
-        } else {
-            0x0
-        };
 
         // Then, for each field, write it out
         cpp_type.declarations.reserve(t.field_count as usize);
@@ -542,13 +546,8 @@ pub trait CSType: Sized {
                 .metadata_registration
                 .field_offsets
                 .as_ref()
-                .unwrap()[tdi.index() as usize][i]
-                /*- pos_field_offset_offset*/;
-            let f_type = metadata
-                .metadata_registration
-                .types
-                .get(field.type_index as usize)
-                .unwrap();
+                .unwrap()[tdi.index() as usize][i];
+            //- pos_field_offset_offset;
 
             if let TypeData::TypeDefinitionIndex(tdi) = f_type.data && metadata.blacklisted_types.contains(&tdi) {
                 if !cpp_type.is_value_type {
@@ -742,6 +741,7 @@ pub trait CSType: Sized {
         metadata: &Metadata,
         ctx_collection: &CppContextCollection,
         config: &GenerationConfig,
+        is_generic_inst: bool,
     ) {
         let cpp_type = self.get_mut_cpp_type();
 
@@ -771,8 +771,18 @@ pub trait CSType: Sized {
             let def_value = Self::param_default_value(metadata, param_index);
             let must_include = def_value.is_some();
 
-            let param_cpp_name =
-                cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, param_type, must_include);
+            let mut make_param_cpp_type_name = || {
+                let name =
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, must_include);
+                cpp_type.il2cpp_byref(name, m_ret_type)
+            };
+
+            let param_cpp_name = match is_generic_inst {
+                true => {
+                    Self::il2cpp_mparam_template_name(metadata, make_param_cpp_type_name, param_type)
+                }
+                false => make_param_cpp_type_name(),
+            };
 
             m_params.push(CppParam {
                 name: param.name(metadata.metadata).to_string(),
@@ -782,6 +792,8 @@ pub trait CSType: Sized {
             });
         }
 
+        // TODO: Add template<typename ...> if a generic inst e.g
+        // T UnityEngine.Component::GetComponent<T>() -> bs_hook::Il2CppWrapperType UnityEngine.Component::GetComponent()
         let template = if method.generic_container_index.is_valid() {
             let generics = method
                 .generic_container(metadata.metadata)
@@ -796,8 +808,15 @@ pub trait CSType: Sized {
             None
         };
 
-        let m_ret_cpp_type_name =
-            cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, m_ret_type, false);
+        let mut make_ret_cpp_type_name = || {
+            let name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false);
+            cpp_type.il2cpp_byref(name, m_ret_type)
+        };
+
+        let m_ret_cpp_type_byref_name = match is_generic_inst {
+            true => Self::il2cpp_mparam_template_name(metadata, make_ret_cpp_type_name, m_ret_type),
+            false => make_ret_cpp_type_name(),
+        };
 
         // Reference type constructor
         if m_name == ".ctor" && !declaring_type.is_value_type() {
@@ -830,7 +849,7 @@ pub trait CSType: Sized {
                 cs_method_name: m_name.to_string(),
                 holder_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
                 holder_cpp_name: cpp_type.cpp_name.clone(),
-                return_type: m_ret_cpp_type_name.clone(),
+                return_type: m_ret_cpp_type_byref_name.clone(),
                 parameters: m_params.clone(),
                 instance: !method.is_static_method(),
                 suffix_modifiers: Default::default(),
@@ -843,7 +862,7 @@ pub trait CSType: Sized {
         cpp_type.declarations.push(
             CppMember::MethodDecl(CppMethodDecl {
                 cpp_name: config.name_cpp(m_name),
-                return_type: m_ret_cpp_type_name.clone(),
+                return_type: m_ret_cpp_type_byref_name.clone(),
                 parameters: m_params.clone(),
                 template: template.clone(),
                 instance: !method.is_static_method(),
@@ -868,7 +887,7 @@ pub trait CSType: Sized {
             cpp_type
                 .nonmember_implementations
                 .push(Rc::new(CppMethodSizeStruct {
-                    ret_ty: m_ret_cpp_type_name,
+                    ret_ty: m_ret_cpp_type_byref_name,
                     cpp_method_name: config.name_cpp(m_name),
                     complete_type_name: cpp_type.formatted_complete_cpp_name().clone(),
                     instance: !method.is_static_method(),
@@ -1036,27 +1055,48 @@ pub trait CSType: Sized {
             })
     }
 
-    fn cppify_name_il2cpp_byref(
-        &mut self,
-        ctx_collection: &CppContextCollection,
-        metadata: &Metadata,
-        typ: &Il2CppType,
-        add_include: bool,
-    ) -> String {
-        let ret = self.cppify_name_il2cpp(ctx_collection, metadata, typ, add_include);
+    fn il2cpp_byref(&mut self, cpp_name: String, typ: &Il2CppType) -> String {
         let requirements = &mut self.get_mut_cpp_type().requirements;
         if typ.is_param_out() {
             requirements.needs_byref_include();
-            return format!("ByRef<{ret}>");
+            return format!("ByRef<{cpp_name}>");
         }
 
         if typ.is_param_in() {
             requirements.needs_byref_include();
 
-            return format!("ByRefConst<{ret}>");
+            return format!("ByRefConst<{cpp_name}>");
         }
 
-        ret
+        cpp_name
+    }
+
+    fn il2cpp_mparam_template_name<'a>(
+        metadata: &'a Metadata,
+        cpp_name: impl FnOnce() -> String,
+        typ: &'a Il2CppType,
+    ) -> String {
+        match typ.ty {
+            Il2CppTypeEnum::Mvar => match typ.data {
+                TypeData::GenericParameterIndex(index) => {
+                    let generic_param: &brocolib::global_metadata::Il2CppGenericParameter =
+                        &metadata.metadata.global_metadata.generic_parameters[index];
+
+                    let owner = generic_param.owner(metadata.metadata);
+                    assert!(owner.is_method != u32::MAX);
+
+                    let gen_param = owner
+                        .generic_parameters(metadata.metadata)
+                        .iter()
+                        .find(|&p| p.name_index == generic_param.name_index)
+                        .unwrap();
+
+                    gen_param.name(metadata.metadata).to_string()
+                }
+                _ => todo!(),
+            },
+            _ => cpp_name(),
+        }
     }
 
     fn cppify_name_il2cpp(
