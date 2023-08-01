@@ -217,30 +217,22 @@ pub trait CSType: Sized {
         }
 
         cpptype.make_nested_types(metadata, config, tdi);
-
-        if let Some(size_table) = &metadata
-            .metadata
-            .runtime_metadata
-            .metadata_registration
-            .type_definition_sizes
-        {
-            if cpptype.is_value_type {
-                let size = &size_table[tdi.index() as usize];
-
-                cpptype
-                    .nonmember_declarations
-                    .push(Rc::new(CppStaticAssert {
-                        condition: format!(
-                            "sizeof({}) == 0x{:X}",
-                            cpptype.cpp_full_name,
-                            size.instance_size /* - VALUE_TYPE_SIZE_OFFSET */
-                        ),
-                        message: Some(format!(
-                            "Type {} does not match expected size!",
-                            cpptype.cpp_full_name
-                        )),
-                    }))
-            }
+        if cpptype.is_value_type {
+            // if let Some(size) = &get_size_of_type_table(metadata, tdi) {
+            let size = Self::layout_fields_locked_size(t, tdi, metadata);
+            cpptype
+                .nonmember_declarations
+                .push(Rc::new(CppStaticAssert {
+                    condition: format!(
+                        "sizeof({}) == 0x{:X}",
+                        cpptype.cpp_full_name, size /* - VALUE_TYPE_SIZE_OFFSET */
+                    ),
+                    message: Some(format!(
+                        "Type {} does not match expected size!",
+                        cpptype.cpp_full_name
+                    )),
+                }))
+            // }
         }
 
         Some(cpptype)
@@ -540,6 +532,21 @@ pub trait CSType: Sized {
         cpp_type.declarations.reserve(t.field_count as usize);
         cpp_type.implementations.reserve(t.field_count as usize);
         for (i, field) in t.fields(metadata.metadata).iter().enumerate() {
+            let f_type = metadata
+                .metadata_registration
+                .types
+                .get(field.type_index as usize)
+                .unwrap();
+
+            // // use u32 here just to avoid casting issues
+            // let pos_field_offset_offset: u32 =
+            //     if t.is_value_type()&& !f_type.is_static() {
+            //         // VALUE_TYPE_SIZE_OFFSET
+            //         Self::layout_fields_locked_size(t, tdi, metadata)
+            //     } else {
+            //         0x0
+            //     };
+
             let field_index = FieldIndex::new(t.field_start.index() + i as u32);
             let f_name = field.name(metadata.metadata);
             let f_offset = metadata
@@ -1342,6 +1349,90 @@ pub trait CSType: Sized {
         tdi: TypeDefinitionIndex,
     ) -> &'a Il2CppTypeDefinition {
         &metadata.metadata.global_metadata.type_definitions[tdi]
+    }
+
+    fn layout_fields_locked_size<'a>(
+        ty_def: &'a Il2CppTypeDefinition,
+        tdi: TypeDefinitionIndex,
+        metadata: &'a Metadata,
+    ) -> u32 {
+        // TODO:
+        const SIZEOF_IL2CPP_OBJECT: u32 = 0x10;
+        const IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS: u32 = 1;
+
+        let mut instance_size: u32 = if ty_def.parent_index != u32::MAX {
+            SIZEOF_IL2CPP_OBJECT
+        } else {
+            let parent_ty = &metadata.metadata_registration.types[ty_def.parent_index as usize];
+            let TypeData::TypeDefinitionIndex(parent_tdi) = parent_ty.data else {
+                todo!()
+            };
+            let parent_ty_def = &metadata.metadata.global_metadata.type_definitions[parent_tdi];
+
+            Self::layout_fields_locked_size(parent_ty_def, parent_tdi, metadata)
+        };
+
+        if ty_def.field_count > 0 {
+            let size_table = Self::get_size_of_type_table(metadata, tdi);
+
+            if ty_def.is_value_type()
+                && size_table.map(|t| t.instance_size).unwrap_or(0) == 0
+                // if no field is instance
+                && !ty_def.fields(metadata.metadata).iter().any(|f| {
+                    // if instance
+                    !metadata.metadata_registration.types[f.type_index as usize].is_static()
+                })
+            {
+                instance_size = IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS + SIZEOF_IL2CPP_OBJECT;
+            }
+
+            instance_size =
+                Self::update_instance_size_for_generic_class(ty_def, tdi, instance_size, metadata);
+        } else {
+            // need to set this in case there are no fields in a generic instance type
+            instance_size =
+                Self::update_instance_size_for_generic_class(ty_def, tdi, instance_size, metadata);
+        }
+
+        instance_size
+    }
+
+    fn update_instance_size_for_generic_class(
+        ty_def: &Il2CppTypeDefinition,
+        tdi: TypeDefinitionIndex,
+        instance_size: u32,
+        metadata: &Metadata<'_>,
+    ) -> u32 {
+        // need to set this in case there are no fields in a generic instance type
+        if !ty_def.generic_container_index.is_valid() {
+            return instance_size;
+        }
+        let size = Self::get_size_of_type_table(metadata, tdi)
+            .map(|s| s.instance_size)
+            .unwrap_or(0);
+
+        // If the generic class has an instance size, it was explictly set
+        if size > 0 && size > instance_size {
+            return size;
+        }
+
+        instance_size
+    }
+
+    fn get_size_of_type_table<'a>(
+        metadata: &'a Metadata<'a>,
+        tdi: TypeDefinitionIndex,
+    ) -> Option<&'a Il2CppTypeDefinitionSizes> {
+        if let Some(size_table) = &metadata
+            .metadata
+            .runtime_metadata
+            .metadata_registration
+            .type_definition_sizes
+        {
+            size_table.get(tdi.index() as usize)
+        } else {
+            None
+        }
     }
 }
 
