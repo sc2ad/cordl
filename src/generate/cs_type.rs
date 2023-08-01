@@ -768,10 +768,11 @@ pub trait CSType: Sized {
                 .get(param.type_index as usize)
                 .unwrap();
 
-            let param_cpp_name =
-                cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, param_type, false);
-
             let def_value = Self::param_default_value(metadata, param_index);
+            let must_include = def_value.is_some();
+
+            let param_cpp_name =
+                cpp_type.cppify_name_il2cpp_byref(ctx_collection, metadata, param_type, must_include);
 
             m_params.push(CppParam {
                 name: param.name(metadata.metadata).to_string(),
