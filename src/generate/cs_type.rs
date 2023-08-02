@@ -778,17 +778,20 @@ pub trait CSType: Sized {
             let def_value = Self::param_default_value(metadata, param_index);
             let must_include = def_value.is_some();
 
-            let mut make_param_cpp_type_name = || {
+            let make_param_cpp_type_name = |cpp_type: &mut CppType| {
                 let name =
                     cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, must_include);
                 cpp_type.il2cpp_byref(name, m_ret_type)
             };
 
             let param_cpp_name = match is_generic_inst {
-                true => {
-                    Self::il2cpp_mparam_template_name(metadata, make_param_cpp_type_name, param_type)
-                }
-                false => make_param_cpp_type_name(),
+                false => cpp_type.il2cpp_mparam_template_name(
+                    metadata,
+                    method_index,
+                    make_param_cpp_type_name,
+                    param_type,
+                ),
+                true => make_param_cpp_type_name(cpp_type),
             };
 
             m_params.push(CppParam {
@@ -802,27 +805,37 @@ pub trait CSType: Sized {
         // TODO: Add template<typename ...> if a generic inst e.g
         // T UnityEngine.Component::GetComponent<T>() -> bs_hook::Il2CppWrapperType UnityEngine.Component::GetComponent()
         let template = if method.generic_container_index.is_valid() {
-            let generics = method
-                .generic_container(metadata.metadata)
-                .unwrap()
-                .generic_parameters(metadata.metadata)
-                .iter()
-                .map(|param| param.name(metadata.metadata).to_string())
-                .collect_vec();
+            match is_generic_inst {
+                true => Some(CppTemplate { names: vec![] }),
+                false => {
+                    let generics = method
+                        .generic_container(metadata.metadata)
+                        .unwrap()
+                        .generic_parameters(metadata.metadata)
+                        .iter()
+                        .map(|param| param.name(metadata.metadata).to_string())
+                        .collect_vec();
 
-            Some(CppTemplate { names: generics })
+                    Some(CppTemplate { names: generics })
+                }
+            }
         } else {
             None
         };
 
-        let mut make_ret_cpp_type_name = || {
+        let make_ret_cpp_type_name = |cpp_type: &mut CppType| {
             let name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false);
             cpp_type.il2cpp_byref(name, m_ret_type)
         };
 
         let m_ret_cpp_type_byref_name = match is_generic_inst {
-            true => Self::il2cpp_mparam_template_name(metadata, make_ret_cpp_type_name, m_ret_type),
-            false => make_ret_cpp_type_name(),
+            false => cpp_type.il2cpp_mparam_template_name(
+                metadata,
+                method_index,
+                make_ret_cpp_type_name,
+                m_ret_type,
+            ),
+            true => make_ret_cpp_type_name(cpp_type),
         };
 
         // Reference type constructor
@@ -1079,11 +1092,18 @@ pub trait CSType: Sized {
     }
 
     fn il2cpp_mparam_template_name<'a>(
+        &mut self,
         metadata: &'a Metadata,
-        cpp_name: impl FnOnce() -> String,
+        method_index: MethodIndex,
+        cpp_name: impl FnOnce(&mut CppType) -> String,
         typ: &'a Il2CppType,
     ) -> String {
-        match typ.ty {
+        let tys = self
+            .get_mut_cpp_type()
+            .method_generic_instantiation_map
+            .remove(&method_index);
+
+        let ret = match typ.ty {
             Il2CppTypeEnum::Mvar => match typ.data {
                 TypeData::GenericParameterIndex(index) => {
                     let generic_param: &brocolib::global_metadata::Il2CppGenericParameter =
@@ -1102,8 +1122,16 @@ pub trait CSType: Sized {
                 }
                 _ => todo!(),
             },
-            _ => cpp_name(),
+            _ => cpp_name(self.get_mut_cpp_type()),
+        };
+
+        if let Some(tys) = tys {
+            self.get_mut_cpp_type()
+                .method_generic_instantiation_map
+                .insert(method_index, tys);
         }
+
+        ret
     }
 
     fn cppify_name_il2cpp(
@@ -1228,10 +1256,7 @@ pub trait CSType: Sized {
                         cpp_type.method_generic_instantiation_map.get(&method_index);
 
                     if method_args_opt.is_none() {
-                        return format!(
-                            "/* TODO: NO MVAR PARAM FOUND HERE */ {}",
-                            gen_param.name(metadata.metadata)
-                        );
+                        return format!("{}", gen_param.name(metadata.metadata));
                     }
 
                     let method_args = method_args_opt.unwrap();
