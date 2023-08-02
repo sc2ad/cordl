@@ -29,7 +29,7 @@ use super::{
         TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
     },
     context_collection::{CppContextCollection, CppTypeTag},
-    cpp_type::CppType,
+    cpp_type::{self, CppType},
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
@@ -739,6 +739,30 @@ pub trait CSType: Sized {
         }
     }
 
+    fn create_constructor(
+        cpp_type: &mut CppType,
+        m_params: &Vec<CppParam>,
+        template: &Option<CppTemplate>,
+    ) {
+        cpp_type.implementations.push(
+            CppMember::ConstructorImpl(CppConstructorImpl {
+                holder_cpp_ty_name: cpp_type.formatted_complete_cpp_name().clone(),
+                parameters: m_params.clone(),
+                is_constexpr: false,
+                template: template.clone(),
+            })
+            .into(),
+        );
+        cpp_type.declarations.push(
+            CppMember::ConstructorDecl(CppConstructorDecl {
+                cpp_name: cpp_type.cpp_name.clone(),
+                parameters: m_params.clone(),
+                template: template.clone(),
+            })
+            .into(),
+        );
+    }
+
     fn create_method(
         &mut self,
         method: &Il2CppMethodDefinition,
@@ -840,62 +864,55 @@ pub trait CSType: Sized {
 
         // Reference type constructor
         if m_name == ".ctor" && !declaring_type.is_value_type() {
-            cpp_type.implementations.push(
-                CppMember::ConstructorImpl(CppConstructorImpl {
-                    holder_cpp_ty_name: cpp_type.formatted_complete_cpp_name().clone(),
-                    parameters: m_params.clone(),
-                    is_constexpr: false,
-                    template: template.clone(),
-                })
-                .into(),
-            );
-            cpp_type.declarations.push(
-                CppMember::ConstructorDecl(CppConstructorDecl {
-                    cpp_name: cpp_type.cpp_name.clone(),
-                    parameters: m_params.clone(),
-                    template: template.clone(),
-                })
-                .into(),
-            );
+            Self::create_constructor(cpp_type, &m_params, &template);
         }
         let declaring_type = method.declaring_type(metadata.metadata);
         let tag = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
 
         let method_calc = metadata.method_calculations.get(&method_index);
 
-        cpp_type.implementations.push(
-            CppMember::MethodImpl(CppMethodImpl {
-                cpp_method_name: config.name_cpp(m_name),
-                cs_method_name: m_name.to_string(),
-                holder_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
-                holder_cpp_name: cpp_type.cpp_name.clone(),
-                return_type: m_ret_cpp_type_byref_name.clone(),
-                parameters: m_params.clone(),
-                instance: !method.is_static_method(),
-                suffix_modifiers: Default::default(),
-                prefix_modifiers: Default::default(),
-                template: template.clone(),
-            })
-            .into(),
-        );
+        // generic methods don't have definitions if not an instantiation
+        let stub = !is_generic_inst && template.is_some();
 
-        cpp_type.declarations.push(
-            CppMember::MethodDecl(CppMethodDecl {
-                cpp_name: config.name_cpp(m_name),
-                return_type: m_ret_cpp_type_byref_name.clone(),
-                parameters: m_params.clone(),
-                template: template.clone(),
-                instance: !method.is_static_method(),
-                prefix_modifiers: Default::default(),
-                suffix_modifiers: Default::default(),
-                method_data: method_calc.map(|method_calc| CppMethodData {
-                    addrs: method_calc.addrs,
-                    estimated_size: method_calc.estimated_size,
-                }),
-                is_virtual: method.is_virtual_method() && !method.is_final_method(),
-            })
-            .into(),
-        );
+        // If a generic instantiation or not a template
+        if !stub {
+            cpp_type.implementations.push(
+                CppMember::MethodImpl(CppMethodImpl {
+                    cpp_method_name: config.name_cpp(m_name),
+                    cs_method_name: m_name.to_string(),
+                    holder_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
+                    holder_cpp_name: cpp_type.cpp_name.clone(),
+                    return_type: m_ret_cpp_type_byref_name.clone(),
+                    parameters: m_params.clone(),
+                    instance: !method.is_static_method(),
+                    suffix_modifiers: Default::default(),
+                    prefix_modifiers: Default::default(),
+                    template: template.clone(),
+                })
+                .into(),
+            );
+        }
+
+        // if not a generic instantiation
+        if !is_generic_inst {
+            cpp_type.declarations.push(
+                CppMember::MethodDecl(CppMethodDecl {
+                    cpp_name: config.name_cpp(m_name),
+                    return_type: m_ret_cpp_type_byref_name.clone(),
+                    parameters: m_params.clone(),
+                    template: template.clone(),
+                    instance: !method.is_static_method(),
+                    prefix_modifiers: Default::default(),
+                    suffix_modifiers: Default::default(),
+                    method_data: method_calc.map(|method_calc| CppMethodData {
+                        addrs: method_calc.addrs,
+                        estimated_size: method_calc.estimated_size,
+                    }),
+                    is_virtual: method.is_virtual_method() && !method.is_final_method(),
+                })
+                .into(),
+            );
+        }
 
         let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
             Some(cpp_type)
@@ -903,7 +920,7 @@ pub trait CSType: Sized {
             ctx_collection.get_cpp_type(tag)
         };
 
-        if let Some(method_calc) = method_calc {
+        if let Some(method_calc) = method_calc && !stub {
             cpp_type
                 .nonmember_implementations
                 .push(Rc::new(CppMethodSizeStruct {
