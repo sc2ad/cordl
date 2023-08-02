@@ -451,7 +451,7 @@ pub trait CSType: Sized {
                         "
                     constexpr {cpp_name}() = default;
                     constexpr {cpp_name}({cpp_name} const&) = default;
-                    constexpr Color({cpp_name}&&) = default;
+                    constexpr {cpp_name}({cpp_name}&&) = default;
                     constexpr {cpp_name}& operator=({cpp_name} const&) = default;
                     constexpr {cpp_name}& operator=({cpp_name}&&) noexcept = default;
                 "
