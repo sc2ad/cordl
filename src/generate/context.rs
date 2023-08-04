@@ -198,9 +198,27 @@ impl CppContext {
 
         let base_path = &STATIC_CONFIG.header_path;
 
+        let typedef_root_types_sorted = self
+            .typedef_types
+            .values()
+            .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
+            .sorted_by(|a, b| {
+                if a.is_stub {
+                    Ordering::Less
+                } else if b.is_stub {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+            .collect_vec();
+
         let typedef_types_sorted = self
             .typedef_types
             .values()
+            .flat_map(|t: &CppType| -> Vec<&CppType> {
+                t.nested_types_flattened().values().copied().collect_vec()
+            })
             .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
             .sorted_by(|a, b| {
                 if a.is_stub {
@@ -248,7 +266,7 @@ impl CppContext {
             //     .try_for_each(|i| i.write(&mut typeimpl_writer))?;
         }
 
-        for t in typedef_types_sorted {
+        for t in typedef_root_types_sorted {
             if t.nested {
                 panic!(
                     "Cannot have a root type as a nested type! {}",
