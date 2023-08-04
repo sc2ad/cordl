@@ -165,7 +165,8 @@ pub trait CSType: Sized {
         let name = t.name(metadata.metadata);
         let full_name = t.full_name(metadata.metadata, false);
 
-        let cpp_full_name = config.full_name_cpp(ns, &full_name);
+        let nested = t.declaring_type_index != u32::MAX;
+        let cpp_full_name = config.full_name_cpp(ns, &full_name, nested);
 
 
         let mut cpptype = CppType {

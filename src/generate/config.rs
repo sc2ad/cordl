@@ -13,10 +13,10 @@ impl GenerationConfig {
             string.replace(['<', '>', '`', '/'], "_").replace('.', "::")
         }
     }
-    pub fn full_name_cpp(&self, ns: &str, string: &str) -> String {
+    pub fn full_name_cpp(&self, ns: &str, string: &str, nested: bool) -> String {
         let formatted_string = self.namespace_cpp(string);
 
-        if ns.is_empty() {
+        if ns.is_empty() && !nested {
             let ns = self.namespace_cpp(ns);
             format!("{ns}::{formatted_string}")
         } else {
