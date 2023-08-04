@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    config::GenerationConfig, constants::TypeDefinitionExtensions, context::CppContext,
+    config::GenerationConfig, type_extensions::TypeDefinitionExtensions, context::CppContext,
     metadata::Metadata,
 };
 

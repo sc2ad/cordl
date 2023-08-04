@@ -24,10 +24,6 @@ use crate::{
 
 use super::{
     config::GenerationConfig,
-    constants::{
-        MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
-        TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
-    },
     context_collection::{CppContextCollection, CppTypeTag},
     cpp_type::{self, CppType},
     members::{
@@ -36,6 +32,10 @@ use super::{
         CppMethodImpl, CppMethodSizeStruct, CppParam, CppProperty, CppStaticAssert, CppTemplate,
     },
     metadata::Metadata,
+    type_extensions::{
+        MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
+        TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
+    },
 };
 
 type Endian = LittleEndian;
@@ -166,7 +166,7 @@ pub trait CSType: Sized {
         let full_name = t.full_name(metadata.metadata, false);
 
         let nested = t.declaring_type_index != u32::MAX;
-        let cpp_full_name = config.full_name_cpp(ns, &full_name, nested);
+        let cpp_full_name = t.full_name_cpp(metadata.metadata, config, false);
 
         let mut cpptype = CppType {
             self_tag: tag,
@@ -589,7 +589,7 @@ pub trait CSType: Sized {
             // TODO: improve how these are handled
             cpp_type.implementations.push(
                 CppMember::FieldImpl(CppFieldImpl {
-                    declaring_ty_cpp_name: cpp_type.cpp_name.clone(),
+                    declaring_ty_cpp_full_name: cpp_type.cpp_full_name.clone(),
                     field_data: field_decl,
                 })
                 .into(),

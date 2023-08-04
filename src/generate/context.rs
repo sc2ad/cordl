@@ -13,7 +13,7 @@ use itertools::Itertools;
 use pathdiff::diff_paths;
 
 use crate::generate::{
-    constants::{TypeDefinitionExtensions, OBJECT_WRAPPER_TYPE},
+    type_extensions::{TypeDefinitionExtensions, OBJECT_WRAPPER_TYPE},
     members::CppInclude,
 };
 use crate::STATIC_CONFIG;

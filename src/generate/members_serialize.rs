@@ -239,7 +239,7 @@ impl CppFieldImpl {
         let field = &self.field_data;
         let name = &field.cpp_name;
         let ty = &field.field_ty;
-        let klass_name = &self.declaring_ty_cpp_name;
+        let klass_name = &self.declaring_ty_cpp_full_name;
 
         if field.declaring_is_reference && field.is_value_type {
             writeln!(
@@ -305,7 +305,7 @@ impl CppFieldImpl {
         let field = &self.field_data;
         let name = &field.cpp_name;
         let ty = &field.field_ty;
-        let klass_name = &self.declaring_ty_cpp_name;
+        let klass_name = &self.declaring_ty_cpp_full_name;
 
         if field.declaring_is_reference && field.is_value_type {
             writeln!(

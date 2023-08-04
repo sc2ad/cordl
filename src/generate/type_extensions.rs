@@ -1,7 +1,10 @@
 use brocolib::{
     global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition},
     runtime_metadata::Il2CppType,
+    Metadata,
 };
+
+use super::config::{self, GenerationConfig};
 
 pub const OBJECT_WRAPPER_TYPE: &str = "::bs_hook::Il2CppWrapperType";
 
@@ -109,6 +112,13 @@ impl TypeExtentions for Il2CppType {
 pub trait TypeDefinitionExtensions {
     fn is_value_type(&self) -> bool;
     fn is_enum_type(&self) -> bool;
+
+    fn full_name_cpp(
+        &self,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        with_generics: bool,
+    ) -> String;
 }
 
 impl TypeDefinitionExtensions for Il2CppTypeDefinition {
@@ -118,5 +128,44 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
 
     fn is_enum_type(&self) -> bool {
         self.bitfield & 2 != 0
+    }
+
+    fn full_name_cpp(
+        &self,
+        metadata: &Metadata,
+        config: &GenerationConfig,
+        with_generics: bool,
+    ) -> String {
+        let namespace = config.namespace_cpp(self.namespace(metadata));
+        let name = config.name_cpp(self.name(metadata));
+
+        let mut full_name = String::new();
+
+        if self.declaring_type_index != u32::MAX {
+            let declaring_ty = metadata.runtime_metadata.metadata_registration.types
+                [self.declaring_type_index as usize];
+
+            let s = match declaring_ty.data {
+                brocolib::runtime_metadata::TypeData::TypeDefinitionIndex(tdi) => {
+                    let declaring_td = &metadata.global_metadata.type_definitions[tdi];
+                    declaring_td.full_name_cpp(metadata, config, with_generics)
+                }
+                _ => declaring_ty.full_name(metadata),
+            };
+
+            full_name.push_str(&s);
+            full_name.push_str("::");
+        } else {
+            // only write namespace if no declaring type
+            full_name.push_str(&namespace);
+            full_name.push_str("::");
+        }
+
+        full_name.push_str(&name);
+        if self.generic_container_index.is_valid() && with_generics {
+            let gc = self.generic_container(metadata);
+            full_name.push_str(&gc.to_string(metadata));
+        }
+        full_name
     }
 }

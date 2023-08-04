@@ -119,7 +119,7 @@ pub struct CppFieldDecl {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppFieldImpl {
-    pub declaring_ty_cpp_name: String,
+    pub declaring_ty_cpp_full_name: String,
     pub field_data: CppFieldDecl,
 }
 
