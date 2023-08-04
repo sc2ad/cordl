@@ -13,6 +13,16 @@ impl GenerationConfig {
             string.replace(['<', '>', '`', '/'], "_").replace('.', "::")
         }
     }
+    pub fn full_name_cpp(&self, ns: &str, string: &str) -> String {
+        let formatted_string = self.namespace_cpp(string);
+
+        if ns.is_empty() {
+            let ns = self.namespace_cpp(ns);
+            format!("{ns}::{formatted_string}")
+        } else {
+            formatted_string
+        }
+    }
     pub fn name_cpp(&self, string: &str) -> String {
         // Coincidentally the same as path_name
         string.replace(['<', '`', '>', '/', '.'], "_")
