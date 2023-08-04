@@ -358,7 +358,15 @@ impl CppContextCollection {
         self.borrow_cpp_type(generic_class_ty_data, |collection, mut cpp_type| {
             let method_index = method_spec.method_definition_index;
             cpp_type.add_method_generic_inst(method_spec, metadata);
-            cpp_type.create_method(method, ty_def, method_index, metadata, collection, config, true);
+            cpp_type.create_method(
+                method,
+                ty_def,
+                method_index,
+                metadata,
+                collection,
+                config,
+                true,
+            );
 
             cpp_type
         });
@@ -396,7 +404,7 @@ impl CppContextCollection {
         };
 
         self.borrow_cpp_type(generic_class_ty_data, |collection, mut cpp_type| {
-            collection.fill_cpp_type(&mut cpp_type, metadata, config);
+            cpp_type.make_generics_args(metadata, &collection);
             cpp_type.cpp_full_name = format!(
                 "{}::{}<{}>",
                 cpp_type.cpp_namespace,
@@ -407,6 +415,7 @@ impl CppContextCollection {
                     .unwrap()
                     .join(", ")
             );
+            collection.fill_cpp_type(&mut cpp_type, metadata, config);
 
             cpp_type
         });

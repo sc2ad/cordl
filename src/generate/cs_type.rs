@@ -168,7 +168,6 @@ pub trait CSType: Sized {
         let nested = t.declaring_type_index != u32::MAX;
         let cpp_full_name = config.full_name_cpp(ns, &full_name, nested);
 
-
         let mut cpptype = CppType {
             self_tag: tag,
             nested: parent_pair.is_some(),
@@ -310,11 +309,12 @@ pub trait CSType: Sized {
     fn make_generics_args(&mut self, metadata: &Metadata, ctx_collection: &CppContextCollection) {
         let cpp_type = self.get_mut_cpp_type();
 
+        if cpp_type.generic_instantiations_args_types.is_none() {
+            return;
+        }
+
         let generic_instantiations_args_types =
-            match cpp_type.generic_instantiations_args_types.clone() {
-                Some(generic_instantiations_args_types) => generic_instantiations_args_types,
-                _ => return,
-            };
+            cpp_type.generic_instantiations_args_types.clone().unwrap();
 
         let generic_instantiation_args: Vec<String> = generic_instantiations_args_types
             .iter()
@@ -882,7 +882,6 @@ pub trait CSType: Sized {
                     cpp_method_name: config.name_cpp(m_name),
                     cs_method_name: m_name.to_string(),
                     holder_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
-                    holder_cpp_name: cpp_type.cpp_name.clone(),
                     return_type: m_ret_cpp_type_byref_name.clone(),
                     parameters: m_params.clone(),
                     instance: !method.is_static_method(),

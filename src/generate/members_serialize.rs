@@ -138,10 +138,7 @@ impl Writable for CppFieldDecl {
         if let Some(literal) = &self.literal_value {
             // default value for a ::StringW is a ConstString
             if ty == "::StringW" {
-                writeln!(
-                    writer,
-                    "static ConstString {name}_default{{{literal}}};"
-                )?;
+                writeln!(writer, "static ConstString {name}_default{{{literal}}};")?;
             } else {
                 writeln!(
                     writer,
