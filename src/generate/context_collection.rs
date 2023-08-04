@@ -293,7 +293,10 @@ impl CppContextCollection {
             let declaring_ty = &metadata.metadata.global_metadata.type_definitions[declaring_tdi];
             new_cpp_type.cpp_namespace =
                 config.namespace_cpp(declaring_ty.namespace(metadata.metadata));
+
             new_cpp_type.cpp_name = config.generic_nested_name(&new_cpp_type.cpp_full_name);
+
+            // full name will have literals in `fill_generic_class_inst`
             new_cpp_type.cpp_full_name = format!(
                 "{}::{}<>",
                 new_cpp_type.cpp_namespace, new_cpp_type.cpp_name
