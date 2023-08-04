@@ -298,7 +298,7 @@ impl CppContextCollection {
 
             // full name will have literals in `fill_generic_class_inst`
             new_cpp_type.cpp_full_name = format!(
-                "{}::{}<>",
+                "{}::{}</* TODO: Literals will be filled in fill_generic_class_inst pass */>",
                 new_cpp_type.cpp_namespace, new_cpp_type.cpp_name
             );
         }
