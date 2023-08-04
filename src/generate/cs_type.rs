@@ -1222,17 +1222,24 @@ pub trait CSType: Sized {
                     .get_cpp_type(typ.data.into())
                     .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));
 
+                let own_context = parent_context_ty == cpp_type_context_ty;
+
                 // - Include it
                 // Skip including the context if we're already in it
-                if add_include && parent_context_ty != cpp_type_context_ty {
+                if add_include && !own_context {
                     requirements.required_includes.insert(inc.clone());
                 }
 
                 // Forward declare it
-                if !add_include {
-                    requirements
-                        .forward_declares
-                        .insert((CppForwardDeclare::from_cpp_type(to_incl_ty), inc));
+                if !add_include && !own_context {
+                    if to_incl_ty.nested {
+                        // TODO: What should we do here?
+                        eprintln!("Can't forward declare nested type and can't include!");
+                    } else {
+                        requirements
+                            .forward_declares
+                            .insert((CppForwardDeclare::from_cpp_type(to_incl_ty), inc));
+                    }
                 }
 
                 to_incl_ty.formatted_complete_cpp_name().clone()

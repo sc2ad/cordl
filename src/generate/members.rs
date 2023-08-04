@@ -80,7 +80,7 @@ pub enum CppMember {
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
     CppUsingAlias(CppUsingAlias),
-    CppLine(CppLine)
+    CppLine(CppLine),
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -224,11 +224,15 @@ pub struct CppProperty {
 
 impl CppForwardDeclare {
     pub fn from_cpp_type(cpp_type: &CppType) -> Self {
-        let ns = cpp_type.cpp_namespace().to_string();
+        let ns = if !cpp_type.nested {
+            Some(cpp_type.cpp_namespace().to_string())
+        } else {
+            None
+        };
 
         Self {
             is_struct: cpp_type.is_value_type,
-            cpp_namespace: Some(ns.clone()),
+            cpp_namespace: ns,
             cpp_name: cpp_type.cpp_name().clone(),
             templates: cpp_type.cpp_template.clone(),
             literals: cpp_type.generic_instantiation_args.clone(),

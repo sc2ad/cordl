@@ -391,8 +391,8 @@ impl CppType {
                     writer.indent();
                     writeln!(
                         writer,
-                        "// nested type {} {}",
-                        self.cpp_full_name, self.is_stub
+                        "// nested type {} is stub {}",
+                        n.cpp_full_name, n.is_stub
                     )?;
                     n.write_def_internal(writer, None, false)?;
                     writer.dedent();
