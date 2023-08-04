@@ -281,7 +281,7 @@ impl CppType {
 
             writeln!(
                 writer,
-                "{macro_arg_define}({}, \"{namespace}\", \"{name}\");",
+                "{macro_arg_define}(::{}, \"{namespace}\", \"{name}\");",
                 ty.cpp_full_name,
             )?;
 
