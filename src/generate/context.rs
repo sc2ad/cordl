@@ -219,6 +219,7 @@ impl CppContext {
             .flat_map(|t: &CppType| -> Vec<&CppType> {
                 t.nested_types_flattened().values().copied().collect_vec()
             })
+            .chain(typedef_root_types_sorted.iter().cloned())
             .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
             .sorted_by(|a, b| {
                 if a.is_stub {
