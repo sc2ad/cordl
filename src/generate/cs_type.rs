@@ -1234,7 +1234,8 @@ pub trait CSType: Sized {
                 if !add_include && !own_context {
                     if to_incl_ty.nested {
                         // TODO: What should we do here?
-                        eprintln!("Can't forward declare nested type and can't include!");
+                        eprintln!("Can't forward declare nested type! Including!");
+                        requirements.required_includes.insert(inc);
                     } else {
                         requirements
                             .forward_declares
