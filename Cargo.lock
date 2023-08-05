@@ -200,7 +200,7 @@ checksum = "630be753d4e58660abd17930c71b647fe46c27ea6b63cc59e1e3851406972e42"
 [[package]]
 name = "brocolib"
 version = "0.1.0"
-source = "git+https://github.com/StackDoubleFlow/brocolib.git?branch=il2cpp_v29#8b7600a1deb47e8f9bde42b6bc1294752ff6b2c8"
+source = "git+https://github.com/Fernthedev/brocolib.git?branch=fix/type-full-name-generics#80f75c7db07953ca8f2774730b59ad2e09f4f694"
 dependencies = [
  "bad64",
  "binde",
