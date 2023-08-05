@@ -564,7 +564,7 @@ pub trait CSType: Sized {
                 println!("Value type uses {tdi:?} which is blacklisted! TODO");
             }
 
-            let field_cpp_name =
+            let field_ty_cpp_name =
                 cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
 
             // TODO: Check a flag to look for default values to speed this up
@@ -572,7 +572,7 @@ pub trait CSType: Sized {
 
             let field_decl = CppFieldDecl {
                 cpp_name: config.name_cpp(f_name),
-                field_ty: field_cpp_name,
+                field_ty: field_ty_cpp_name,
                 offset: f_offset,
                 instance: !f_type.is_static() && !f_type.is_const(),
                 readonly: f_type.is_const(),
@@ -966,9 +966,8 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
             Il2CppTypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
             Il2CppTypeEnum::I2 => cursor.read_i16::<Endian>().unwrap().to_string(),
-            // enum
-            Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::I4 => {
-                cursor.read_i32::<Endian>().unwrap().to_string()
+            Il2CppTypeEnum::I4 => {
+                cursor.read_compressed_i32::<Endian>().unwrap().to_string()
             }
             // TODO: We assume 64 bit
             Il2CppTypeEnum::I | Il2CppTypeEnum::I8 => {
@@ -976,7 +975,7 @@ pub trait CSType: Sized {
             }
             Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string(),
             Il2CppTypeEnum::U2 => cursor.read_u16::<Endian>().unwrap().to_string(),
-            Il2CppTypeEnum::U4 => cursor.read_compressed_i32::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::U4 => cursor.read_compressed_u32::<Endian>().unwrap().to_string(),
             // TODO: We assume 64 bit
             Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => {
                 cursor.read_u64::<Endian>().unwrap().to_string()
