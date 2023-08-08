@@ -239,7 +239,6 @@ pub trait CSType: Sized {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
         }
 
-        cpptype.make_nested_types(metadata, tdi);
         if cpptype.is_value_type {
             // if let Some(size) = &get_size_of_type_table(metadata, tdi) {
             let size = Self::layout_fields_locked_size(t, tdi, metadata);
@@ -276,7 +275,7 @@ pub trait CSType: Sized {
 
         self.make_generics_args(metadata, ctx_collection);
         self.make_parents(metadata, ctx_collection, tdi);
-        self.make_nested_types(metadata, tdi);
+        self.make_nested_types(metadata, ctx_collection, config, tdi);
         self.make_fields(metadata, ctx_collection, config, tdi);
         self.make_properties(metadata, ctx_collection, config, tdi);
         self.make_methods(metadata, config, ctx_collection, tdi);
@@ -623,7 +622,14 @@ pub trait CSType: Sized {
         }
     }
 
-    fn make_nested_types(&mut self, metadata: &Metadata, tdi: TypeDefinitionIndex) {
+    fn make_nested_types(
+        &mut self,
+        metadata: &Metadata,
+        ctx_collection: &CppContextCollection,
+        config: &GenerationConfig,
+
+        tdi: TypeDefinitionIndex,
+    ) {
         let cpp_type = self.get_mut_cpp_type();
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
 
@@ -636,12 +642,16 @@ pub trait CSType: Sized {
             .clone()
             .unwrap_or_default();
 
-        let aliases = cpp_type
-            .nested_types
-            .values()
-            .map(|nested| {
+        let aliases = t
+            .nested_types(metadata.metadata)
+            .iter()
+            .map(|nested_tdi| {
+                let nested = ctx_collection
+                    .get_cpp_type(CppTypeTag::TypeDefinitionIndex(*nested_tdi))
+                    .expect("Unable to find nested CppType");
+
                 CppUsingAlias::from_cpp_type(
-                    nested.cpp_name.clone(),
+                    config.name_cpp(&nested.name),
                     nested,
                     Some(generic_instantiation_args.clone()),
                 )
