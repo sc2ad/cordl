@@ -623,6 +623,31 @@ pub trait CSType: Sized {
             // We have a parent, lets do something with it
             let inherit_type =
                 cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, true);
+
+            if t.declaring_type_index != u32::MAX {
+                let declaring_ty = &metadata
+                    .metadata
+                    .runtime_metadata
+                    .metadata_registration
+                    .types[t.declaring_type_index as usize];
+
+                let parent_type_tag =
+                    CppTypeTag::from_type_data(parent_type.data, metadata.metadata);
+                let declaring_type_tag =
+                    CppTypeTag::from_type_data(declaring_ty.data, metadata.metadata);
+
+                if t.parent_index == t.declaring_type_index
+                // TODO: Check recursively for declaring type
+                    // || ctx_collection.get_parent_or_self_tag(parent_type_tag)
+                    //     == ctx_collection.get_parent_or_self_tag(declaring_type_tag)
+                {
+                    eprintln!(
+                        "Nested type {} inherits and is declared by {inherit_type}",
+                        cpp_type.cpp_full_name
+                    );
+                }
+            }
+
             cpp_type.inherit.push(inherit_type);
         } else {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
@@ -967,9 +992,7 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
             Il2CppTypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
             Il2CppTypeEnum::I2 => cursor.read_i16::<Endian>().unwrap().to_string(),
-            Il2CppTypeEnum::I4 => {
-                cursor.read_compressed_i32::<Endian>().unwrap().to_string()
-            }
+            Il2CppTypeEnum::I4 => cursor.read_compressed_i32::<Endian>().unwrap().to_string(),
             // TODO: We assume 64 bit
             Il2CppTypeEnum::I | Il2CppTypeEnum::I8 => {
                 cursor.read_i64::<Endian>().unwrap().to_string()

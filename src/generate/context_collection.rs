@@ -19,8 +19,8 @@ use crate::{
 };
 
 use super::{
-    config::GenerationConfig, type_extensions::TypeDefinitionExtensions, context::CppContext,
-    metadata::Metadata,
+    config::GenerationConfig, context::CppContext, metadata::Metadata,
+    type_extensions::TypeDefinitionExtensions,
 };
 
 // TODO:
@@ -70,6 +70,38 @@ impl From<CppTypeTag> for TypeDefinitionIndex {
             CppTypeTag::TypeDefinitionIndex(i) => i,
             CppTypeTag::GenericInstantiation(generic_inst) => generic_inst.tdi,
             _ => panic!("Type is not a TDI! {value:?}"),
+        }
+    }
+}
+
+impl CppTypeTag {
+    pub fn from_generic_class_index(
+        generic_inst_idx: GenericClassIndex,
+        metadata: &brocolib::Metadata,
+    ) -> Self {
+        let generic_inst = &metadata
+            .runtime_metadata
+            .metadata_registration
+            .generic_classes[generic_inst_idx as usize];
+
+        let ty: brocolib::runtime_metadata::Il2CppType =
+            metadata.runtime_metadata.metadata_registration.types[generic_inst.type_index];
+        if let TypeData::TypeDefinitionIndex(tdi) = ty.data {
+            return Self::GenericInstantiation(GenericInstantiation {
+                tdi,
+                inst: generic_inst_idx,
+            });
+        }
+
+        panic!("No TDI for generic inst!")
+    }
+    pub fn from_type_data(type_data: TypeData, metadata: &brocolib::Metadata) -> Self {
+        match type_data {
+            TypeData::TypeDefinitionIndex(tdi) => tdi.into(),
+            TypeData::GenericClassIndex(generic_inst_idx) => {
+                Self::from_generic_class_index(generic_inst_idx, metadata)
+            }
+            _ => todo!(),
         }
     }
 }
