@@ -52,6 +52,7 @@ pub struct CppType {
     pub nonmember_declarations: Vec<Rc<dyn Writable>>,
 
     pub is_value_type: bool,
+    pub is_enum_type: bool,
     pub requirements: CppTypeRequirements,
 
     pub inherit: Vec<String>,
@@ -240,53 +241,6 @@ impl CppType {
             false => "class",
         };
 
-        fn write_il2cpp_arg_macros(
-            ty: &CppType,
-            writer: &mut super::writer::CppWriter,
-        ) -> color_eyre::Result<()> {
-            if !ty.is_value_type && !ty.is_stub {
-                // reference types need no boxing
-                writeln!(writer, "NEED_NO_BOX(::{});", ty.cpp_full_name)?;
-            }
-
-            if ty.nested {
-                writeln!(
-                    writer,
-                    "// TODO: Nested type, check correct definition print!"
-                )?;
-            }
-
-            let macro_arg_define = {
-                match //ty.generic_instantiation_args.is_some() ||  
-                    ty.is_stub  {
-                    true => match ty.is_value_type {
-                        true => "DEFINE_IL2CPP_ARG_TYPE_GENERIC_STRUCT",
-                        false => "DEFINE_IL2CPP_ARG_TYPE_GENERIC_CLASS",
-                    },
-                    false => "DEFINE_IL2CPP_ARG_TYPE",
-                }
-            };
-
-            let (namespace, name): (&str, String) = match &ty.parent_ty_name {
-                Some(parent_name) => {
-                    let (namespace, parent_clazz) = match parent_name.rsplit_once('.') {
-                        Some(a) => a,
-                        None => ("", parent_name.as_str()),
-                    };
-
-                    (namespace, format!("{}/{}", parent_clazz, ty.name()))
-                }
-                None => ((ty.namespace()), (ty.name()).to_string()),
-            };
-
-            writeln!(
-                writer,
-                "{macro_arg_define}(::{}, \"{namespace}\", \"{name}\");",
-                ty.cpp_full_name,
-            )?;
-
-            Ok(())
-        }
 
         // forward declare self
         if fd {
@@ -321,8 +275,6 @@ impl CppType {
             if let Some(n) = &namespace {
                 writeln!(writer, "}} // end namespace def fd {n}")?;
             }
-
-            write_il2cpp_arg_macros(self, writer)?;
         }
 
         // Just forward declare
@@ -432,11 +384,6 @@ impl CppType {
             if let Some(n) = namespace {
                 writer.dedent();
                 writeln!(writer, "}} // namespace end def {n}")?;
-            }
-
-            if !fd {
-                // if we did not FD we still need to provide an il2cpp arg type definition for class resolution
-                write_il2cpp_arg_macros(self, writer)?;
             }
         }
 

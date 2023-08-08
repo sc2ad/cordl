@@ -189,6 +189,7 @@ pub trait CSType: Sized {
             nonmember_declarations: Default::default(),
 
             is_value_type: t.is_value_type(),
+            is_enum_type: t.is_enum_type(),
             requirements: Default::default(),
 
             inherit: Default::default(),
