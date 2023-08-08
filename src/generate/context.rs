@@ -327,16 +327,25 @@ impl CppContext {
                 }
         };
 
-        let (namespace, name): (&str, String) = match &ty.parent_ty_name {
-            Some(parent_name) => {
-                let (namespace, parent_clazz) = match parent_name.rsplit_once('.') {
-                    Some(a) => a,
-                    None => ("", parent_name.as_str()),
-                };
+        // Essentially splits namespace.foo/nested_foo into (namespace, foo/nested_foo)
+        let (namespace, name) = match ty.full_name.rsplit_once("::") {
+            Some((declaring, name)) => {
+                // (namespace, declaring/foo)
+                let (namespace, declaring_name) =
+                    declaring.rsplit_once('.').unwrap_or(("", declaring));
 
-                (namespace, format!("{}/{}", parent_clazz, ty.name()))
+                let fixed_declaring_name = declaring_name.replace("::", "/");
+
+                (namespace, format!("{fixed_declaring_name}/{name}"))
             }
-            None => ((ty.namespace()), (ty.name()).to_string()),
+            None => {
+                let (namespace, name) = ty
+                    .full_name
+                    .rsplit_once('.')
+                    .unwrap_or(("", ty.full_name.as_str()));
+
+                (namespace, name.to_string())
+            }
         };
 
         writeln!(

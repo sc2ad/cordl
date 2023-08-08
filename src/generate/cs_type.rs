@@ -140,8 +140,6 @@ pub trait CSType: Sized {
         // - This includes constructors
         // inherited methods will be inherited
 
-        let parent_pair = metadata.child_to_parent_map.get(&tdi);
-
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
 
         // Generics
@@ -170,16 +168,13 @@ pub trait CSType: Sized {
 
         let mut cpptype = CppType {
             self_tag: tag,
-            nested: parent_pair.is_some(),
+            nested,
             prefix_comments: vec![format!("Type: {ns}::{name}")],
             namespace: ns.to_string(),
             cpp_namespace: config.namespace_cpp(ns),
             name: name.to_string(),
             cpp_name: config.name_cpp(name),
-            parent_ty_tdi: parent_pair.map(|p| p.tdi),
 
-            parent_ty_name: parent_pair
-                .map(|p| Self::parent_joined_cpp_name(metadata, config, p.tdi)),
             cpp_full_name,
             full_name,
 

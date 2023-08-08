@@ -35,10 +35,7 @@ pub struct CppType {
     pub(crate) cpp_namespace: String,
     pub(crate) name: String,
     pub(crate) cpp_name: String,
-
-    pub(crate) parent_ty_tdi: Option<TypeDefinitionIndex>,
-    pub(crate) parent_ty_name: Option<String>,
-
+    
     // Computed by TypeDefinition.full_name()
     // Then fixed for generic types in CppContextCollection::make_generic_from/fill_generic_inst
     pub cpp_full_name: String,
