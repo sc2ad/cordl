@@ -87,25 +87,14 @@ impl Writable for CppUsingAlias {
             template.write(writer)?;
         }
 
-        if let Some(namespaze) = &self.namespaze {
-            writeln!(writer, "namespace {namespaze} {{")?;
-        }
-
-        if self.result_literals.is_empty() {
+        // TODO: Figure out how to forward template
+        if let Some(template) = &self.template {
+            template.write(writer)?;
             writeln!(writer, "using {} = {};", self.alias, self.result)?;
         } else {
-            writeln!(
-                writer,
-                "using {} = {}<{}>;",
-                self.alias,
-                self.result,
-                self.result_literals.join(",")
-            )?;
+            writeln!(writer, "using {} = {};", self.alias, self.result)?;
         }
 
-        if let Some(namespaze) = &self.namespaze {
-            writeln!(writer, "}} // {namespaze}")?;
-        }
         Ok(())
     }
 }

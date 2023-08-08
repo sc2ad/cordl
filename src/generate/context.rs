@@ -41,7 +41,8 @@ pub struct CppContext {
     // Types to write, typedef
     pub typedef_types: HashMap<CppTypeTag, CppType>,
 
-    pub typealias_types: HashSet<CppUsingAlias>,
+    // Namespace -> alias
+    pub typealias_types: HashSet<(String, CppUsingAlias)>,
 }
 
 impl CppContext {
@@ -90,6 +91,9 @@ impl CppContext {
         let ns = t.namespace(metadata.metadata);
         let name = t.name(metadata.metadata);
 
+        let cpp_namespace = config.namespace_cpp(ns);
+        let cpp_name = config.namespace_cpp(name);
+
         let ns_path = config.namespace_path(ns);
         let path = if ns_path.is_empty() {
             "GlobalNamespace/".to_string()
@@ -119,17 +123,14 @@ impl CppContext {
         if metadata.blacklisted_types.contains(&tdi) {
             println!("Skipping {ns}::{name} ({tdi:?}) because it's blacklisted");
             if !t.is_value_type() {
-                x.typealias_types.insert(CppUsingAlias {
-                    alias: name.to_string(),
-                    result: OBJECT_WRAPPER_TYPE.to_string(),
-                    namespaze: if ns.is_empty() {
-                        None
-                    } else {
-                        Some(ns.to_string())
+                x.typealias_types.insert((
+                    cpp_namespace,
+                    CppUsingAlias {
+                        alias: name.to_string(),
+                        result: OBJECT_WRAPPER_TYPE.to_string(),
+                        template: Default::default(),
                     },
-                    template: Default::default(),
-                    result_literals: vec![],
-                });
+                ));
             }
             // TODO: Make this create a struct with matching size or a using statement appropiately
             return x;

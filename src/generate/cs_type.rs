@@ -163,9 +163,11 @@ pub trait CSType: Sized {
         let name = t.name(metadata.metadata);
         let full_name = t.full_name(metadata.metadata, false);
 
-        let nested = t.declaring_type_index != u32::MAX;
+        // all nested types are unnested
+        let nested = false; // t.declaring_type_index != u32::MAX;
         let cpp_full_name = t.full_name_cpp(metadata.metadata, config, false);
 
+        // Modified later for nested types
         let mut cpptype = CppType {
             self_tag: tag,
             nested,
@@ -198,6 +200,31 @@ pub trait CSType: Sized {
             nested_types: Default::default(),
         };
 
+        // Generic container
+        if generics.is_some() {
+            cpptype.is_stub = true;
+        }
+
+        // Nested type unnesting fix
+        if t.declaring_type_index != u32::MAX {
+            let declaring_ty = &metadata
+                .metadata
+                .runtime_metadata
+                .metadata_registration
+                .types[t.declaring_type_index as usize];
+
+            let declaring_tag = CppTypeTag::from_type_data(declaring_ty.data, metadata.metadata);
+            let declaring_tdi: TypeDefinitionIndex = declaring_tag.into();
+            let declaring_td = &metadata.metadata.global_metadata.type_definitions[declaring_tdi];
+
+            cpptype.cpp_namespace = config.namespace_cpp(declaring_td.namespace(metadata.metadata));
+
+            cpptype.cpp_name = config.generic_nested_name(&cpptype.cpp_full_name);
+
+            // full name will have literals in `fill_generic_class_inst`
+            cpptype.cpp_full_name = format!("{}::{}", cpptype.cpp_namespace, cpptype.cpp_name);
+        }
+
         if t.parent_index == u32::MAX {
             if t.flags & TYPE_ATTRIBUTE_INTERFACE == 0 {
                 println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
@@ -212,7 +239,7 @@ pub trait CSType: Sized {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
         }
 
-        cpptype.make_nested_types(metadata, config, tdi);
+        cpptype.make_nested_types(metadata, tdi);
         if cpptype.is_value_type {
             // if let Some(size) = &get_size_of_type_table(metadata, tdi) {
             let size = Self::layout_fields_locked_size(t, tdi, metadata);
@@ -249,6 +276,7 @@ pub trait CSType: Sized {
 
         self.make_generics_args(metadata, ctx_collection);
         self.make_parents(metadata, ctx_collection, tdi);
+        self.make_nested_types(metadata, tdi);
         self.make_fields(metadata, ctx_collection, config, tdi);
         self.make_properties(metadata, ctx_collection, config, tdi);
         self.make_methods(metadata, config, ctx_collection, tdi);
@@ -328,68 +356,6 @@ pub trait CSType: Sized {
         // Assumes these nested types exist,
         // which are created in the make_generic type func
         // TODO: Base off a CppType the alias path
-        {
-            let aliases = cpp_type
-                .nested_types
-                .values()
-                .filter(|c| c.cpp_template.is_some())
-                .map(|n| {
-                    let (literals, template) = match &n.cpp_template {
-                        Some(template) => {
-                            // Skip the first args as those aren't necessary
-                            let extra_args = template
-                                .names
-                                .iter()
-                                .skip(generic_instantiation_args.len())
-                                .cloned()
-                                .collect_vec();
-
-                            let new_cpp_template = match !extra_args.is_empty() {
-                                true => Some(CppTemplate { names: extra_args }),
-                                false => None,
-                            };
-
-                            // Essentially, all nested types inherit their declaring type's generic params.
-                            // Append the rest of the template params as generic parameters
-                            match new_cpp_template {
-                                Some(template) => (
-                                    generic_instantiation_args
-                                        .iter()
-                                        .chain(&template.names)
-                                        .cloned()
-                                        .collect_vec(),
-                                    Some(template),
-                                ),
-                                None => (generic_instantiation_args.clone(), None),
-                            }
-                        }
-                        None => (generic_instantiation_args.clone(), None),
-                    };
-
-                    CppUsingAlias {
-                        alias: n.cpp_name.clone(),
-                        namespaze: None,
-                        result: format!(
-                            "{}::{}",
-                            n.cpp_namespace,
-                            STATIC_CONFIG.generic_nested_name(&n.cpp_full_name)
-                        ),
-                        template,
-                        result_literals: literals,
-                    }
-                });
-
-            aliases.for_each(|a| {
-                cpp_type
-                    .declarations
-                    .insert(0, CppMember::CppUsingAlias(a).into())
-            });
-            // replaced by using statements
-            // only for generic nested types
-            cpp_type
-                .nested_types
-                .retain(|_, c| c.cpp_template.is_none());
-        }
 
         cpp_type.generic_instantiation_args = Some(generic_instantiation_args);
     }
@@ -633,8 +599,8 @@ pub trait CSType: Sized {
 
                 if t.parent_index == t.declaring_type_index
                 // TODO: Check recursively for declaring type
-                    // || ctx_collection.get_parent_or_self_tag(parent_type_tag)
-                    //     == ctx_collection.get_parent_or_self_tag(declaring_type_tag)
+                // || ctx_collection.get_parent_or_self_tag(parent_type_tag)
+                //     == ctx_collection.get_parent_or_self_tag(declaring_type_tag)
                 {
                     eprintln!(
                         "Nested type {} inherits and is declared by {inherit_type}",
@@ -657,12 +623,7 @@ pub trait CSType: Sized {
         }
     }
 
-    fn make_nested_types(
-        &mut self,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        tdi: TypeDefinitionIndex,
-    ) {
+    fn make_nested_types(&mut self, metadata: &Metadata, tdi: TypeDefinitionIndex) {
         let cpp_type = self.get_mut_cpp_type();
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
 
@@ -670,26 +631,49 @@ pub trait CSType: Sized {
             return;
         }
 
-        let mut nested_types: Vec<CppType> = Vec::with_capacity(t.nested_type_count as usize);
+        let generic_instantiation_args = cpp_type
+            .generic_instantiation_args
+            .clone()
+            .unwrap_or_default();
 
-        for &nested_type_index in t.nested_types(metadata.metadata) {
-            let nt_ty = &metadata.metadata.global_metadata.type_definitions[nested_type_index];
+        let aliases = cpp_type
+            .nested_types
+            .values()
+            .map(|nested| {
+                CppUsingAlias::from_cpp_type(
+                    nested.cpp_name.clone(),
+                    nested,
+                    Some(generic_instantiation_args.clone()),
+                )
+            })
+            .collect_vec();
 
-            // We have a parent, lets do something with it
-            let nested_type = CppType::make_cpp_type(
-                metadata,
-                config,
-                CppTypeTag::TypeDefinitionIndex(nested_type_index),
-                nested_type_index,
-            );
-
-            match nested_type {
-                Some(unwrapped) => nested_types.push(unwrapped),
-                None => println!("Failed to make nested CppType {nt_ty:?}"),
-            };
+        for a in aliases {
+            cpp_type
+                .declarations
+                .insert(0, CppMember::CppUsingAlias(a).into())
         }
 
-        cpp_type.nested_types = nested_types.into_iter().map(|t| (t.self_tag, t)).collect()
+        // let mut nested_types: Vec<CppType> = Vec::with_capacity(t.nested_type_count as usize);
+
+        // for &nested_type_index in t.nested_types(metadata.metadata) {
+        //     let nt_ty = &metadata.metadata.global_metadata.type_definitions[nested_type_index];
+
+        //     // We have a parent, lets do something with it
+        //     let nested_type = CppType::make_cpp_type(
+        //         metadata,
+        //         config,
+        //         CppTypeTag::TypeDefinitionIndex(nested_type_index),
+        //         nested_type_index,
+        //     );
+
+        //     match nested_type {
+        //         Some(unwrapped) => nested_types.push(unwrapped),
+        //         None => println!("Failed to make nested CppType {nt_ty:?}"),
+        //     };
+        // }
+
+        // cpp_type.nested_types = nested_types.into_iter().map(|t| (t.self_tag, t)).collect()
     }
 
     fn make_properties(

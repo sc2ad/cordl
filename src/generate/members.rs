@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use pathdiff::diff_paths;
 
 use crate::STATIC_CONFIG;
@@ -62,10 +63,7 @@ pub struct CppInclude {
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct CppUsingAlias {
     pub result: String,
-    pub result_literals: Vec<String>,
-
     pub alias: String,
-    pub namespaze: Option<String>,
     pub template: Option<CppTemplate>,
 }
 
@@ -291,6 +289,56 @@ impl CppInclude {
         Self {
             include: str.as_ref().to_path_buf(),
             system: false,
+        }
+    }
+}
+
+impl CppUsingAlias {
+    pub fn from_cpp_type(
+        alias: String,
+        cpp_type: &CppType,
+        generic_instantiation_args_opt: Option<Vec<String>>,
+    ) -> Self {
+        let generic_instantiation_args = generic_instantiation_args_opt.unwrap_or_default();
+
+        let (literals, template) = match &cpp_type.cpp_template {
+            Some(template) => {
+                // Skip the first args as those aren't necessary
+                let extra_args = template
+                    .names
+                    .iter()
+                    .skip(generic_instantiation_args.len())
+                    .cloned()
+                    .collect_vec();
+
+                let new_cpp_template = match !extra_args.is_empty() {
+                    true => Some(CppTemplate { names: extra_args }),
+                    false => None,
+                };
+
+                // Essentially, all nested types inherit their declaring type's generic params.
+                // Append the rest of the template params as generic parameters
+                match new_cpp_template {
+                    Some(template) => (
+                        generic_instantiation_args
+                            .iter()
+                            .chain(&template.names)
+                            .cloned()
+                            .collect_vec(),
+                        Some(template),
+                    ),
+                    None => (generic_instantiation_args.clone(), None),
+                }
+            }
+            None => (generic_instantiation_args.clone(), None),
+        };
+
+        let result = cpp_type.cpp_full_name.clone();
+
+        Self {
+            alias,
+            result,
+            template,
         }
     }
 }

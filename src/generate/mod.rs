@@ -1,6 +1,7 @@
 pub mod config;
 pub mod type_extensions;
 pub mod context;
+pub mod cs_context_collection;
 pub mod context_collection;
 pub mod cpp_type;
 pub mod cs_type;

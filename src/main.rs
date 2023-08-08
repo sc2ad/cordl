@@ -27,6 +27,7 @@ use clap::{Parser, Subcommand};
 use crate::{
     generate::{
         context_collection::{CppContextCollection, CppTypeTag},
+        cs_context_collection::CsContextCollection,
         members::CppMember,
     },
     handlers::{unity, value_type},
@@ -101,10 +102,13 @@ fn main() -> color_eyre::Result<()> {
         let total = type_defs.len();
         for tdi_u64 in 0..total {
             let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
-            // Skip children, creating the parents creates them too
-            if metadata.child_to_parent_map.contains_key(&tdi) {
+
+            let ty = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+            if ty.declaring_type_index != u32::MAX {
                 continue;
             }
+
             println!(
                 "Making types {:.4}% ({tdi_u64}/{total})",
                 (tdi_u64 as f64 / total as f64 * 100.0)
@@ -114,6 +118,33 @@ fn main() -> color_eyre::Result<()> {
                 &STATIC_CONFIG,
                 TypeData::TypeDefinitionIndex(tdi),
             );
+            cpp_context_collection.alias_nested_types_il2cpp(
+                tdi,
+                CppTypeTag::TypeDefinitionIndex(tdi),
+                &metadata,
+                false
+            );
+        }
+    }
+    {
+        // First, make all the contexts
+        println!("Making nested types");
+        let type_defs = metadata.metadata.global_metadata.type_definitions.as_vec();
+        let total = type_defs.len();
+        for tdi_u64 in 0..total {
+            let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
+
+            let ty = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+            if ty.declaring_type_index == u32::MAX {
+                continue;
+            }
+
+            println!(
+                "Making nested types {:.4}% ({tdi_u64}/{total})",
+                (tdi_u64 as f64 / total as f64 * 100.0)
+            );
+            cpp_context_collection.make_nested_from(&metadata, &STATIC_CONFIG, tdi);
         }
     }
 
@@ -246,7 +277,7 @@ fn main() -> color_eyre::Result<()> {
         }
     }
 
-    let write_all = true;
+    let write_all = false;
     if write_all {
         cpp_context_collection.write_all()?;
         cpp_context_collection.write_namespace_headers()?;
@@ -306,20 +337,20 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write()?;
-        println!("Nested type");
-        cpp_context_collection
-            .get()
-            .iter()
-            .find(|(_, c)| {
-                c.get_types().iter().any(|(_, t)| {
-                    t.nested_types
-                        .iter()
-                        .any(|(_, n)| !n.declarations.is_empty())
-                })
-            })
-            .unwrap()
-            .1
-            .write()?;
+        // println!("Nested type");
+        // cpp_context_collection
+        //     .get()
+        //     .iter()
+        //     .find(|(_, c)| {
+        //         c.get_types().iter().any(|(_, t)| {
+        //             t.nested_types
+        //                 .iter()
+        //                 .any(|(_, n)| !n.declarations.is_empty())
+        //         })
+        //     })
+        //     .unwrap()
+        //     .1
+        //     .write()?;
         // Doesn't exist anymore?
         // println!("AlignmentUnion type");
         // cpp_context_collection
@@ -364,6 +395,14 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write()?;
+        println!("Enum type");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| c.get_types().iter().any(|(_, t)| t.is_enum_type))
+            .unwrap()
+            .1
+            .write()?;
         println!("UnityEngine.Object");
         cpp_context_collection
             .get()
@@ -384,6 +423,54 @@ fn main() -> color_eyre::Result<()> {
                 c.get_types()
                     .iter()
                     .any(|(_, t)| t.name == "BeatmapSaveDataHelpers")
+            })
+            .unwrap()
+            .1
+            .write()?;
+        println!("HMUI.ViewController");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace == "HMUI" && t.name == "ViewController")
+            })
+            .unwrap()
+            .1
+            .write()?;
+        println!("UnityEngine.Component");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace == "UnityEngine" && t.name == "Component")
+            })
+            .unwrap()
+            .1
+            .write()?;
+        println!("MainFlowCoordinator");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace.is_empty() && t.name == "MainFlowCoordinator")
+            })
+            .unwrap()
+            .1
+            .write()?;
+        println!("HMUI.IValueChanger");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace == "HMUI" && t.name == "IValueChanger`1")
             })
             .unwrap()
             .1

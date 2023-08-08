@@ -206,6 +206,9 @@ impl CppContextCollection {
         if context_check && !self.all_contexts.contains_key(&dest) {
             panic!("Aliased context {src:?} to {dest:?} doesn't have a context");
         }
+        if self.alias_context.contains_key(&src) && context_check {
+            panic!("Already aliased this key!");
+        }
         self.alias_context.insert(src, dest);
     }
 
@@ -273,6 +276,42 @@ impl CppContextCollection {
             .unwrap_or(ty)
     }
 
+    pub fn make_nested_from(
+        &mut self,
+        metadata: &Metadata<'_>,
+        config: &GenerationConfig,
+        tdi: TypeDefinitionIndex,
+    ) -> Option<&mut CppContext> {
+        let ty_data = CppTypeTag::TypeDefinitionIndex(tdi);
+        let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
+        let context_root_tag = self.get_context_root_tag(ty_data);
+
+        if self.filling_types.contains(&context_root_tag) {
+            panic!("Currently filling type {context_root_tag:?}, cannot fill")
+        }
+
+        // Why is the borrow checker so dumb?
+        // Using entries causes borrow checker to die :(
+        if self.filled_types.contains(&ty_data) {
+            return Some(self.all_contexts.get_mut(&context_root_tag).unwrap());
+        }
+
+        if self.get_cpp_type(ty_data).is_some() {
+            return self.get_context_mut(ty_data);
+        }
+
+        let new_cpp_type = CppType::make_cpp_type(metadata, config, ty_data, tdi)
+            .expect("Failed to make nested type");
+        // self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
+
+        let context = self.get_context_mut(ty_data).unwrap();
+
+        // context.insert_cpp_type(stub);
+        context.insert_cpp_type(new_cpp_type);
+
+        Some(context)
+    }
+
     /// Make a generic type
     /// based of an existing type definition
     /// and give it the generic args
@@ -314,33 +353,17 @@ impl CppContextCollection {
             return self.get_context_mut(generic_class_ty_data);
         }
 
-        // let template_cpp_type = self.get_cpp_type(type_data).unwrap();
         let mut new_cpp_type = CppType::make_cpp_type(metadata, config, generic_class_ty_data, tdi)
             .expect("Failed to make generic type");
         new_cpp_type.self_tag = generic_class_ty_data;
-
-        if ty_def.declaring_type_index != u32::MAX {
-            new_cpp_type.nested = false; // set this to false, no longer nested
-            let declaring_tdi: TypeDefinitionIndex = self.get_parent_or_self_tag(type_data).into();
-            let declaring_ty = &metadata.metadata.global_metadata.type_definitions[declaring_tdi];
-            new_cpp_type.cpp_namespace =
-                config.namespace_cpp(declaring_ty.namespace(metadata.metadata));
-
-            new_cpp_type.cpp_name = config.generic_nested_name(&new_cpp_type.cpp_full_name);
-
-            // full name will have literals in `fill_generic_class_inst`
-            new_cpp_type.cpp_full_name = format!(
-                "{}::{}</* TODO: Literals will be filled in fill_generic_class_inst pass */>",
-                new_cpp_type.cpp_namespace, new_cpp_type.cpp_name
-            );
-        }
-
         self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
 
+        // TODO: Not needed since making a cpp type will already be a stub in other passes?
+        // this is the generic stub
         // this might cause problems, hopefully not
         // since two types can coexist with the TDI though only one is nested
-        let mut stub = new_cpp_type.clone();
-        stub.self_tag = type_data;
+        // let mut stub = new_cpp_type.clone();
+        // stub.self_tag = type_data;
 
         new_cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
 
@@ -350,7 +373,7 @@ impl CppContextCollection {
 
         let context = self.get_context_mut(generic_class_ty_data).unwrap();
 
-        context.insert_cpp_type(stub);
+        // context.insert_cpp_type(stub);
         context.insert_cpp_type(new_cpp_type);
 
         Some(context)
@@ -436,11 +459,10 @@ impl CppContextCollection {
         };
 
         self.borrow_cpp_type(generic_class_ty_data, |collection, mut cpp_type| {
-            cpp_type.make_generics_args(metadata, &collection);
+            cpp_type.make_generics_args(metadata, collection);
             cpp_type.cpp_full_name = format!(
-                "{}::{}<{}>",
-                cpp_type.cpp_namespace,
-                cpp_type.cpp_name,
+                "{}<{}>",
+                cpp_type.cpp_full_name,
                 cpp_type
                     .generic_instantiation_args
                     .as_ref()
