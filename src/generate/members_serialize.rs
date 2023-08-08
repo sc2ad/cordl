@@ -39,7 +39,8 @@ impl Writable for CppForwardDeclare {
             None => self.cpp_name.clone(),
         };
 
-        if self.literals.is_some() {
+        // don't write template twice
+        if self.literals.is_some() && self.templates.is_none() {
             // forward declare for instantiation
             writeln!(writer, "template<>")?;
         }
