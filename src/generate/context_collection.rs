@@ -144,11 +144,6 @@ impl CppContextCollection {
     pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, type_tag: CppTypeTag) {
         let tdi = CppType::get_cpp_tag_tdi(type_tag);
 
-        assert!(
-            !metadata.child_to_parent_map.contains_key(&tdi),
-            "Do not fill a child"
-        );
-
         let context_tag = self.get_context_root_tag(type_tag);
 
         if self.filled_types.contains(&type_tag) {

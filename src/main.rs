@@ -230,17 +230,14 @@ fn main() -> color_eyre::Result<()> {
 
     {
         // Fill them now
-        println!("Filling root types");
+        println!("Filling types");
         let type_defs = metadata.metadata.global_metadata.type_definitions.as_vec();
         let total = type_defs.len();
         for tdi_u64 in 0..total {
             let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
 
-            if metadata.child_to_parent_map.contains_key(&tdi) {
-                continue;
-            }
             println!(
-                "Filling root type {:.4} ({tdi_u64}/{total})",
+                "Filling type {:.4} ({tdi_u64}/{total})",
                 (tdi_u64 as f64 / total as f64 * 100.0)
             );
 
@@ -249,31 +246,6 @@ fn main() -> color_eyre::Result<()> {
                 &STATIC_CONFIG,
                 CppTypeTag::TypeDefinitionIndex(tdi),
             );
-        }
-    }
-    {
-        // Fill children
-        let total = metadata.parent_to_child_map.len() as f64;
-        println!("Nested types pass");
-        for (i, parent) in metadata.parent_to_child_map.keys().enumerate() {
-            println!(
-                "Filling nested type {:.4} ({i}/{total})",
-                (i as f64 / total * 100.0)
-            );
-            let owner = cpp_context_collection
-                .get_cpp_type(CppTypeTag::TypeDefinitionIndex(*parent))
-                .unwrap();
-
-            // **Ignore this, we no longer recurse:**
-            // skip children of children
-            // only fill first grade children of types
-            // if owner.nested {
-            //     continue;
-            // }
-
-            let owner_ty = owner.self_tag;
-
-            cpp_context_collection.fill_nested_types(&metadata, &STATIC_CONFIG, owner_ty);
         }
     }
 
