@@ -35,7 +35,7 @@ pub struct CppType {
     pub(crate) cpp_namespace: String,
     pub(crate) name: String,
     pub(crate) cpp_name: String,
-    
+
     // Computed by TypeDefinition.full_name()
     // Then fixed for generic types in CppContextCollection::make_generic_from/fill_generic_inst
     pub cpp_full_name: String,
@@ -189,7 +189,7 @@ impl CppType {
     }
 
     pub fn write_def(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        self.write_def_internal(writer, Some(self.cpp_namespace()), true)
+        self.write_def_internal(writer, Some(self.cpp_namespace()))
     }
 
     pub fn write_impl_internal(
@@ -224,8 +224,7 @@ impl CppType {
     fn write_def_internal(
         &self,
         writer: &mut super::writer::CppWriter,
-        namespace: Option<&str>,
-        fd: bool,
+        namespace: Option<&str>
     ) -> color_eyre::Result<()> {
         self.prefix_comments.iter().for_each(|pc| {
             writeln!(writer, "// {pc}")
@@ -237,42 +236,6 @@ impl CppType {
             true => "struct",
             false => "class",
         };
-
-
-        // forward declare self
-        if fd {
-            writeln!(
-                writer,
-                "// Forward declaring type: {}::{}",
-                self.cpp_namespace,
-                self.cpp_name()
-            )?;
-
-            if let Some(n) = &namespace {
-                writeln!(writer, "namespace {n} {{")?;
-                writer.indent();
-            }
-
-            if let Some(generic_args) = &self.cpp_template {
-                // template<...>
-                generic_args.write(writer)?;
-            }
-
-            match &self.generic_instantiation_args {
-                Some(literals) => writeln!(
-                    writer,
-                    "{} {}<{}>;",
-                    &type_kind,
-                    self.cpp_name(),
-                    literals.join(", ")
-                ),
-                None => writeln!(writer, "{} {};", &type_kind, self.cpp_name()),
-            }?;
-
-            if let Some(n) = &namespace {
-                writeln!(writer, "}} // end namespace def fd {n}")?;
-            }
-        }
 
         // Just forward declare
         if !self.is_stub {
@@ -321,7 +284,7 @@ impl CppType {
                 .values()
                 .map(|t| (t, CppForwardDeclare::from_cpp_type(t)))
                 .unique_by(|(_, n)| n.clone())
-                .try_for_each(|(t, cpp_name)| {
+                .try_for_each(|(t, nested_forward_declare)| {
                     writeln!(
                         writer,
                         "// nested type forward declare {} is stub {} {:?} {:?}\n//{:?}",
@@ -331,7 +294,7 @@ impl CppType {
                         t.generic_instantiations_args_types,
                         t.self_tag
                     )?;
-                    cpp_name.write(writer)
+                    nested_forward_declare.write(writer)
                 })?;
 
             self.nested_types
@@ -343,7 +306,7 @@ impl CppType {
                         "// nested type {} is stub {}",
                         n.cpp_full_name, n.is_stub
                     )?;
-                    n.write_def_internal(writer, None, false)?;
+                    n.write_def_internal(writer, None)?;
                     writer.dedent();
                     Ok(())
                 })?;

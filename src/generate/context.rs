@@ -12,6 +12,7 @@ use color_eyre::eyre::ContextCompat;
 use itertools::Itertools;
 use pathdiff::diff_paths;
 
+use crate::generate::members::CppForwardDeclare;
 use crate::generate::{
     members::CppInclude,
     type_extensions::{TypeDefinitionExtensions, OBJECT_WRAPPER_TYPE},
@@ -255,6 +256,18 @@ impl CppContext {
                 .try_for_each(|(fd, i)| {
                     // Forward declare and include
                     i.write(&mut typeimpl_writer)?;
+                    fd.write(&mut typedef_writer)
+                })?;
+
+
+            writeln!(typedef_writer, "// Forward declare root types")?;
+            //Forward declare all types
+            typedef_root_types_sorted
+                .iter()
+                .map(|t| CppForwardDeclare::from_cpp_type(t))
+                // TODO: Check forward declare is not of own type
+                .try_for_each(|fd| {
+                    // Forward declare and include
                     fd.write(&mut typedef_writer)
                 })?;
 
