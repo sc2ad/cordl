@@ -8,18 +8,14 @@ use crate::generate::{
     metadata::{Il2cppFullName, Metadata},
 };
 
-pub fn register_unity(
-    metadata: &mut Metadata,
-) -> Result<()> {
+pub fn register_unity(metadata: &mut Metadata) -> Result<()> {
     println!("Registering unity handler!");
     register_unity_object_type_handler(metadata)?;
 
     Ok(())
 }
 
-fn register_unity_object_type_handler(
-    metadata: &mut Metadata,
-) -> Result<()> {
+fn register_unity_object_type_handler(metadata: &mut Metadata) -> Result<()> {
     println!("Registering UnityEngine.Object handler!");
 
     let unity_object_tdi = metadata

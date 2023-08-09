@@ -32,18 +32,18 @@ impl Writable for CppForwardDeclare {
             templates.write(writer)?;
         }
 
+        // don't write template twice
+        if self.literals.is_some() && self.templates.is_none() {
+            // forward declare for instantiation
+            writeln!(writer, "template<>")?;
+        }
+
         let name = match &self.literals {
             Some(literals) => {
                 format!("{}<{}>", self.cpp_name, literals.join(","))
             }
             None => self.cpp_name.clone(),
         };
-
-        // don't write template twice
-        if self.literals.is_some() && self.templates.is_none() {
-            // forward declare for instantiation
-            writeln!(writer, "template<>")?;
-        }
 
         writeln!(
             writer,
@@ -102,259 +102,32 @@ impl Writable for CppUsingAlias {
 
 impl Writable for CppFieldDecl {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        fn write_field_comment(
-            this: &CppFieldDecl,
-            writer: &mut super::writer::CppWriter,
-        ) -> color_eyre::Result<()> {
-            writeln!(
-                writer,
-                "/// @brief Field: name: {}, Type Name: {} {}",
-                this.cpp_name,
-                this.field_ty,
-                match this.instance {
-                    true => format!("Offset: 0x{:x}", this.offset),
-                    false => "".to_string(),
-                }
-            )?;
-
-            Ok(())
+        if let Some(comment) = &self.brief_comment {
+            writeln!(writer, "/// @brief {comment}")?;
         }
 
-        // default value for fields
-        let name = &self.cpp_name;
-        let ty = &self.field_ty;
+        let ty = self.field_ty;
+        let name = self.cpp_name;
+        let prefix_mods: Vec<&str> = vec![];
+        let suffix_mods: Vec<&str> = vec![];
 
-        // writes out a literal value as field default value accessible in C++
-        if let Some(literal) = &self.literal_value {
-            // default value for a ::StringW is a ConstString
-            if ty == "::StringW" {
-                writeln!(writer, "static ConstString {name}_default{{{literal}}};")?;
-            } else {
-                writeln!(
-                    writer,
-                    "constexpr static {} {name}_default{{{literal}}};",
-                    self.field_ty
-                )?;
-            };
+        if !self.instance {
+            prefix_mods.push("static");
         }
 
-        self.write_field_getter(writer)?;
-        if !self.readonly {
-            self.write_field_putter(writer)?;
+        if self.const_expr {
+            prefix_mods.push("constexpr");
+        } else if self.readonly {
+            suffix_mods.push("const");
+        }
 
-            // Add line breaks
-            writeln!(writer)?;
-            write_field_comment(self, writer)?;
-            writeln!(
-                writer,
-                "{}__declspec(property(get=__get_{name}, put=__put_{name})) {ty} {name};",
-                match self.instance {
-                    true => "",
-                    false => "static ",
-                }
-            )?;
-            writeln!(writer)?;
+        let prefixes = prefix_mods.join(" ");
+        let suffixes = suffix_mods.join(" ");
+
+        if let Some(value) = &self.value {
+            writeln!(writer, "{prefixes} {ty} {suffixes} {name} = {value};");
         } else {
-            // Add line breaks
-            writeln!(writer)?;
-
-            write_field_comment(self, writer)?;
-            writeln!(
-                writer,
-                "{}__declspec(property(get=__get_{name})) {ty} {name};",
-                match self.instance {
-                    true => "",
-                    false => "static ",
-                }
-            )?;
-        }
-
-        Ok(())
-    }
-}
-
-impl CppFieldDecl {
-    // field declaration
-    pub fn write_field_getter(
-        &self,
-        writer: &mut super::writer::CppWriter,
-    ) -> color_eyre::Result<()> {
-        let name = &self.cpp_name;
-        let ty = &self.field_ty;
-
-        let static_keyword = if self.instance { "" } else { "static " };
-        if self.declaring_is_reference && self.is_value_type {
-            let const_keyword = if self.readonly { "const " } else { "" };
-            writeln!(
-                writer,
-                "{static_keyword}{const_keyword}{ty}& __get_{name}();"
-            )?;
-        } else {
-            writeln!(writer, "{static_keyword}{ty} __get_{name}();")?;
-        }
-
-        Ok(())
-    }
-
-    pub fn write_field_putter(
-        &self,
-        writer: &mut super::writer::CppWriter,
-    ) -> color_eyre::Result<()> {
-        if self.readonly {
-            bail!("can't write putter for readonly field");
-        }
-
-        let name = &self.cpp_name;
-        let ty = &self.field_ty;
-
-        let static_keyword = if self.instance { "" } else { "static " };
-        if self.declaring_is_reference && self.is_value_type {
-            writeln!(
-                writer,
-                "{static_keyword}void __put_{name}(const {ty}& value);"
-            )?;
-        } else {
-            writeln!(writer, "{static_keyword}void __put_{name}({ty} value);")?;
-        }
-
-        Ok(())
-    }
-}
-
-impl CppFieldImpl {
-    pub fn write_field_getter(
-        &self,
-        writer: &mut super::writer::CppWriter,
-    ) -> color_eyre::Result<()> {
-        let field = &self.field_data;
-        let name = &field.cpp_name;
-        let ty = &field.field_ty;
-        let klass_name = &self.declaring_ty_cpp_full_name;
-
-        if field.declaring_is_reference && field.is_value_type {
-            writeln!(
-                writer,
-                "{}{ty}& {klass_name}::__get_{name}() {{",
-                if field.readonly { "const " } else { "" }
-            )?;
-        } else {
-            writeln!(writer, "{ty} {klass_name}::__get_{name}() {{")?;
-        }
-
-        if field.is_value_type {
-            match field.instance {
-                true => writeln!(
-                    writer,
-                    "return getValueTypeInstance<{ty}, 0x{:x}>({});",
-                    field.offset,
-                    if field.declaring_is_reference {
-                        "instance"
-                    } else {
-                        "this"
-                    }
-                )?,
-                false => writeln!(
-                    writer,
-                    "return getValueTypeStatic<{ty}, \"{}\", {}>();",
-                    name, field.classof_call
-                )?,
-            }
-        } else {
-            match field.instance {
-                true => writeln!(
-                    writer,
-                    "return getReferenceTypeInstance<{ty}, 0x{:x}>({});",
-                    field.offset,
-                    if field.declaring_is_reference {
-                        "instance"
-                    } else {
-                        "this"
-                    }
-                )?,
-                false => writeln!(
-                    writer,
-                    "return getReferenceTypeStatic<{ty}, \"{}\", {}>();",
-                    name, field.classof_call
-                )?,
-            }
-        }
-
-        writeln!(writer, "}}")?;
-
-        Ok(())
-    }
-
-    pub fn write_field_putter(
-        &self,
-        writer: &mut super::writer::CppWriter,
-    ) -> color_eyre::Result<()> {
-        if self.field_data.readonly {
-            bail!("can't write putter for readonly field");
-        }
-
-        let field = &self.field_data;
-        let name = &field.cpp_name;
-        let ty = &field.field_ty;
-        let klass_name = &self.declaring_ty_cpp_full_name;
-
-        if field.declaring_is_reference && field.is_value_type {
-            writeln!(
-                writer,
-                "void {klass_name}::__put_{name}(const {ty}& value) {{"
-            )?;
-        } else {
-            writeln!(writer, "void {klass_name}::__put_{name}({ty} value) {{")?;
-        }
-
-        if field.is_value_type {
-            match field.instance {
-                true => writeln!(
-                    writer,
-                    "setValueTypeInstance<{ty}, 0x{:x}>({}, value);",
-                    field.offset,
-                    if field.declaring_is_reference {
-                        "instance"
-                    } else {
-                        "this"
-                    }
-                )?,
-                false => writeln!(
-                    writer,
-                    "setValueTypeStatic<{ty}, \"{}\", {}>(value);",
-                    field.cpp_name, field.classof_call
-                )?,
-            }
-        } else {
-            match field.instance {
-                true => writeln!(
-                    writer,
-                    "setReferenceTypeInstance<{ty}, 0x{:x}>({}, value);",
-                    field.offset,
-                    if field.declaring_is_reference {
-                        "instance"
-                    } else {
-                        "this"
-                    }
-                )?,
-                false => writeln!(
-                    writer,
-                    "setReferenceTypeStatic<{ty}, \"{}\", {}>(value);",
-                    field.cpp_name, field.classof_call
-                )?,
-            }
-        }
-
-        writeln!(writer, "}}")?;
-
-        Ok(())
-    }
-}
-
-impl Writable for CppFieldImpl {
-    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        self.write_field_getter(writer)?;
-        if !self.field_data.readonly {
-            self.write_field_putter(writer)?;
+            writeln!(writer, "{prefixes} {ty} {suffixes} {name};");
         }
 
         Ok(())
@@ -364,19 +137,9 @@ impl Writable for CppFieldImpl {
 impl Writable for CppMethodDecl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        writeln!(
-            writer,
-            "/// @brief Name: {}, Addr: 0x{:x}, Size: 0x{:x}",
-            self.cpp_name,
-            self.method_data
-                .as_ref()
-                .map(|t| t.addrs)
-                .unwrap_or(u64::MAX),
-            self.method_data
-                .as_ref()
-                .map(|t| t.estimated_size)
-                .unwrap_or(usize::MAX)
-        )?;
+        if let Some(brief) = &self.brief {
+            writeln!(writer, "/// @brief {brief}")?;
+        }
 
         // Param default comments
         self.parameters
@@ -396,18 +159,37 @@ impl Writable for CppMethodDecl {
             template.write(writer)?;
         }
 
+        let prefix_modifiers = self
+            .prefix_modifiers
+            .iter()
+            .map(|s| s.as_str())
+            .collect_vec();
+
+        let suffix_modifiers = self
+            .suffix_modifiers
+            .iter()
+            .map(|s| s.as_str())
+            .collect_vec();
+
+        let suffixes = suffix_modifiers.join(" ");
+        let prefixes = prefix_modifiers.join(" ");
+
         if !self.instance {
-            write!(writer, "static ")?;
-        } else if self.is_virtual {
-            write!(writer, "virtual ")?;
+            prefix_modifiers.push("static");
         }
-        writeln!(
-            writer,
-            "{} {}({});",
-            self.return_type,
-            self.cpp_name,
-            CppParam::params_as_args(&self.parameters).join(", ")
-        )?;
+
+        if self.is_virtual {
+            prefix_modifiers.push("virtual");
+        }
+
+        if self.is_const {
+            suffix_modifiers.push("const");
+        }
+        let ret = &self.return_type;
+        let name = &self.cpp_name;
+        let params = CppParam::params_as_args(&self.parameters).join(", ");
+
+        writeln!(writer, "{prefixes} {ret} {name}({params});",)?;
 
         Ok(())
     }
@@ -420,52 +202,66 @@ impl Writable for CppMethodImpl {
             template.write(writer)?;
         }
 
-        // Start
+        if let Some(brief) = &self.brief {
+            writeln!(writer, "/// @brief {brief}")?;
+        }
+
+        // Param default comments
+        self.parameters
+            .iter()
+            .filter(|t| t.def_value.is_some())
+            .try_for_each(|param| {
+                writeln!(
+                    writer,
+                    "/// @param {}: {} (default: {})",
+                    param.name,
+                    param.ty,
+                    param.def_value.as_ref().unwrap()
+                )
+            })?;
+
+        if let Some(template) = &self.template {
+            template.write(writer)?;
+        }
+
+        let prefix_modifiers = self
+            .prefix_modifiers
+            .iter()
+            .map(|s| s.as_str())
+            .collect_vec();
+
+        let suffix_modifiers = self
+            .suffix_modifiers
+            .iter()
+            .map(|s| s.as_str())
+            .collect_vec();
+
+        let suffixes = suffix_modifiers.join(" ");
+        let prefixes = prefix_modifiers.join(" ");
+
+        if !self.instance {
+            prefix_modifiers.push("static");
+        }
+
+        if self.is_virtual {
+            prefix_modifiers.push("virtual");
+        }
+
+        if self.is_const {
+            suffix_modifiers.push("const");
+        }
+        let ret = &self.return_type;
+        let declaring_type = &self.declaring_cpp_full_name;
+        let name = &self.cpp_method_name;
+        let params = CppParam::params_as_args_no_default(&self.parameters).join(", ");
+
         writeln!(
             writer,
-            "{} {}::{}({}){{",
-            self.return_type,
-            self.holder_cpp_full_name,
-            self.cpp_method_name,
-            CppParam::params_as_args_no_default(&self.parameters).join(", ")
+            "{prefixes} {ret} {declaring_type}::{name}({params}) {{",
         )?;
-
-        //   static auto ___internal__logger = ::Logger::get().WithContext("::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals");
-        //   auto* ___internal__method = THROW_UNLESS((::il2cpp_utils::FindMethod(this, "Equals", std::vector<Il2CppClass*>{}, ::std::vector<const Il2CppType*>{::il2cpp_utils::ExtractType(obj)})));
-        //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
         // Body
-
-        let complete_type_name = &self.holder_cpp_full_name;
-        let params_format = CppParam::params_types(&self.parameters).join(", ");
-
-        let f_ptr_prefix = if self.instance {
-            format!("{complete_type_name}::")
-        } else {
-            "".to_string()
-        };
-
-        writeln!(writer,
-            "static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{})>::methodInfo();",
-            self.return_type,
-            self.cpp_method_name)?;
-
-        let instance_pointer = if self.instance { "this" } else { "nullptr" };
-
-        let method_invoke_params = vec![instance_pointer, "___internal_method"];
-
-        let param_names = CppParam::params_names(&self.parameters).map(|s| s.as_str());
-
-        write!(
-            writer,
-            "return ::il2cpp_utils::RunMethodRethrow<{}, false>({}",
-            self.return_type,
-            method_invoke_params
-                .into_iter()
-                .chain(param_names)
-                .join(", ")
-        )?;
-        writeln!(writer, ");")?;
+        self.body.iter().try_for_each(|w| w.write(writer))?;
 
         // End
         writeln!(writer, "}}")?;
@@ -481,12 +277,45 @@ impl Writable for CppConstructorDecl {
         if let Some(template) = &self.template {
             template.write(writer)?;
         }
-        writeln!(
-            writer,
-            "{}({});",
-            self.cpp_name,
-            CppParam::params_as_args(&self.parameters).join(", ")
-        )?;
+
+        let name = &self.cpp_name;
+        let params = CppParam::params_as_args(&self.parameters).join(", ");
+
+        let body = self
+            .body
+            .clone()
+            .or_else(|| match self.initialized_values.is_empty() {
+                true => None,
+                false => Some(vec![]),
+            });
+
+        if let Some(body) = &self.body {
+            let inline_literal = match self.is_constexpr {
+                true => "constexpr",
+                false => "inline",
+            };
+
+            let initializers = match self.initialized_values.is_empty() {
+                true => "".to_string(),
+                false => {
+                    let initializers_list = self
+                        .initialized_values
+                        .iter()
+                        .map(|(name, value)| format!("{}({})", name, value))
+                        .collect_vec()
+                        .join(",");
+                    format!(": {}", initializers_list)
+                }
+            };
+
+            write!(
+                writer,
+                "{inline_literal} {name}({params}) {initializers} {{",
+            )?;
+        } else {
+            writeln!(writer, "{name}({params});")?;
+        }
+
         Ok(())
     }
 }
@@ -501,44 +330,14 @@ impl Writable for CppConstructorImpl {
             template.write(writer)?;
         }
 
-        if self.is_constexpr {
-            // TODO:
-            write!(
-                writer,
-                "inline {}({})",
-                self.holder_cpp_ty_name,
-                CppParam::params_as_args(&self.parameters).join(", ")
-            )?;
-        } else {
-            write!(
-                writer,
-                "{}({})",
-                self.holder_cpp_ty_name,
-                CppParam::params_as_args_no_default(&self.parameters).join(", ")
-            )?;
-        }
-
-        if self.is_constexpr {
-            // Constexpr constructor
-            writeln!(
-                writer,
-                " : {} {{",
-                self.parameters
-                    .iter()
-                    .map(|p| format!("{}({})", &p.name, &p.name))
-                    .collect_vec()
-                    .join(",")
-            )?;
-        } else {
-            // Call base constructor
-            writeln!(
+        write!(
             writer,
-            " : ::bs_hook::Il2CppWrapperType(::il2cpp_utils::New<Il2CppObject*>(classof({}), {})) {{",
-            self.holder_cpp_ty_name,
-            CppParam::params_names(&self.parameters).join(", ")
+            "{}({}) {{",
+            self.declaring_cpp_ty_name,
+            CppParam::params_as_args_no_default(&self.parameters).join(", ")
         )?;
-        }
 
+        self.body.iter().try_for_each(|w| w.write(writer))?;
         // End
         writeln!(writer, "}}")?;
 
@@ -546,50 +345,31 @@ impl Writable for CppConstructorImpl {
     }
 }
 
-impl Writable for CppProperty {
+impl Writable for CppPropertyDecl {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        let prefix_modifiers: Vec<&str> = vec![];
+        let suffix_modifiers: Vec<&str> = vec![];
+
+        let prefixes = prefix_modifiers.join(" ");
+        let suffixes = suffix_modifiers.join(" ");
+
+        let property_vec: Vec<String> = vec![];
+
+        if let Some(getter) = &self.getter {
+            property_vec.push(format!("get={getter}"));
+        }
+        if let Some(setter) = &self.setter {
+            property_vec.push(format!("put={setter}"));
+        }
+
+        let property = property_vec.join(", ");
+        let ty = &self.prop_ty;
+        let name = &self.cpp_name;
+
         writeln!(
             writer,
-            "/// @brief Property: name: {}, Type Name: {}, getter: {}, setter: {}, abstract: {}",
-            self.name,
-            self.prop_ty,
-            self.getter.is_some(),
-            self.setter.is_some(),
-            self.abstr
+            "{prefixes} {ty} __declspec(property({property})) {suffixes} {name};"
         )?;
-
-        // TODO:
-        if self.abstr {
-            writeln!(writer, "// TODO: ABSTRACT PROP HERE!")?;
-            return Ok(());
-        }
-
-        // if this is an instance prop, don't put 'static ' in front
-        if !self.instance {
-            write!(writer, "static ")?
-        }
-
-        // TODO: verify self.name is correct for the get_, set_ methods
-        // TODO: make the used prop name not start with _ if we can
-        let name = &self.name;
-        let ty = &self.prop_ty;
-
-        if self.getter.is_some() && self.setter.is_some() {
-            // getter & setter
-            writeln!(
-                writer,
-                "__declspec(property(get=get_{name}, put=set_{name})) {ty} {name};"
-            )?;
-        } else if self.getter.is_some() {
-            // only getter
-            writeln!(writer, "__declspec(property(get=get_{name})) {ty} {name};")?;
-        } else if self.setter.is_some() {
-            // only setter
-            writeln!(writer, "__declspec(property(put=set_{name})) {ty} {name};")?;
-        } else {
-            // property without get & set, mostly a safeguard to let us know something is wrong
-            writeln!(writer, "// ERROR: INVALID PROP WITH GET & SET FALSE!")?;
-        }
 
         Ok(())
     }
@@ -644,24 +424,6 @@ struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({f_ptr_
     }
 }
 
-impl Writable for CppStructSpecialization {
-    fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if let Some(namespace) = &self.namespace {
-            writeln!(writer, "namespace {} {{", namespace)?;
-        }
-
-        self.template.write(writer)?;
-        let class_specifier = if self.is_struct { "struct" } else { "class" };
-        writeln!(writer, "{class_specifier} {};", self.name)?;
-
-        if self.namespace.is_some() {
-            writeln!(writer, "}} // namespace end")?;
-        }
-
-        Ok(())
-    }
-}
-
 impl Writable for CppStaticAssert {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
         let condition = &self.condition;
@@ -683,7 +445,6 @@ impl Writable for CppMember {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         match self {
             CppMember::FieldDecl(f) => f.write(writer),
-            CppMember::FieldImpl(fi) => fi.write(writer),
             CppMember::MethodDecl(m) => m.write(writer),
             CppMember::Property(p) => p.write(writer),
             CppMember::Comment(c) => c.write(writer),

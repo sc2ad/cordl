@@ -1,4 +1,3 @@
-
 use color_eyre::Result;
 
 use crate::generate::{
@@ -6,18 +5,14 @@ use crate::generate::{
     metadata::{Il2cppFullName, Metadata},
 };
 
-pub fn register_value_type(
-    metadata: &mut Metadata,
-) -> Result<()> {
+pub fn register_value_type(metadata: &mut Metadata) -> Result<()> {
     println!("Registering unity handler!");
     register_value_type_object_handler(metadata)?;
 
     Ok(())
 }
 
-fn register_value_type_object_handler(
-    metadata: &mut Metadata,
-) -> Result<()> {
+fn register_value_type_object_handler(metadata: &mut Metadata) -> Result<()> {
     println!("Registering System.ValueType handler!");
 
     let value_type_tdi = metadata
@@ -35,8 +30,6 @@ fn register_value_type_object_handler(
 fn value_type_handler(cpp_type: &mut CppType) {
     println!("Found System.ValueType type, removing inheritance!");
 
-
     // Should not inherit wrapper types!
-    cpp_type
-        .inherit.clear();
+    cpp_type.inherit.clear();
 }

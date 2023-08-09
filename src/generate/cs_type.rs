@@ -27,9 +27,10 @@ use super::{
     context_collection::{CppContextCollection, CppTypeTag},
     cpp_type::{self, CppType},
     members::{
-        CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
+        CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
-        CppMethodImpl, CppMethodSizeStruct, CppParam, CppProperty, CppStaticAssert, CppTemplate,
+        CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl, CppStaticAssert,
+        CppTemplate,
     },
     metadata::Metadata,
     type_extensions::{
@@ -531,30 +532,72 @@ pub trait CSType: Sized {
             // TODO: Check a flag to look for default values to speed this up
             let def_value = Self::field_default_value(metadata, field_index);
 
-            let field_decl = CppFieldDecl {
-                cpp_name: config.name_cpp(f_name),
-                field_ty: field_ty_cpp_name,
-                offset: f_offset,
-                instance: !f_type.is_static() && !f_type.is_const(),
-                readonly: f_type.is_const(),
-                classof_call: cpp_type.classof_cpp_name(),
-                literal_value: def_value,
-                is_value_type: f_type.valuetype,
-                declaring_is_reference: !t.is_value_type(),
-            };
+            // TODO: Static fields
+            if f_type.is_constant() {
+                let field_decl = CppFieldDecl {
+                    cpp_name: config.name_cpp(f_name),
+                    field_ty: field_ty_cpp_name,
+                    instance: !f_type.is_static() && !f_type.is_constant(),
+                    readonly: f_type.is_constant(),
+                    value: def_value,
+                    const_expr: f_type.is_constant(),
+                    brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
+                };
 
-            cpp_type
-                .declarations
-                .push(CppMember::FieldDecl(field_decl.clone()).into());
+                cpp_type
+                    .declarations
+                    .push(CppMember::FieldDecl(field_decl).into());
+            } else {
+                let getter_decl = CppMethodDecl {
+                    cpp_name: format!("__get{}_", config.name_cpp(f_name)),
+                    instance: !f_type.is_static() && !f_type.is_constant(),
+                    return_type: field_ty_cpp_name,
 
-            // TODO: improve how these are handled
-            cpp_type.implementations.push(
-                CppMember::FieldImpl(CppFieldImpl {
-                    declaring_ty_cpp_full_name: cpp_type.cpp_full_name.clone(),
-                    field_data: field_decl,
-                })
-                .into(),
-            );
+                    brief: None,
+                    body: vec![].into(), // TODO:
+                    is_const: false,     // TODO: readonly fields?
+                    is_constexpr: true,
+                    is_virtual: false,
+                    parameters: vec![],
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                    template: None,
+                };
+                let setter_decl = CppMethodDecl {
+                    cpp_name: format!("__set{}_", config.name_cpp(f_name)),
+                    instance: !f_type.is_static() && !f_type.is_constant(),
+                    return_type: "void".to_string(),
+
+                    brief: None,
+                    body: vec![].into(), //TODO:
+                    is_const: false,     // TODO: readonly fields?
+                    is_constexpr: true,
+                    is_virtual: false,
+                    parameters: vec![CppParam {
+                        def_value: None,
+                        modifiers: "&&".to_string(),
+                        name: "value".to_string(),
+                        ty: field_ty_cpp_name,
+                    }],
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                    template: None,
+                };
+
+                let field_decl = CppPropertyDecl {
+                    cpp_name: config.name_cpp(f_name),
+                    prop_ty: field_ty_cpp_name,
+                    instance: !f_type.is_static() && !f_type.is_constant(),
+                    value: def_value,
+                    getter: getter_decl.cpp_name.clone().into(),
+                    setter: setter_decl.cpp_name.clone().into(),
+                    brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
+                };
+
+                cpp_type
+                    .declarations
+                    .push(CppMember::Property(field_decl).into());
+            }
         }
     }
 
@@ -762,7 +805,7 @@ pub trait CSType: Sized {
     ) {
         cpp_type.implementations.push(
             CppMember::ConstructorImpl(CppConstructorImpl {
-                holder_cpp_ty_name: cpp_type.formatted_complete_cpp_name().clone(),
+                declaring_cpp_ty_name: cpp_type.formatted_complete_cpp_name().clone(),
                 parameters: m_params.clone(),
                 is_constexpr: false,
                 template: template.clone(),
@@ -896,7 +939,7 @@ pub trait CSType: Sized {
                 CppMember::MethodImpl(CppMethodImpl {
                     cpp_method_name: config.name_cpp(m_name),
                     cs_method_name: m_name.to_string(),
-                    holder_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
+                    declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
                     return_type: m_ret_cpp_type_byref_name.clone(),
                     parameters: m_params.clone(),
                     instance: !method.is_static_method(),

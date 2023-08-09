@@ -90,7 +90,7 @@ impl ParameterDefinitionExtensions for Il2CppType {
 
 pub trait TypeExtentions {
     fn is_static(&self) -> bool;
-    fn is_const(&self) -> bool;
+    fn is_constant(&self) -> bool;
     fn is_byref(&self) -> bool;
 }
 
@@ -100,7 +100,7 @@ impl TypeExtentions for Il2CppType {
     }
 
     // FIELD_ATTRIBUTE_LITERAL
-    fn is_const(&self) -> bool {
+    fn is_constant(&self) -> bool {
         (self.attrs & FIELD_ATTRIBUTE_LITERAL) != 0
     }
 

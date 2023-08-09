@@ -3,9 +3,14 @@ use pathdiff::diff_paths;
 
 use crate::STATIC_CONFIG;
 
-use super::{context::CppContext, cpp_type::CppType};
+use super::{context::CppContext, cpp_type::CppType, writer::Writable};
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
 pub struct CppTemplate {
@@ -22,12 +27,23 @@ pub struct CppLine {
     pub line: String,
 }
 
-#[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
-pub struct CppStructSpecialization {
-    pub name: String,
-    pub namespace: Option<String>,
-    pub is_struct: bool,
-    pub template: CppTemplate,
+impl From<String> for CppLine {
+    fn from(value: String) -> Self {
+        CppLine { line: value }
+    }
+}
+impl From<&str> for CppLine {
+    fn from(value: &str) -> Self {
+        CppLine { line: value.to_string() }
+    }
+}
+
+impl CppLine {
+    pub fn make(v: String) -> Self {
+        return CppLine{
+            line: v,
+        }
+    }
 }
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
@@ -67,13 +83,12 @@ pub struct CppUsingAlias {
     pub template: Option<CppTemplate>,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum CppMember {
     FieldDecl(CppFieldDecl),
-    FieldImpl(CppFieldImpl),
     MethodDecl(CppMethodDecl),
     MethodImpl(CppMethodImpl),
-    Property(CppProperty),
+    Property(CppPropertyDecl),
     Comment(CppCommentedString),
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
@@ -106,19 +121,23 @@ pub struct CppMethodSizeStruct {
 pub struct CppFieldDecl {
     pub cpp_name: String,
     pub field_ty: String,
-    pub offset: u32,
     pub instance: bool,
     pub readonly: bool,
-    pub classof_call: String,
-    pub literal_value: Option<String>,
-    pub is_value_type: bool,
-    pub declaring_is_reference: bool,
+    pub const_expr: bool,
+    pub value: Option<String>,
+    pub brief_comment: Option<String>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CppFieldImpl {
-    pub declaring_ty_cpp_full_name: String,
-    pub field_data: CppFieldDecl,
+pub struct CppPropertyDecl {
+    pub cpp_name: String,
+    pub prop_ty: String,
+    pub instance: bool,
+    pub value: Option<String>,
+    pub getter: Option<String>,
+    pub setter: Option<String>,
+    pub brief_comment: Option<String>,
+
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -137,7 +156,7 @@ pub struct CppParam {
 }
 
 // TODO: Generics
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug)]
 pub struct CppMethodDecl {
     pub cpp_name: String,
     pub return_type: String,
@@ -149,75 +168,79 @@ pub struct CppMethodDecl {
     // const
     // override
     // noexcept
-    pub suffix_modifiers: String,
+    pub suffix_modifiers: Vec<String>,
     // Holds unique of:
     // constexpr
     // static
     // inline
     // explicit(...)
     // virtual
-    pub prefix_modifiers: String,
-    // TODO: Add all descriptions missing for the method
-    pub method_data: Option<CppMethodData>,
+    pub prefix_modifiers: Vec<String>,
     pub is_virtual: bool,
+    pub is_constexpr: bool,
+    pub is_const: bool,
+
+    pub brief: Option<String>,
+    pub body: Option<Vec<Arc<dyn Writable>>>,
 }
 
 // TODO: Generic
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug)]
 pub struct CppMethodImpl {
     pub cpp_method_name: String,
-    pub cs_method_name: String,
-
-    pub holder_cpp_full_name: String,
+    pub declaring_cpp_full_name: String,
 
     pub return_type: String,
     pub parameters: Vec<CppParam>,
     pub instance: bool,
 
     pub template: Option<CppTemplate>,
+    pub is_const: bool,
+    pub is_virtual: bool,
+
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:
     // const
     // override
     // noexcept
-    pub suffix_modifiers: String,
+    pub suffix_modifiers: Vec<String>,
     // Holds unique of:
     // constexpr
     // static
     // inline
     // explicit(...)
     // virtual
-    pub prefix_modifiers: String,
+    pub prefix_modifiers: Vec<String>,
+
+    pub brief: Option<String>,
+    pub body: Vec<Arc<dyn Writable>>,
 }
 
 // TODO: Generics
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug)]
 pub struct CppConstructorDecl {
     pub cpp_name: String,
     pub parameters: Vec<CppParam>,
     pub template: Option<CppTemplate>,
+
+    pub is_constexpr: bool,
+
+    pub initialized_values: HashMap<String, String>,
+
+    pub brief: Option<String>,
+    pub body: Option<Vec<Arc<dyn Writable>>>,
 }
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug)]
 pub struct CppConstructorImpl {
-    pub holder_cpp_ty_name: String,
+    pub declaring_cpp_ty_full_name: String,
+    pub declaring_cpp_ty_name: String,
 
     pub parameters: Vec<CppParam>,
     pub is_constexpr: bool,
     pub template: Option<CppTemplate>,
-}
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CppProperty {
-    pub name: String,
-    pub cpp_name: String,
-    pub prop_ty: String,
-    pub setter: Option<CppMethodData>,
-    pub getter: Option<CppMethodData>,
-    pub abstr: bool,
-    pub instance: bool,
-    pub classof_call: String,
+    pub body: Vec<Arc<dyn Writable>>,
 }
-// Writing
 
 impl CppForwardDeclare {
     pub fn from_cpp_type(cpp_type: &CppType) -> Self {

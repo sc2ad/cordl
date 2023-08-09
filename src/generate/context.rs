@@ -259,7 +259,6 @@ impl CppContext {
                     fd.write(&mut typedef_writer)
                 })?;
 
-
             writeln!(typedef_writer, "// Forward declare root types")?;
             //Forward declare all types
             typedef_root_types_sorted

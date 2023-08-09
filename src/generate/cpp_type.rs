@@ -224,7 +224,7 @@ impl CppType {
     fn write_def_internal(
         &self,
         writer: &mut super::writer::CppWriter,
-        namespace: Option<&str>
+        namespace: Option<&str>,
     ) -> color_eyre::Result<()> {
         self.prefix_comments.iter().for_each(|pc| {
             writeln!(writer, "// {pc}")
