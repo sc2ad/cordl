@@ -125,9 +125,9 @@ impl Writable for CppFieldDecl {
         let suffixes = suffix_mods.join(" ");
 
         if let Some(value) = &self.value {
-            writeln!(writer, "{prefixes} {ty} {suffixes} {name} = {value};");
+            writeln!(writer, "{prefixes} {ty} {suffixes} {name} = {value};")?;
         } else {
-            writeln!(writer, "{prefixes} {ty} {suffixes} {name};");
+            writeln!(writer, "{prefixes} {ty} {suffixes} {name};")?;
         }
 
         Ok(())
