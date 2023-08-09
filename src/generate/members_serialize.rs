@@ -106,10 +106,10 @@ impl Writable for CppFieldDecl {
             writeln!(writer, "/// @brief {comment}")?;
         }
 
-        let ty = self.field_ty;
-        let name = self.cpp_name;
-        let prefix_mods: Vec<&str> = vec![];
-        let suffix_mods: Vec<&str> = vec![];
+        let ty = &self.field_ty;
+        let name = &self.cpp_name;
+        let mut prefix_mods: Vec<&str> = vec![];
+        let mut suffix_mods: Vec<&str> = vec![];
 
         if !self.instance {
             prefix_mods.push("static");
@@ -159,13 +159,13 @@ impl Writable for CppMethodDecl {
             template.write(writer)?;
         }
 
-        let prefix_modifiers = self
+        let mut prefix_modifiers = self
             .prefix_modifiers
             .iter()
             .map(|s| s.as_str())
             .collect_vec();
 
-        let suffix_modifiers = self
+        let mut suffix_modifiers = self
             .suffix_modifiers
             .iter()
             .map(|s| s.as_str())
@@ -224,13 +224,13 @@ impl Writable for CppMethodImpl {
             template.write(writer)?;
         }
 
-        let prefix_modifiers = self
+        let mut prefix_modifiers = self
             .prefix_modifiers
             .iter()
             .map(|s| s.as_str())
             .collect_vec();
 
-        let suffix_modifiers = self
+        let mut suffix_modifiers = self
             .suffix_modifiers
             .iter()
             .map(|s| s.as_str())
@@ -330,12 +330,23 @@ impl Writable for CppConstructorImpl {
             template.write(writer)?;
         }
 
-        write!(
-            writer,
-            "{}({}) {{",
-            self.declaring_cpp_ty_name,
-            CppParam::params_as_args_no_default(&self.parameters).join(", ")
-        )?;
+        let initializers = match self.initialized_values.is_empty() {
+            true => "".to_string(),
+            false => {
+                let initializers_list = self
+                    .initialized_values
+                    .iter()
+                    .map(|(name, value)| format!("{}({})", name, value))
+                    .collect_vec()
+                    .join(",");
+                format!(": {}", initializers_list)
+            }
+        };
+
+        let full_name = &self.declaring_full_name;
+        let params = CppParam::params_as_args_no_default(&self.parameters).join(", ");
+
+        write!(writer, "{full_name}({params}) {initializers} {{",)?;
 
         self.body.iter().try_for_each(|w| w.write(writer))?;
         // End
@@ -353,7 +364,7 @@ impl Writable for CppPropertyDecl {
         let prefixes = prefix_modifiers.join(" ");
         let suffixes = suffix_modifiers.join(" ");
 
-        let property_vec: Vec<String> = vec![];
+        let mut property_vec: Vec<String> = vec![];
 
         if let Some(getter) = &self.getter {
             property_vec.push(format!("get={getter}"));

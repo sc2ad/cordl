@@ -34,15 +34,15 @@ impl From<String> for CppLine {
 }
 impl From<&str> for CppLine {
     fn from(value: &str) -> Self {
-        CppLine { line: value.to_string() }
+        CppLine {
+            line: value.to_string(),
+        }
     }
 }
 
 impl CppLine {
     pub fn make(v: String) -> Self {
-        return CppLine{
-            line: v,
-        }
+        return CppLine { line: v };
     }
 }
 
@@ -133,11 +133,9 @@ pub struct CppPropertyDecl {
     pub cpp_name: String,
     pub prop_ty: String,
     pub instance: bool,
-    pub value: Option<String>,
     pub getter: Option<String>,
     pub setter: Option<String>,
     pub brief_comment: Option<String>,
-
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -182,6 +180,25 @@ pub struct CppMethodDecl {
 
     pub brief: Option<String>,
     pub body: Option<Vec<Arc<dyn Writable>>>,
+}
+
+impl From<CppMethodDecl> for CppMethodImpl {
+    fn from(value: CppMethodDecl) -> Self {
+        Self {
+            body: value.body.unwrap_or_default(),
+            brief: value.brief,
+            cpp_method_name: value.cpp_name,
+            declaring_cpp_full_name: "".into(),
+            instance: value.instance,
+            is_const: value.is_const,
+            is_virtual: value.is_virtual,
+            parameters: value.parameters,
+            prefix_modifiers: value.prefix_modifiers,
+            suffix_modifiers: value.suffix_modifiers,
+            return_type: value.return_type,
+            template: value.template,
+        }
+    }
 }
 
 // TODO: Generic
@@ -232,14 +249,28 @@ pub struct CppConstructorDecl {
 }
 #[derive(Clone, Debug)]
 pub struct CppConstructorImpl {
-    pub declaring_cpp_ty_full_name: String,
-    pub declaring_cpp_ty_name: String,
+    pub declaring_full_name: String,
 
     pub parameters: Vec<CppParam>,
+    pub initialized_values: HashMap<String, String>,
+
     pub is_constexpr: bool,
     pub template: Option<CppTemplate>,
 
     pub body: Vec<Arc<dyn Writable>>,
+}
+
+impl From<CppConstructorDecl> for CppConstructorImpl {
+    fn from(value: CppConstructorDecl) -> Self {
+        Self {
+            body: value.body.unwrap_or_default(),
+            declaring_full_name: value.cpp_name,
+            is_constexpr: value.is_constexpr,
+            initialized_values: value.initialized_values,
+            parameters: value.parameters,
+            template: value.template,
+        }
+    }
 }
 
 impl CppForwardDeclare {

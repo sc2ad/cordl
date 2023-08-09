@@ -551,7 +551,7 @@ pub trait CSType: Sized {
                 let getter_decl = CppMethodDecl {
                     cpp_name: format!("__get{}_", config.name_cpp(f_name)),
                     instance: !f_type.is_static() && !f_type.is_constant(),
-                    return_type: field_ty_cpp_name,
+                    return_type: field_ty_cpp_name.clone(),
 
                     brief: None,
                     body: vec![].into(), // TODO:
@@ -577,7 +577,7 @@ pub trait CSType: Sized {
                         def_value: None,
                         modifiers: "&&".to_string(),
                         name: "value".to_string(),
-                        ty: field_ty_cpp_name,
+                        ty: field_ty_cpp_name.clone(),
                     }],
                     prefix_modifiers: vec![],
                     suffix_modifiers: vec![],
@@ -586,9 +586,8 @@ pub trait CSType: Sized {
 
                 let field_decl = CppPropertyDecl {
                     cpp_name: config.name_cpp(f_name),
-                    prop_ty: field_ty_cpp_name,
+                    prop_ty: field_ty_cpp_name.clone(),
                     instance: !f_type.is_static() && !f_type.is_constant(),
-                    value: def_value,
                     getter: getter_decl.cpp_name.clone().into(),
                     setter: setter_decl.cpp_name.clone().into(),
                     brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
@@ -780,17 +779,71 @@ pub trait CSType: Sized {
                 }
             };
 
+            let abstr = p_getter.is_some_and(|p| p.is_abstract_method())
+                || p_setter.is_some_and(|p| p.is_abstract_method());
+
+            let getter_decl = p_getter.map(|p_getter| {
+                let method_index = method_map(prop.get_method_index(t));
+
+                CppMethodDecl {
+                    cpp_name: format!("__get{}_", config.name_cpp(p_name)),
+                    instance: !p_type.is_static() && !p_type.is_constant(),
+                    return_type: p_ty_cpp_name.clone(),
+
+                    brief: None,
+                    body: vec![].into(), // TODO:
+                    is_const: false,     // TODO: readonly fields?
+                    is_constexpr: true,
+                    is_virtual: false,
+                    parameters: vec![],
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                    template: None,
+                }
+            });
+            let getter_impl = getter_decl.as_ref().map(|s| CppMethodImpl {
+                body: vec![],
+                declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                ..s.clone().into()
+            });
+            let setter_decl = p_setter.map(|p_setter| {
+                let method_index = method_map(prop.set_method_index(t));
+
+                CppMethodDecl {
+                    cpp_name: format!("__set{}_", config.name_cpp(p_name)),
+                    instance: !p_type.is_static() && !p_type.is_constant(),
+                    return_type: "void".to_string(),
+
+                    brief: None,
+                    body: vec![].into(), //TODO:
+                    is_const: false,     // TODO: readonly fields?
+                    is_constexpr: true,
+                    is_virtual: false,
+                    parameters: vec![CppParam {
+                        def_value: None,
+                        modifiers: "&&".to_string(),
+                        name: "value".to_string(),
+                        ty: p_ty_cpp_name.clone(),
+                    }],
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                    template: None,
+                }
+            });
+            let setter_impl = setter_decl.as_ref().map(|s| CppMethodImpl {
+                body: vec![],
+                declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                ..s.clone().into()
+            });
+
             // Need to include this type
             cpp_type.declarations.push(
-                CppMember::Property(CppProperty {
-                    name: p_name.to_owned(),
+                CppMember::Property(CppPropertyDecl {
                     cpp_name: config.name_cpp(p_name),
                     prop_ty: p_ty_cpp_name.clone(),
-                    classof_call: cpp_type.classof_cpp_name(),
-                    setter: p_setter.map(|_| method_map(prop.set_method_index(t))),
-                    getter: p_getter.map(|_| method_map(prop.get_method_index(t))),
-                    abstr: p_getter.is_some_and(|p| p.is_abstract_method())
-                        || p_setter.is_some_and(|p| p.is_abstract_method()),
+                    setter: setter_decl.map(|m| m.cpp_name),
+                    getter: getter_decl.map(|m| m.cpp_name),
+                    brief_comment: None,
                     instance: !p_getter.or(p_setter).unwrap().is_static_method(),
                 })
                 .into(),
@@ -800,26 +853,29 @@ pub trait CSType: Sized {
 
     fn create_constructor(
         cpp_type: &mut CppType,
-        m_params: &Vec<CppParam>,
+        m_params: &[CppParam],
         template: &Option<CppTemplate>,
     ) {
+        let decl = CppConstructorDecl {
+            cpp_name: cpp_type.cpp_name.clone(),
+            parameters: m_params.to_vec(),
+            template: template.clone(),
+            body: None, // TODO:
+            brief: None,
+            initialized_values: Default::default(), // TODO:!
+            is_constexpr: false,
+        };
         cpp_type.implementations.push(
             CppMember::ConstructorImpl(CppConstructorImpl {
-                declaring_cpp_ty_name: cpp_type.formatted_complete_cpp_name().clone(),
-                parameters: m_params.clone(),
-                is_constexpr: false,
-                template: template.clone(),
+                body: vec![], // TODO:!
+                ..decl.clone().into()
             })
             .into(),
         );
-        cpp_type.declarations.push(
-            CppMember::ConstructorDecl(CppConstructorDecl {
-                cpp_name: cpp_type.cpp_name.clone(),
-                parameters: m_params.clone(),
-                template: template.clone(),
-            })
-            .into(),
-        );
+
+        cpp_type
+            .declarations
+            .push(CppMember::ConstructorDecl(decl).into());
     }
 
     fn create_method(
@@ -933,19 +989,40 @@ pub trait CSType: Sized {
         // generic methods don't have definitions if not an instantiation
         let stub = !is_generic_inst && template.is_some();
 
+        let method_decl = CppMethodDecl {
+            body: None,
+            brief: format!(
+                "Method {m_name} addr {:x?} size {:x?}",
+                method_calc.map(|m| m.addrs),
+                method_calc.map(|m| m.estimated_size)
+            )
+            .into(),
+            is_const: false,
+            is_constexpr: false,
+            cpp_name: config.name_cpp(m_name),
+            return_type: m_ret_cpp_type_byref_name.clone(),
+            parameters: m_params.clone(),
+            instance: !method.is_static_method(),
+            template: template.clone(),
+            suffix_modifiers: Default::default(),
+            prefix_modifiers: Default::default(),
+            is_virtual: method.is_virtual_method() && !method.is_final_method(),
+        };
+
         // If a generic instantiation or not a template
         if !stub {
             cpp_type.implementations.push(
                 CppMember::MethodImpl(CppMethodImpl {
-                    cpp_method_name: config.name_cpp(m_name),
-                    cs_method_name: m_name.to_string(),
+                    body: vec![], //TODO:!
+                    brief: None,
                     declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
-                    return_type: m_ret_cpp_type_byref_name.clone(),
-                    parameters: m_params.clone(),
                     instance: !method.is_static_method(),
                     suffix_modifiers: Default::default(),
                     prefix_modifiers: Default::default(),
                     template: template.clone(),
+
+                    // defaults
+                    ..method_decl.clone().into()
                 })
                 .into(),
             );
@@ -953,23 +1030,9 @@ pub trait CSType: Sized {
 
         // if not a generic instantiation
         if !is_generic_inst {
-            cpp_type.declarations.push(
-                CppMember::MethodDecl(CppMethodDecl {
-                    cpp_name: config.name_cpp(m_name),
-                    return_type: m_ret_cpp_type_byref_name.clone(),
-                    parameters: m_params.clone(),
-                    template: template.clone(),
-                    instance: !method.is_static_method(),
-                    prefix_modifiers: Default::default(),
-                    suffix_modifiers: Default::default(),
-                    method_data: method_calc.map(|method_calc| CppMethodData {
-                        addrs: method_calc.addrs,
-                        estimated_size: method_calc.estimated_size,
-                    }),
-                    is_virtual: method.is_virtual_method() && !method.is_final_method(),
-                })
-                .into(),
-            );
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(method_decl).into());
         }
 
         let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
