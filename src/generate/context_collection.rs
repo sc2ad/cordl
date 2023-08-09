@@ -409,7 +409,6 @@ impl CppContextCollection {
             let method_index = method_spec.method_definition_index;
             cpp_type.add_method_generic_inst(method_spec, metadata);
             cpp_type.create_method(
-                method,
                 ty_def,
                 method_index,
                 metadata,

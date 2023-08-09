@@ -454,15 +454,7 @@ pub trait CSType: Sized {
             // Then, for each method, write it out
             for (i, method) in t.methods(metadata.metadata).iter().enumerate() {
                 let method_index = MethodIndex::new(t.method_start.index() + i as u32);
-                self.create_method(
-                    method,
-                    t,
-                    method_index,
-                    metadata,
-                    ctx_collection,
-                    config,
-                    false,
-                );
+                self.create_method(t, method_index, metadata, ctx_collection, config, false);
             }
         }
     }
@@ -563,6 +555,12 @@ pub trait CSType: Sized {
                     suffix_modifiers: vec![],
                     template: None,
                 };
+                let getter_impl = CppMethodImpl {
+                    body: vec![],
+                    declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                    ..getter_decl.clone().into()
+                };
+
                 let setter_decl = CppMethodDecl {
                     cpp_name: format!("__set{}_", config.name_cpp(f_name)),
                     instance: !f_type.is_static() && !f_type.is_constant(),
@@ -584,6 +582,12 @@ pub trait CSType: Sized {
                     template: None,
                 };
 
+                let setter_impl = CppMethodImpl {
+                    body: vec![],
+                    declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                    ..setter_decl.clone().into()
+                };
+
                 let field_decl = CppPropertyDecl {
                     cpp_name: config.name_cpp(f_name),
                     prop_ty: field_ty_cpp_name.clone(),
@@ -596,6 +600,24 @@ pub trait CSType: Sized {
                 cpp_type
                     .declarations
                     .push(CppMember::Property(field_decl).into());
+
+                // decl
+                cpp_type
+                    .declarations
+                    .push(CppMember::MethodDecl(setter_decl).into());
+
+                cpp_type
+                    .declarations
+                    .push(CppMember::MethodDecl(getter_decl).into());
+
+                // impl
+                cpp_type
+                    .declarations
+                    .push(CppMember::MethodImpl(setter_impl).into());
+
+                cpp_type
+                    .declarations
+                    .push(CppMember::MethodImpl(getter_impl).into());
             }
         }
     }
@@ -841,13 +863,26 @@ pub trait CSType: Sized {
                 CppMember::Property(CppPropertyDecl {
                     cpp_name: config.name_cpp(p_name),
                     prop_ty: p_ty_cpp_name.clone(),
-                    setter: setter_decl.map(|m| m.cpp_name),
-                    getter: getter_decl.map(|m| m.cpp_name),
+                    setter: setter_decl.as_ref().map(|m| &m.cpp_name).cloned(),
+                    getter: getter_decl.as_ref().map(|m| &m.cpp_name).cloned(),
                     brief_comment: None,
                     instance: !p_getter.or(p_setter).unwrap().is_static_method(),
                 })
                 .into(),
             );
+
+            if let Some(s) = setter_decl {
+                cpp_type.declarations.push(CppMember::MethodDecl(s).into());
+            }
+            if let Some(s) = setter_impl {
+                cpp_type.declarations.push(CppMember::MethodImpl(s).into());
+            }
+            if let Some(s) = getter_decl {
+                cpp_type.declarations.push(CppMember::MethodDecl(s).into());
+            }
+            if let Some(s) = getter_impl {
+                cpp_type.declarations.push(CppMember::MethodImpl(s).into());
+            }
         }
     }
 
@@ -880,7 +915,6 @@ pub trait CSType: Sized {
 
     fn create_method(
         &mut self,
-        method: &Il2CppMethodDefinition,
         declaring_type: &Il2CppTypeDefinition,
         method_index: MethodIndex,
 
@@ -889,6 +923,7 @@ pub trait CSType: Sized {
         config: &GenerationConfig,
         is_generic_inst: bool,
     ) {
+        let method = &metadata.metadata.global_metadata.methods[method_index];
         let cpp_type = self.get_mut_cpp_type();
 
         // TODO: sanitize method name for c++
@@ -1009,23 +1044,24 @@ pub trait CSType: Sized {
             is_virtual: method.is_virtual_method() && !method.is_final_method(),
         };
 
+        let method_impl = CppMethodImpl {
+            body: vec![], //TODO:!
+            brief: None,
+            declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
+            instance: !method.is_static_method(),
+            suffix_modifiers: Default::default(),
+            prefix_modifiers: Default::default(),
+            template: template.clone(),
+
+            // defaults
+            ..method_decl.clone().into()
+        };
+
         // If a generic instantiation or not a template
         if !stub {
-            cpp_type.implementations.push(
-                CppMember::MethodImpl(CppMethodImpl {
-                    body: vec![], //TODO:!
-                    brief: None,
-                    declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
-                    instance: !method.is_static_method(),
-                    suffix_modifiers: Default::default(),
-                    prefix_modifiers: Default::default(),
-                    template: template.clone(),
-
-                    // defaults
-                    ..method_decl.clone().into()
-                })
-                .into(),
-            );
+            cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(method_impl).into());
         }
 
         // if not a generic instantiation
