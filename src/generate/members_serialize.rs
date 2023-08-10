@@ -171,9 +171,6 @@ impl Writable for CppMethodDecl {
             .map(|s| s.as_str())
             .collect_vec();
 
-        let suffixes = suffix_modifiers.join(" ");
-        let prefixes = prefix_modifiers.join(" ");
-
         if !self.instance {
             prefix_modifiers.push("static");
         }
@@ -185,6 +182,10 @@ impl Writable for CppMethodDecl {
         if self.is_const {
             suffix_modifiers.push("const");
         }
+
+        let suffixes = suffix_modifiers.join(" ");
+        let prefixes = prefix_modifiers.join(" ");
+
         let ret = &self.return_type;
         let name = &self.cpp_name;
         let params = CppParam::params_as_args(&self.parameters).join(", ");
@@ -232,9 +233,6 @@ impl Writable for CppMethodImpl {
             .map(|s| s.as_str())
             .collect_vec();
 
-        let suffixes = suffix_modifiers.join(" ");
-        let prefixes = prefix_modifiers.join(" ");
-
         if !self.instance {
             prefix_modifiers.push("static");
         }
@@ -246,6 +244,9 @@ impl Writable for CppMethodImpl {
         if self.is_const {
             suffix_modifiers.push("const");
         }
+
+        let suffixes = suffix_modifiers.join(" ");
+        let prefixes = prefix_modifiers.join(" ");
         let ret = &self.return_type;
         let declaring_type = &self.declaring_cpp_full_name;
         let name = &self.cpp_method_name;
@@ -365,9 +366,6 @@ impl Writable for CppPropertyDecl {
         let prefix_modifiers: Vec<&str> = vec![];
         let suffix_modifiers: Vec<&str> = vec![];
 
-        let prefixes = prefix_modifiers.join(" ");
-        let suffixes = suffix_modifiers.join(" ");
-
         let mut property_vec: Vec<String> = vec![];
 
         if let Some(getter) = &self.getter {
@@ -380,6 +378,9 @@ impl Writable for CppPropertyDecl {
         let property = property_vec.join(", ");
         let ty = &self.prop_ty;
         let name = &self.cpp_name;
+
+        let prefixes = prefix_modifiers.join(" ");
+        let suffixes = suffix_modifiers.join(" ");
 
         writeln!(
             writer,
