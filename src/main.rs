@@ -500,5 +500,6 @@ fn format_files() -> Result<()> {
         Ok(())
     })?;
 
+    println!("Done formatting!");
     Ok(())
 }
