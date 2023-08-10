@@ -286,7 +286,7 @@ impl Writable for CppConstructorDecl {
             }
         });
 
-        if let Some(body) = &self.body {
+        if let Some(body) = &body {
             let inline_literal = match self.is_constexpr {
                 true => "constexpr",
                 false => "inline",
