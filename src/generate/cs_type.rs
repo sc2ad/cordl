@@ -275,6 +275,14 @@ pub trait CSType: Sized {
 
         let tdi: TypeDefinitionIndex = self.get_cpp_type().self_tag.into();
 
+        let t = &metadata.metadata.global_metadata.type_definitions[tdi];
+        // default ctor
+        if t.is_value_type() {
+            self.create_valuetype_constructor();
+        } else {
+            self.create_ref_default_constructor();
+        }
+
         self.make_generics_args(metadata, ctx_collection);
         self.make_parents(metadata, ctx_collection, tdi);
         self.make_nested_types(metadata, ctx_collection, config, tdi);
@@ -370,67 +378,6 @@ pub trait CSType: Sized {
     ) {
         let cpp_type = self.get_mut_cpp_type();
         let t = Self::get_type_definition(metadata, tdi);
-
-        let cpp_name = cpp_type.cpp_name();
-        // default ctor
-        if t.is_value_type() {
-            // let fields = t
-            //     .fields(metadata.metadata)
-            //     .iter()
-            //     .filter_map(|field| {
-            //         let f_type = metadata
-            //             .metadata_registration
-            //             .types
-            //             .get(field.type_index as usize)
-            //             .unwrap();
-
-            //         if f_type.is_static() {
-            //             return None;
-            //         }
-
-            //         let cpp_name =
-            //             cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
-
-            //         Some(CppParam {
-            //             name: field.name(metadata.metadata).to_string(),
-            //             ty: cpp_name,
-            //             modifiers: "".to_string(),
-            //             def_value: Some("{}".to_string()),
-            //         })
-            //     })
-            //     .collect_vec();
-            // cpp_type.declarations.push(
-            //     CppMember::ConstructorImpl(CppConstructorImpl {
-            //         holder_cpp_ty_name: cpp_type.cpp_name().clone(),
-            //         parameters: fields,
-            //         is_constexpr: true,
-            //         template: None,
-            //     })
-            //     .into(),
-            // );
-
-            cpp_type.declarations.push(
-                CppMember::CppLine(CppLine {
-                    line: format!(
-                        "
-                    constexpr {cpp_name}() = default;
-                    constexpr {cpp_name}({cpp_name} const&) = default;
-                    constexpr {cpp_name}({cpp_name}&&) = default;
-                    constexpr {cpp_name}& operator=({cpp_name} const&) = default;
-                    constexpr {cpp_name}& operator=({cpp_name}&&) noexcept = default;
-                "
-                    ),
-                })
-                .into(),
-            );
-        } else {
-            cpp_type.declarations.push(
-                CppMember::CppLine(CppLine {
-                    line: format!("constexpr virtual ~{cpp_name}() = default;"),
-                })
-                .into(),
-            );
-        }
 
         // Then, handle methods
         if t.method_count > 0 {
@@ -562,9 +509,10 @@ pub trait CSType: Sized {
                     false => "ReferenceType",
                 };
 
+                let klass_resolver = cpp_type.classof_cpp_name();
+
                 let getter_call = match f_type.is_static() {
                     true => {
-                        let klass_resolver = ""; //TODO:!
                         format!(
                         "return get{declaring_type_specifier}Static<{field_ty_cpp_name}, {f_name}, {klass_resolver}>();"
                     )
@@ -579,7 +527,6 @@ pub trait CSType: Sized {
                 let setter_var_name = "value";
                 let setter_call = match f_type.is_static() {
                     true => {
-                        let klass_resolver = ""; //TODO:!
                         format!(
                         "set{declaring_type_specifier}Static<{field_ty_cpp_name}, {f_name}, {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
                     )
@@ -926,6 +873,82 @@ pub trait CSType: Sized {
         }
     }
 
+    fn create_valuetype_constructor(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        // let fields = t
+        //     .fields(metadata.metadata)
+        //     .iter()
+        //     .filter_map(|field| {
+        //         let f_type = metadata
+        //             .metadata_registration
+        //             .types
+        //             .get(field.type_index as usize)
+        //             .unwrap();
+
+        //         if f_type.is_static() {
+        //             return None;
+        //         }
+
+        //         let cpp_name =
+        //             cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+
+        //         Some(CppParam {
+        //             name: field.name(metadata.metadata).to_string(),
+        //             ty: cpp_name,
+        //             modifiers: "".to_string(),
+        //             def_value: Some("{}".to_string()),
+        //         })
+        //     })
+        //     .collect_vec();
+        // cpp_type.declarations.push(
+        //     CppMember::ConstructorImpl(CppConstructorImpl {
+        //         holder_cpp_ty_name: cpp_type.cpp_name().clone(),
+        //         parameters: fields,
+        //         is_constexpr: true,
+        //         template: None,
+        //     })
+        //     .into(),
+        // );
+
+        let cpp_name = cpp_type.cpp_name();
+
+        cpp_type.declarations.push(
+            CppMember::CppLine(CppLine {
+                line: format!(
+                    "
+                    constexpr {cpp_name}() = default;
+                    constexpr {cpp_name}({cpp_name} const&) = default;
+                    constexpr {cpp_name}({cpp_name}&&) = default;
+                    constexpr {cpp_name}& operator=({cpp_name} const&) = default;
+                    constexpr {cpp_name}& operator=({cpp_name}&&) noexcept = default;
+                "
+                ),
+            })
+            .into(),
+        );
+    }
+
+    fn create_ref_default_constructor(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        let cpp_name = cpp_type.cpp_name().clone();
+
+        cpp_type.declarations.push(
+            CppMember::CppLine(CppLine {
+                line: format!(
+                    // Pointer construction
+                    "constexpr explicit {cpp_name}(void* ptr) : ::bs_hook::Il2CppWrapperType(ptr) {{}}"
+                ),
+            })
+            .into(),
+        );
+        cpp_type.declarations.push(
+            CppMember::CppLine(CppLine {
+                line: format!("constexpr virtual ~{cpp_name}() = default;"),
+            })
+            .into(),
+        );
+    }
+
     fn create_ref_constructor(
         cpp_type: &mut CppType,
         m_params: &[CppParam],
@@ -940,13 +963,18 @@ pub trait CSType: Sized {
             initialized_values: Default::default(), // TODO:!
             is_constexpr: false,
         };
+
+        let klassof = cpp_type.classof_cpp_name();
+        let param_names = CppParam::params_names(&decl.parameters).join(", ");
         cpp_type.implementations.push(
             CppMember::ConstructorImpl(CppConstructorImpl {
                 body: vec![], // TODO:!
                 declaring_full_name: cpp_type.cpp_full_name.clone(),
                 initialized_values: HashMap::from([(
                     "::bs_hook::Il2CppWrapperType".to_string(),
-                    "::il2cpp_utils::New<Il2CppObject*>(classof({}), {})".to_string(),
+                    format!(
+                        "::il2cpp_utils::New<Il2CppObject*>(classof({klassof}), {param_names})"
+                    ),
                 )]),
                 ..decl.clone().into()
             })
@@ -1072,9 +1100,9 @@ pub trait CSType: Sized {
         let method_decl = CppMethodDecl {
             body: None,
             brief: format!(
-                "Method {m_name} addr {:x?} size {:x?}",
-                method_calc.map(|m| m.addrs),
-                method_calc.map(|m| m.estimated_size)
+                "Method {m_name} addr 0x{:x} size 0x{:x}",
+                method_calc.map(|m| m.addrs).unwrap_or(u64::MAX),
+                method_calc.map(|m| m.estimated_size).unwrap_or(usize::MAX)
             )
             .into(),
             is_const: false,
@@ -1089,8 +1117,44 @@ pub trait CSType: Sized {
             is_virtual: method.is_virtual_method() && !method.is_final_method(),
         };
 
+        let complete_type_name = &cpp_type.cpp_full_name;
+        let f_ptr_prefix = if method.is_static_method() {
+            "".to_string()
+        } else {
+            format!("{complete_type_name}::")
+        };
+
+        let instance_ptr = if method.is_static_method() {
+            "nullptr"
+        } else {
+            "instance"
+        };
+
+        let method_invoke_params = vec![instance_ptr, "___internal_method"];
+
+        // let logger_line = format!("static auto ___internal__logger = ::Logger::get().WithContext(\"::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals\");")
+
+        let params_format = CppParam::params_types(&method_decl.parameters).join(", ");
+        let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
+
+        let method_line = format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_byref_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{m_name})>::methodInfo();");
+        let run_line = format!(
+            "return ::il2cpp_utils::RunMethodRethrow<{m_ret_cpp_type_byref_name}, false>({});",
+            method_invoke_params
+                .into_iter()
+                .chain(param_names)
+                .join(", ")
+        );
+
+        //   static auto ___internal__logger = ::Logger::get().WithContext("::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals");
+        //   auto* ___internal__method = THROW_UNLESS((::il2cpp_utils::FindMethod(this, "Equals", std::vector<Il2CppClass*>{}, ::std::vector<const Il2CppType*>{::il2cpp_utils::ExtractType(obj)})));
+        //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
+
         let method_impl = CppMethodImpl {
-            body: vec![], //TODO:!
+            body: vec![
+                Arc::new(CppLine::make(method_line)),
+                Arc::new(CppLine::make(run_line)),
+            ], //TODO:!
             brief: None,
             declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
             instance: !method.is_static_method(),

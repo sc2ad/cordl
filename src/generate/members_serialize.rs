@@ -198,10 +198,6 @@ impl Writable for CppMethodDecl {
 impl Writable for CppMethodImpl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        if let Some(template) = &self.template {
-            template.write(writer)?;
-        }
-
         if let Some(brief) = &self.brief {
             writeln!(writer, "/// @brief {brief}")?;
         }
@@ -308,10 +304,13 @@ impl Writable for CppConstructorDecl {
                 }
             };
 
-            write!(
+            writeln!(
                 writer,
                 "{inline_literal} {name}({params}) {initializers} {{",
             )?;
+
+            body.iter().try_for_each(|w| w.write(writer))?;
+            writeln!(writer, "}}")?;
         } else {
             writeln!(writer, "{name}({params});")?;
         }
