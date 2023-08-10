@@ -477,6 +477,7 @@ fn format_files() -> Result<()> {
 
     let file_chunks = files
         .into_iter()
+        .sorted_by(|a, b| a.path().cmp(b.path()))
         // .unique_by(|f| f.path().to_str().unwrap().to_string())
         .chunks(chunks);
 
