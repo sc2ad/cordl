@@ -275,16 +275,18 @@ pub trait CSType: Sized {
 
         let tdi: TypeDefinitionIndex = self.get_cpp_type().self_tag.into();
 
+        self.make_generics_args(metadata, ctx_collection);
+        self.make_parents(metadata, ctx_collection, tdi);
+
+        // we depend on parents and generic args here
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
         // default ctor
         if t.is_value_type() {
-            self.create_valuetype_constructor();
+            self.create_valuetype_constructor(metadata, ctx_collection, config, tdi);
         } else if !t.is_interface() {
             self.create_ref_default_constructor();
         }
 
-        self.make_generics_args(metadata, ctx_collection);
-        self.make_parents(metadata, ctx_collection, tdi);
         self.make_nested_types(metadata, ctx_collection, config, tdi);
         self.make_fields(metadata, ctx_collection, config, tdi);
         self.make_properties(metadata, ctx_collection, config, tdi);
@@ -806,42 +808,64 @@ pub trait CSType: Sized {
         }
     }
 
-    fn create_valuetype_constructor(&mut self) {
+    fn create_valuetype_constructor(
+        &mut self,
+        metadata: &Metadata,
+        ctx_collection: &CppContextCollection,
+        config: &GenerationConfig,
+        tdi: TypeDefinitionIndex,
+    ) {
         let cpp_type = self.get_mut_cpp_type();
-        // let fields = t
-        //     .fields(metadata.metadata)
-        //     .iter()
-        //     .filter_map(|field| {
-        //         let f_type = metadata
-        //             .metadata_registration
-        //             .types
-        //             .get(field.type_index as usize)
-        //             .unwrap();
 
-        //         if f_type.is_static() {
-        //             return None;
-        //         }
+        let t = &metadata.metadata.global_metadata.type_definitions[tdi];
 
-        //         let cpp_name =
-        //             cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+        let instance_fields = t
+            .fields(metadata.metadata)
+            .iter()
+            .filter_map(|field| {
+                let f_type = metadata
+                    .metadata_registration
+                    .types
+                    .get(field.type_index as usize)
+                    .unwrap();
 
-        //         Some(CppParam {
-        //             name: field.name(metadata.metadata).to_string(),
-        //             ty: cpp_name,
-        //             modifiers: "".to_string(),
-        //             def_value: Some("{}".to_string()),
-        //         })
-        //     })
-        //     .collect_vec();
-        // cpp_type.declarations.push(
-        //     CppMember::ConstructorImpl(CppConstructorImpl {
-        //         holder_cpp_ty_name: cpp_type.cpp_name().clone(),
-        //         parameters: fields,
-        //         is_constexpr: true,
-        //         template: None,
-        //     })
-        //     .into(),
-        // );
+                // ignore statics or constants
+                if f_type.is_static() || f_type.is_constant() {
+                    return None;
+                }
+
+                let cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+
+                Some(CppParam {
+                    name: config.name_cpp(field.name(metadata.metadata)),
+                    ty: cpp_name,
+                    modifiers: "".to_string(),
+                    def_value: Some("{}".to_string()),
+                })
+            })
+            .collect_vec();
+
+        // Maps into the first parent -> ""
+        // so then Parent()
+        let base_ctor = cpp_type.inherit.get(0).map(|s| (s.clone(), "".to_string()));
+
+        cpp_type.declarations.push(
+            CppMember::ConstructorDecl(CppConstructorDecl {
+                cpp_name: cpp_type.cpp_name().clone(),
+                template: None,
+                is_constexpr: true,
+                base_ctor,
+                // initialize values with params
+                initialized_values: instance_fields
+                    .iter()
+                    .map(|p| (p.name.to_string(), p.name.to_string()))
+                    .collect(),
+                parameters: instance_fields,
+                brief: None,
+                body: Some(vec![]),
+            })
+            .into(),
+        );
 
         let cpp_name = cpp_type.cpp_name();
 
@@ -893,6 +917,7 @@ pub trait CSType: Sized {
             template: template.clone(),
             body: None, // TODO:
             brief: None,
+            base_ctor: Default::default(),
             initialized_values: Default::default(), // TODO:!
             is_constexpr: false,
         };

@@ -242,6 +242,8 @@ pub struct CppConstructorDecl {
 
     pub is_constexpr: bool,
 
+    // call base ctor
+    pub base_ctor: Option<(String, String)>,
     pub initialized_values: HashMap<String, String>,
 
     pub brief: Option<String>,

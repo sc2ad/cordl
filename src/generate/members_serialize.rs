@@ -277,13 +277,13 @@ impl Writable for CppConstructorDecl {
         let name = &self.cpp_name;
         let params = CppParam::params_as_args(&self.parameters).join(", ");
 
-        let body = self
-            .body
-            .clone()
-            .or_else(|| match self.initialized_values.is_empty() {
+        // Add empty body if initialize values or base ctor are defined
+        let body = self.body.clone().or_else(|| {
+            match self.initialized_values.is_empty() && self.base_ctor.is_none() {
                 true => None,
                 false => Some(vec![]),
-            });
+            }
+        });
 
         if let Some(body) = &self.body {
             let inline_literal = match self.is_constexpr {
@@ -291,16 +291,21 @@ impl Writable for CppConstructorDecl {
                 false => "inline",
             };
 
-            let initializers = match self.initialized_values.is_empty() {
+            let initializers = match self.initialized_values.is_empty() && self.base_ctor.is_none()
+            {
                 true => "".to_string(),
                 false => {
-                    let initializers_list = self
+                    let mut initializers_list = self
                         .initialized_values
                         .iter()
                         .map(|(name, value)| format!("{}({})", name, value))
-                        .collect_vec()
-                        .join(",");
-                    format!(": {}", initializers_list)
+                        .collect_vec();
+
+                    if let Some((base_ctor, args)) = &self.base_ctor {
+                        initializers_list.insert(0, format!("{base_ctor}({args})"))
+                    }
+
+                    format!(": {}", initializers_list.join(","))
                 }
             };
 
