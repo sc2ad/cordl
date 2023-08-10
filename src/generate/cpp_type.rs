@@ -73,6 +73,10 @@ impl CppTypeRequirements {
         self.required_includes
             .insert(CppInclude::new_system("cstdint"));
     }
+    pub fn needs_math_include(&mut self) {
+        self.required_includes
+            .insert(CppInclude::new_system("cmath"));
+    }
     pub fn needs_stringw_include(&mut self) {
         self.required_includes.insert(CppInclude::new(
             "beatsaber-hook/shared/utils/typedefs-string.hpp",

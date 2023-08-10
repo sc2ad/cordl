@@ -1377,6 +1377,9 @@ pub trait CSType: Sized {
             | Il2CppTypeEnum::U => {
                 requirements.needs_int_include();
             }
+            Il2CppTypeEnum::R4 | Il2CppTypeEnum::R8 => {
+                requirements.needs_math_include();
+            }
             _ => (),
         };
 
