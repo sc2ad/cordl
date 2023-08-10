@@ -36,6 +36,8 @@ pub struct CppType {
     pub(crate) name: String,
     pub(crate) cpp_name: String,
 
+    pub calculated_size: Option<usize>,
+
     // Computed by TypeDefinition.full_name()
     // Then fixed for generic types in CppContextCollection::make_generic_from/fill_generic_inst
     pub cpp_full_name: String,

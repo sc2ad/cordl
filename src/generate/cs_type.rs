@@ -170,6 +170,8 @@ pub trait CSType: Sized {
         let nested = false; // t.declaring_type_index != u32::MAX;
         let cpp_full_name = t.full_name_cpp(metadata.metadata, config, false);
 
+        let calculated_size = Self::layout_fields_locked_size(t, tdi, metadata);
+
         // Modified later for nested types
         let mut cpptype = CppType {
             self_tag: tag,
@@ -179,6 +181,8 @@ pub trait CSType: Sized {
             cpp_namespace: config.namespace_cpp(ns),
             name: name.to_string(),
             cpp_name: config.name_cpp(name),
+
+            calculated_size: Some(calculated_size as usize),
 
             cpp_full_name,
             full_name,
@@ -244,13 +248,13 @@ pub trait CSType: Sized {
 
         if cpptype.is_value_type {
             // if let Some(size) = &get_size_of_type_table(metadata, tdi) {
-            let size = Self::layout_fields_locked_size(t, tdi, metadata);
+
             cpptype
                 .nonmember_declarations
                 .push(Rc::new(CppStaticAssert {
                     condition: format!(
                         "sizeof({}) == 0x{:X}",
-                        cpptype.cpp_full_name, size /* - VALUE_TYPE_SIZE_OFFSET */
+                        cpptype.cpp_full_name, calculated_size /* - VALUE_TYPE_SIZE_OFFSET */
                     ),
                     message: Some(format!(
                         "Type {} does not match expected size!",
@@ -284,6 +288,7 @@ pub trait CSType: Sized {
         // default ctor
         if t.is_value_type() {
             self.create_valuetype_constructor(metadata, ctx_collection, config, tdi);
+            self.create_valuetype_field_wrapper();
         } else if !t.is_interface() {
             self.create_ref_default_constructor();
         }
@@ -807,6 +812,28 @@ pub trait CSType: Sized {
                 .into(),
             );
         }
+    }
+
+    fn create_valuetype_field_wrapper(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        if cpp_type.calculated_size.is_none() {
+            return;
+        }
+
+        let size = cpp_type.calculated_size.unwrap();
+
+        cpp_type.declarations.push(
+            CppMember::FieldDecl(CppFieldDecl {
+                cpp_name: "instance".to_string(),
+                field_ty: format!("std::array<uint8_t, 0x{size:x}>"),
+                instance: true,
+                readonly: false,
+                const_expr: false,
+                value: None,
+                brief_comment: Some("Holds the value type data".to_string()),
+            })
+            .into(),
+        )
     }
 
     fn create_valuetype_constructor(
