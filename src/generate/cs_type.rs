@@ -466,8 +466,11 @@ pub trait CSType: Sized {
                 println!("Value type uses {tdi:?} which is blacklisted! TODO");
             }
 
-            let field_ty_cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+            let field_ty_cpp_name = if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
+                "::ConstStringW".to_string()
+            } else {
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false)
+            };
 
             // TODO: Check a flag to look for default values to speed this up
             let def_value = Self::field_default_value(metadata, field_index);
