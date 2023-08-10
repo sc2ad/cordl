@@ -112,6 +112,7 @@ impl TypeExtentions for Il2CppType {
 pub trait TypeDefinitionExtensions {
     fn is_value_type(&self) -> bool;
     fn is_enum_type(&self) -> bool;
+    fn is_interface(&self) -> bool;
 
     fn full_name_cpp(
         &self,
@@ -134,6 +135,10 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
 
     fn is_enum_type(&self) -> bool {
         self.bitfield & 2 != 0
+    }
+
+    fn is_interface(&self) -> bool {
+        self.flags & TYPE_ATTRIBUTE_INTERFACE != 0
     }
 
     fn full_name_cpp(

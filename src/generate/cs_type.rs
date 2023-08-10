@@ -228,7 +228,7 @@ pub trait CSType: Sized {
         }
 
         if t.parent_index == u32::MAX {
-            if t.flags & TYPE_ATTRIBUTE_INTERFACE == 0 {
+            if !t.is_interface() {
                 println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
                 return None;
             }
@@ -279,7 +279,7 @@ pub trait CSType: Sized {
         // default ctor
         if t.is_value_type() {
             self.create_valuetype_constructor();
-        } else {
+        } else if !t.is_interface() {
             self.create_ref_default_constructor();
         }
 
