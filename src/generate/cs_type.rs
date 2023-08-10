@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
     io::{Cursor, Read},
     rc::Rc,
+    sync::Arc,
 };
 
 use brocolib::{
@@ -547,7 +548,7 @@ pub trait CSType: Sized {
 
                     brief: None,
                     body: vec![].into(), // TODO:
-                    is_const: false,     // TODO: readonly fields?
+                    is_const: true,      // TODO: readonly fields?
                     is_constexpr: true,
                     is_virtual: false,
                     parameters: vec![],
@@ -555,8 +556,43 @@ pub trait CSType: Sized {
                     suffix_modifiers: vec![],
                     template: None,
                 };
+
+                let declaring_type_specifier = match t.is_value_type() {
+                    true => "ValueType",
+                    false => "ReferenceType",
+                };
+
+                let getter_call = match f_type.is_static() {
+                    true => {
+                        let klass_resolver = ""; //TODO:!
+                        format!(
+                        "return get{declaring_type_specifier}Static<{field_ty_cpp_name}, {f_name}, {klass_resolver}>();"
+                    )
+                    }
+                    false => {
+                        format!(
+                            "return get{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(instance);"
+                        )
+                    }
+                };
+
+                let setter_var_name = "value";
+                let setter_call = match f_type.is_static() {
+                    true => {
+                        let klass_resolver = ""; //TODO:!
+                        format!(
+                        "set{declaring_type_specifier}Static<{field_ty_cpp_name}, {f_name}, {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                    )
+                    }
+                    false => {
+                        format!(
+                            "set{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(instance, std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                        )
+                    }
+                };
+
                 let getter_impl = CppMethodImpl {
-                    body: vec![],
+                    body: vec![Arc::new(CppLine::make(getter_call))],
                     declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
                     ..getter_decl.clone().into()
                 };
@@ -574,7 +610,7 @@ pub trait CSType: Sized {
                     parameters: vec![CppParam {
                         def_value: None,
                         modifiers: "&&".to_string(),
-                        name: "value".to_string(),
+                        name: setter_var_name.to_string(),
                         ty: field_ty_cpp_name.clone(),
                     }],
                     prefix_modifiers: vec![],
@@ -583,7 +619,7 @@ pub trait CSType: Sized {
                 };
 
                 let setter_impl = CppMethodImpl {
-                    body: vec![],
+                    body: vec![Arc::new(CppLine::make(setter_call))],
                     declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
                     ..setter_decl.clone().into()
                 };
@@ -612,11 +648,11 @@ pub trait CSType: Sized {
 
                 // impl
                 cpp_type
-                    .declarations
+                    .implementations
                     .push(CppMember::MethodImpl(setter_impl).into());
 
                 cpp_type
-                    .declarations
+                    .implementations
                     .push(CppMember::MethodImpl(getter_impl).into());
             }
         }
@@ -875,18 +911,22 @@ pub trait CSType: Sized {
                 cpp_type.declarations.push(CppMember::MethodDecl(s).into());
             }
             if let Some(s) = setter_impl {
-                cpp_type.declarations.push(CppMember::MethodImpl(s).into());
+                cpp_type
+                    .implementations
+                    .push(CppMember::MethodImpl(s).into());
             }
             if let Some(s) = getter_decl {
                 cpp_type.declarations.push(CppMember::MethodDecl(s).into());
             }
             if let Some(s) = getter_impl {
-                cpp_type.declarations.push(CppMember::MethodImpl(s).into());
+                cpp_type
+                    .implementations
+                    .push(CppMember::MethodImpl(s).into());
             }
         }
     }
 
-    fn create_constructor(
+    fn create_ref_constructor(
         cpp_type: &mut CppType,
         m_params: &[CppParam],
         template: &Option<CppTemplate>,
@@ -903,6 +943,7 @@ pub trait CSType: Sized {
         cpp_type.implementations.push(
             CppMember::ConstructorImpl(CppConstructorImpl {
                 body: vec![], // TODO:!
+                declaring_full_name: cpp_type.cpp_full_name.clone(),
                 ..decl.clone().into()
             })
             .into(),
@@ -1014,7 +1055,7 @@ pub trait CSType: Sized {
 
         // Reference type constructor
         if m_name == ".ctor" && !declaring_type.is_value_type() {
-            Self::create_constructor(cpp_type, &m_params, &template);
+            Self::create_ref_constructor(cpp_type, &m_params, &template);
         }
         let declaring_type = method.declaring_type(metadata.metadata);
         let tag = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
