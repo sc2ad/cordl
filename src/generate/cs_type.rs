@@ -38,6 +38,7 @@ use super::{
         MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
         TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
     },
+    writer::Writable,
 };
 
 type Endian = LittleEndian;
@@ -849,20 +850,32 @@ pub trait CSType: Sized {
         // so then Parent()
         let base_ctor = cpp_type.inherit.get(0).map(|s| (s.clone(), "".to_string()));
 
+        let body: Vec<Arc<dyn Writable>> = instance_fields
+            .iter()
+            .map(|p| {
+                let name = &p.name;
+                CppLine::make(format!("this->{name} = {name};"))
+            })
+            .map(Arc::new)
+            // Why is this needed? _sigh_
+            .map(|arc| -> Arc<dyn Writable> { arc })
+            .collect_vec();
+
         cpp_type.declarations.push(
             CppMember::ConstructorDecl(CppConstructorDecl {
                 cpp_name: cpp_type.cpp_name().clone(),
                 template: None,
                 is_constexpr: true,
                 base_ctor,
+                initialized_values: HashMap::new(),
                 // initialize values with params
-                initialized_values: instance_fields
-                    .iter()
-                    .map(|p| (p.name.to_string(), p.name.to_string()))
-                    .collect(),
+                // initialized_values: instance_fields
+                //     .iter()
+                //     .map(|p| (p.name.to_string(), p.name.to_string()))
+                //     .collect(),
                 parameters: instance_fields,
                 brief: None,
-                body: Some(vec![]),
+                body: Some(body),
             })
             .into(),
         );
