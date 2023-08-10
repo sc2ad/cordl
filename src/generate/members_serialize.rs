@@ -189,7 +189,7 @@ impl Writable for CppMethodDecl {
         let name = &self.cpp_name;
         let params = CppParam::params_as_args(&self.parameters).join(", ");
 
-        writeln!(writer, "{prefixes} {ret} {name}({params});",)?;
+        writeln!(writer, "{prefixes} {ret} {name}({params}) {suffixes};",)?;
 
         Ok(())
     }
@@ -448,6 +448,7 @@ impl Writable for CppStaticAssert {
 impl Writable for CppLine {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
         writer.write_all(self.line.as_bytes())?;
+        writeln!(writer)?; // add line ending
         Ok(())
     }
 }
