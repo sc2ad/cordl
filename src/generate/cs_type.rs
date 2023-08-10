@@ -1647,7 +1647,7 @@ pub trait CSType: Sized {
         const SIZEOF_IL2CPP_OBJECT: u32 = 0x10;
         const IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS: u32 = 1;
 
-        let mut instance_size: u32 = if ty_def.parent_index != u32::MAX {
+        let mut instance_size: u32 = if ty_def.parent_index == u32::MAX {
             SIZEOF_IL2CPP_OBJECT
         } else {
             let parent_ty = &metadata.metadata_registration.types[ty_def.parent_index as usize];
