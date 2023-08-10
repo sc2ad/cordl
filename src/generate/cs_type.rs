@@ -944,6 +944,10 @@ pub trait CSType: Sized {
             CppMember::ConstructorImpl(CppConstructorImpl {
                 body: vec![], // TODO:!
                 declaring_full_name: cpp_type.cpp_full_name.clone(),
+                initialized_values: HashMap::from([(
+                    "::bs_hook::Il2CppWrapperType".to_string(),
+                    "::il2cpp_utils::New<Il2CppObject*>(classof({}), {})".to_string(),
+                )]),
                 ..decl.clone().into()
             })
             .into(),
