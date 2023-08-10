@@ -1014,7 +1014,7 @@ pub trait CSType: Sized {
             };
 
             m_params.push(CppParam {
-                name: param.name(metadata.metadata).to_string(),
+                name: config.name_cpp(param.name(metadata.metadata)),
                 def_value,
                 ty: param_cpp_name,
                 modifiers: "".to_string(),
