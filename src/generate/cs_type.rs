@@ -1651,9 +1651,26 @@ pub trait CSType: Sized {
             SIZEOF_IL2CPP_OBJECT
         } else {
             let parent_ty = &metadata.metadata_registration.types[ty_def.parent_index as usize];
-            let TypeData::TypeDefinitionIndex(parent_tdi) = parent_ty.data else {
-                todo!()
+            let parent_tdi: TypeDefinitionIndex = match parent_ty.data {
+                TypeData::TypeDefinitionIndex(parent_tdi) => parent_tdi,
+
+                TypeData::GenericClassIndex(generic_class) => {
+                    let generic_class = &metadata
+                        .metadata
+                        .runtime_metadata
+                        .metadata_registration
+                        .generic_classes[generic_class];
+                    let generic_ty =
+                        &metadata.metadata_registration.types[generic_class.type_index];
+                    let TypeData::TypeDefinitionIndex(parent_tdi) = generic_ty.data else {
+                        todo!();
+                    };
+
+                    parent_tdi
+                }
+                _ => todo!(),
             };
+
             let parent_ty_def = &metadata.metadata.global_metadata.type_definitions[parent_tdi];
 
             Self::layout_fields_locked_size(parent_ty_def, parent_tdi, metadata)
