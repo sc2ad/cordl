@@ -491,22 +491,6 @@ pub trait CSType: Sized {
                     .declarations
                     .push(CppMember::FieldDecl(field_decl).into());
             } else {
-                let getter_decl = CppMethodDecl {
-                    cpp_name: format!("__get{}_", config.name_cpp(f_name)),
-                    instance: !f_type.is_static() && !f_type.is_constant(),
-                    return_type: field_ty_cpp_name.clone(),
-
-                    brief: None,
-                    body: vec![].into(), // TODO:
-                    is_const: true,      // TODO: readonly fields?
-                    is_constexpr: true,
-                    is_virtual: false,
-                    parameters: vec![],
-                    prefix_modifiers: vec![],
-                    suffix_modifiers: vec![],
-                    template: None,
-                };
-
                 let declaring_type_specifier = match t.is_value_type() {
                     true => "ValueType",
                     false => "ReferenceType",
@@ -541,14 +525,24 @@ pub trait CSType: Sized {
                     }
                 };
 
-                let getter_impl = CppMethodImpl {
-                    body: vec![Arc::new(CppLine::make(getter_call))],
-                    declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
-                    ..getter_decl.clone().into()
+                let getter_decl = CppMethodDecl {
+                    cpp_name: format!("__get_{}", config.name_cpp(f_name)),
+                    instance: !f_type.is_static() && !f_type.is_constant(),
+                    return_type: field_ty_cpp_name.clone(),
+
+                    brief: None,
+                    body: vec![].into(), // TODO:
+                    is_const: true,      // TODO: readonly fields?
+                    is_constexpr: true,
+                    is_virtual: false,
+                    parameters: vec![],
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                    template: None,
                 };
 
                 let setter_decl = CppMethodDecl {
-                    cpp_name: format!("__set{}_", config.name_cpp(f_name)),
+                    cpp_name: format!("__set_{}", config.name_cpp(f_name)),
                     instance: !f_type.is_static() && !f_type.is_constant(),
                     return_type: "void".to_string(),
 
@@ -566,6 +560,12 @@ pub trait CSType: Sized {
                     prefix_modifiers: vec![],
                     suffix_modifiers: vec![],
                     template: None,
+                };
+
+                let getter_impl = CppMethodImpl {
+                    body: vec![Arc::new(CppLine::make(getter_call))],
+                    declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                    ..getter_decl.clone().into()
                 };
 
                 let setter_impl = CppMethodImpl {
