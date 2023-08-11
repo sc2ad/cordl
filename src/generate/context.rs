@@ -233,11 +233,22 @@ impl CppContext {
                     Ordering::Equal
                 }
             })
+            // Stubs are first
             .sorted_by(|a, b| {
                 if a.is_stub {
                     Ordering::Less
                 } else if b.is_stub {
                     Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+            // Value types are last
+            .sorted_by(|a, b| {
+                if a.is_value_type && !a.is_enum_type {
+                    Ordering::Greater
+                } else if b.is_value_type && !b.is_enum_type {
+                    Ordering::Less
                 } else {
                     Ordering::Equal
                 }
