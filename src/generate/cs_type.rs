@@ -541,7 +541,7 @@ pub trait CSType: Sized {
                     brief: None,
                     body: vec![].into(), // TODO:
                     // Const if instance for now
-                    is_const: !f_type.is_static(),      // TODO: readonly fields?
+                    is_const: !f_type.is_static(), // TODO: readonly fields?
                     is_constexpr: true,
                     is_virtual: false,
                     parameters: vec![],
@@ -930,11 +930,16 @@ pub trait CSType: Sized {
         let cpp_type = self.get_mut_cpp_type();
         let cpp_name = cpp_type.cpp_name().clone();
 
+        // Skip if System.ValueType
+        if cpp_type.namespace() == "System" && cpp_type.cpp_name() == "ValueType" {
+            return;
+        }
+
         cpp_type.declarations.push(
             CppMember::CppLine(CppLine {
                 line: format!(
                     // Pointer construction
-                    "constexpr explicit {cpp_name}(void* ptr) : ::bs_hook::Il2CppWrapperType(ptr) {{}}"
+                    "constexpr explicit {cpp_name}(void* ptr) : {OBJECT_WRAPPER_TYPE}(ptr) {{}}"
                 ),
             })
             .into(),
@@ -970,7 +975,7 @@ pub trait CSType: Sized {
                 body: vec![], // TODO:!
                 declaring_full_name: cpp_type.cpp_full_name.clone(),
                 initialized_values: HashMap::from([(
-                    "::bs_hook::Il2CppWrapperType".to_string(),
+                    OBJECT_WRAPPER_TYPE.to_string(),
                     format!(
                         "::il2cpp_utils::New<Il2CppObject*>(classof({klassof}), {param_names})"
                     ),
