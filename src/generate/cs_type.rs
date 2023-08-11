@@ -851,7 +851,8 @@ pub trait CSType: Sized {
         let instance_fields = t
             .fields(metadata.metadata)
             .iter()
-            .filter_map(|field| {
+            .enumerate()
+            .filter_map(|(i, field)| {
                 let f_type = metadata
                     .metadata_registration
                     .types
@@ -869,44 +870,47 @@ pub trait CSType: Sized {
                     name: config.name_cpp(field.name(metadata.metadata)),
                     ty: cpp_name,
                     modifiers: "".to_string(),
-                    def_value: Some("{}".to_string()),
+                    // no default value for first param
+                    def_value: if i == 0 { None } else { Some("{}".to_string()) },
                 })
             })
             .collect_vec();
 
-        // Maps into the first parent -> ""
-        // so then Parent()
-        let base_ctor = cpp_type.inherit.get(0).map(|s| (s.clone(), "".to_string()));
+        if !instance_fields.is_empty() {
+            // Maps into the first parent -> ""
+            // so then Parent()
+            let base_ctor = cpp_type.inherit.get(0).map(|s| (s.clone(), "".to_string()));
 
-        let body: Vec<Arc<dyn Writable>> = instance_fields
-            .iter()
-            .map(|p| {
-                let name = &p.name;
-                CppLine::make(format!("this->{name} = {name};"))
-            })
-            .map(Arc::new)
-            // Why is this needed? _sigh_
-            .map(|arc| -> Arc<dyn Writable> { arc })
-            .collect_vec();
+            let body: Vec<Arc<dyn Writable>> = instance_fields
+                .iter()
+                .map(|p| {
+                    let name = &p.name;
+                    CppLine::make(format!("this->{name} = {name};"))
+                })
+                .map(Arc::new)
+                // Why is this needed? _sigh_
+                .map(|arc| -> Arc<dyn Writable> { arc })
+                .collect_vec();
 
-        cpp_type.declarations.push(
-            CppMember::ConstructorDecl(CppConstructorDecl {
-                cpp_name: cpp_type.cpp_name().clone(),
-                template: None,
-                is_constexpr: true,
-                base_ctor,
-                initialized_values: HashMap::new(),
-                // initialize values with params
-                // initialized_values: instance_fields
-                //     .iter()
-                //     .map(|p| (p.name.to_string(), p.name.to_string()))
-                //     .collect(),
-                parameters: instance_fields,
-                brief: None,
-                body: Some(body),
-            })
-            .into(),
-        );
+            cpp_type.declarations.push(
+                CppMember::ConstructorDecl(CppConstructorDecl {
+                    cpp_name: cpp_type.cpp_name().clone(),
+                    template: None,
+                    is_constexpr: true,
+                    base_ctor,
+                    initialized_values: HashMap::new(),
+                    // initialize values with params
+                    // initialized_values: instance_fields
+                    //     .iter()
+                    //     .map(|p| (p.name.to_string(), p.name.to_string()))
+                    //     .collect(),
+                    parameters: instance_fields,
+                    brief: None,
+                    body: Some(body),
+                })
+                .into(),
+            );
+        }
 
         let cpp_name = cpp_type.cpp_name();
 
