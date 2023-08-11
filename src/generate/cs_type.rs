@@ -540,7 +540,8 @@ pub trait CSType: Sized {
 
                     brief: None,
                     body: vec![].into(), // TODO:
-                    is_const: true,      // TODO: readonly fields?
+                    // Const if instance for now
+                    is_const: !f_type.is_static(),      // TODO: readonly fields?
                     is_constexpr: true,
                     is_virtual: false,
                     parameters: vec![],
