@@ -223,6 +223,16 @@ impl CppContext {
             })
             .chain(typedef_root_types_sorted.iter().cloned())
             .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
+            // Enums go after stubs
+            .sorted_by(|a, b| {
+                if a.is_enum_type {
+                    Ordering::Less
+                } else if b.is_enum_type {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
             .sorted_by(|a, b| {
                 if a.is_stub {
                     Ordering::Less
