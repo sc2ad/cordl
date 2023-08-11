@@ -475,7 +475,7 @@ pub trait CSType: Sized {
             }
 
             let field_ty_cpp_name = if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
-                "::ConstStringW".to_string()
+                "::ConstString".to_string()
             } else {
                 cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false)
             };
