@@ -246,7 +246,7 @@ pub trait CSType: Sized {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
         }
 
-        if cpptype.is_value_type {
+        if cpptype.is_value_type || cpptype.is_enum_type {
             // if let Some(size) = &get_size_of_type_table(metadata, tdi) {
 
             cpptype
@@ -286,7 +286,7 @@ pub trait CSType: Sized {
         // we depend on parents and generic args here
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
         // default ctor
-        if t.is_value_type() {
+        if t.is_value_type() || t.is_enum_type() {
             self.create_valuetype_constructor(metadata, ctx_collection, config, tdi);
             self.create_valuetype_field_wrapper();
         } else if !t.is_interface() {
@@ -468,7 +468,7 @@ pub trait CSType: Sized {
             //- pos_field_offset_offset;
 
             if let TypeData::TypeDefinitionIndex(tdi) = f_type.data && metadata.blacklisted_types.contains(&tdi) {
-                if !cpp_type.is_value_type {
+                if !cpp_type.is_value_type && !cpp_type.is_enum_type {
                     continue;
                 }
                 println!("Value type uses {tdi:?} which is blacklisted! TODO");
@@ -499,7 +499,7 @@ pub trait CSType: Sized {
                     .declarations
                     .push(CppMember::FieldDecl(field_decl).into());
             } else {
-                let declaring_type_specifier = match t.is_value_type() {
+                let declaring_type_specifier = match t.is_value_type() || t.is_enum_type() {
                     true => "ValueType",
                     false => "ReferenceType",
                 };
@@ -1716,7 +1716,7 @@ pub trait CSType: Sized {
         if ty_def.field_count > 0 {
             let size_table = Self::get_size_of_type_table(metadata, tdi);
 
-            if ty_def.is_value_type()
+            if ty_def.is_value_type() || ty_def.is_enum_type()
                 && size_table.map(|t| t.instance_size).unwrap_or(0) == 0
                 // if no field is instance
                 && !ty_def.fields(metadata.metadata).iter().any(|f| {
