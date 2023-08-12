@@ -949,6 +949,11 @@ pub trait CSType: Sized {
             return;
         }
 
+        // Delegates and such are reference types with no inheritance
+        if cpp_type.inherit.is_empty() {
+            return;
+        }
+
         cpp_type.declarations.push(
             CppMember::CppLine(CppLine {
                 line: format!(
