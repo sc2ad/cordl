@@ -529,7 +529,7 @@ pub trait CSType: Sized {
                     }
                     false => {
                         format!(
-                            "set{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(instance, std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                            "set{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(instance, {setter_var_name});"
                         )
                     }
                 };
@@ -563,7 +563,7 @@ pub trait CSType: Sized {
                     is_virtual: false,
                     parameters: vec![CppParam {
                         def_value: None,
-                        modifiers: "&&".to_string(),
+                        modifiers: "".to_string(),
                         name: setter_var_name.to_string(),
                         ty: field_ty_cpp_name.clone(),
                     }],
