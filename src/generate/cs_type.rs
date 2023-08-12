@@ -1794,10 +1794,12 @@ pub trait CSType: Sized {
 }
 
 impl CSType for CppType {
+    #[inline(always)]
     fn get_mut_cpp_type(&mut self) -> &mut CppType {
         self
     }
 
+    #[inline(always)]
     fn get_cpp_type(&self) -> &CppType {
         self
     }
