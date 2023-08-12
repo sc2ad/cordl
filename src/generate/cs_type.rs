@@ -935,7 +935,7 @@ pub trait CSType: Sized {
         let cpp_name = cpp_type.cpp_name().clone();
 
         // Skip if System.ValueType
-        if cpp_type.namespace() == "System" && cpp_type.cpp_name() == "ValueType" {
+        if cpp_type.namespace() == "System" && (cpp_type.cpp_name() == "ValueType" || cpp_type.cpp_name() == "Enum") {
             return;
         }
 
