@@ -249,24 +249,6 @@ pub trait CSType: Sized {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
         }
 
-        if cpptype.is_value_type || cpptype.is_enum_type {
-            // if let Some(size) = &get_size_of_type_table(metadata, tdi) {
-
-            cpptype
-                .nonmember_declarations
-                .push(Rc::new(CppStaticAssert {
-                    condition: format!(
-                        "sizeof({}) == 0x{:X}",
-                        cpptype.cpp_full_name, calculated_size /* - VALUE_TYPE_SIZE_OFFSET */
-                    ),
-                    message: Some(format!(
-                        "Type {} does not match expected size!",
-                        cpptype.cpp_full_name
-                    )),
-                }))
-            // }
-        }
-
         Some(cpptype)
     }
 
@@ -946,6 +928,11 @@ pub trait CSType: Sized {
         if cpp_type.namespace() == "System"
             && (cpp_type.cpp_name() == "ValueType" || cpp_type.cpp_name() == "Enum")
         {
+            return;
+        }
+
+        // Delegates and such are reference types with no inheritance
+        if cpp_type.inherit.is_empty() {
             return;
         }
 
@@ -1789,10 +1776,12 @@ pub trait CSType: Sized {
 }
 
 impl CSType for CppType {
+    #[inline(always)]
     fn get_mut_cpp_type(&mut self) -> &mut CppType {
         self
     }
 
+    #[inline(always)]
     fn get_cpp_type(&self) -> &CppType {
         self
     }

@@ -174,6 +174,9 @@ impl Writable for CppMethodDecl {
         if !self.instance {
             prefix_modifiers.push("static");
         }
+        if self.is_constexpr {
+            prefix_modifiers.push("constexpr");
+        }
 
         if self.is_virtual {
             prefix_modifiers.push("virtual");
