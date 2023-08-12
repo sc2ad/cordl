@@ -285,6 +285,7 @@ pub trait CSType: Sized {
 
         // we depend on parents and generic args here
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
+
         // default ctor
         if t.is_value_type() || t.is_enum_type() {
             self.create_valuetype_constructor(metadata, ctx_collection, config, tdi);
@@ -934,8 +935,10 @@ pub trait CSType: Sized {
         let cpp_type = self.get_mut_cpp_type();
         let cpp_name = cpp_type.cpp_name().clone();
 
-        // Skip if System.ValueType
-        if cpp_type.namespace() == "System" && cpp_type.cpp_name() == "ValueType" {
+        // Skip if System.ValueType or System.Enum
+        if cpp_type.namespace() == "System"
+            && (cpp_type.cpp_name() == "ValueType" || cpp_type.cpp_name() == "Enum")
+        {
             return;
         }
 
@@ -1716,7 +1719,8 @@ pub trait CSType: Sized {
         if ty_def.field_count > 0 {
             let size_table = Self::get_size_of_type_table(metadata, tdi);
 
-            if ty_def.is_value_type() || ty_def.is_enum_type()
+            if ty_def.is_value_type()
+                || ty_def.is_enum_type()
                 && size_table.map(|t| t.instance_size).unwrap_or(0) == 0
                 // if no field is instance
                 && !ty_def.fields(metadata.metadata).iter().any(|f| {
