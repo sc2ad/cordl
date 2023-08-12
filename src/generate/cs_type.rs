@@ -46,6 +46,9 @@ type Endian = LittleEndian;
 // negative
 const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
+const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "__instance";
+const REFERENCE_WRAPPER_INSTANCE_NAME: &str = concat!("OBJECT_WRAPPER_TYPE", "::instance");
+
 pub trait CSType: Sized {
     fn get_mut_cpp_type(&mut self) -> &mut CppType; // idk how else to do this
     fn get_cpp_type(&self) -> &CppType; // idk how else to do this
@@ -504,6 +507,10 @@ pub trait CSType: Sized {
                     true => "ValueType",
                     false => "ReferenceType",
                 };
+                let self_wrapper_instance = match t.is_value_type() || t.is_enum_type() {
+                    true => VALUE_TYPE_WRAPPER_INSTANCE_NAME,
+                    false => REFERENCE_WRAPPER_INSTANCE_NAME,
+                };
 
                 let klass_resolver = cpp_type.classof_cpp_name();
 
@@ -515,7 +522,7 @@ pub trait CSType: Sized {
                     }
                     false => {
                         format!(
-                            "return get{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(instance);"
+                            "return get{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>({self_wrapper_instance});"
                         )
                     }
                 };
@@ -529,7 +536,7 @@ pub trait CSType: Sized {
                     }
                     false => {
                         format!(
-                            "set{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(instance, {setter_var_name});"
+                            "set{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>({self_wrapper_instance}, {setter_var_name});"
                         )
                     }
                 };
@@ -826,7 +833,7 @@ pub trait CSType: Sized {
 
         cpp_type.declarations.push(
             CppMember::FieldDecl(CppFieldDecl {
-                cpp_name: "instance".to_string(),
+                cpp_name: VALUE_TYPE_WRAPPER_INSTANCE_NAME.to_string(),
                 field_ty: format!("std::array<uint8_t, 0x{size:x}>"),
                 instance: true,
                 readonly: false,
