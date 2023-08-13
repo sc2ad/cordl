@@ -16,6 +16,7 @@ use super::{
 };
 
 const CORDL_TYPE_MACRO: &str = "CORDL_TYPE";
+const __CORDL_IS_VALUE_TYPE: &str = "__CORDL_IS_VALUE_TYPE";
 
 #[derive(Debug, Clone, Default)]
 pub struct CppTypeRequirements {
@@ -335,7 +336,7 @@ impl CppType {
 
             writeln!(
                 writer,
-                "static constexpr bool __CORDL_IS_VALUE_TYPE = {};",
+                "static constexpr bool {__CORDL_IS_VALUE_TYPE} = {};",
                 self.is_value_type
             )?;
             // Type complete

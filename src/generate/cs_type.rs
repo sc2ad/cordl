@@ -937,11 +937,16 @@ pub trait CSType: Sized {
             return;
         }
 
+        let base_type = cpp_type
+            .inherit
+            .get(0)
+            .expect("No parent for reference type?");
+
         cpp_type.declarations.push(
             CppMember::CppLine(CppLine {
                 line: format!(
                     // Pointer construction
-                    "constexpr explicit {cpp_name}(void* ptr) : {OBJECT_WRAPPER_TYPE}(ptr) {{}}"
+                    "constexpr explicit {cpp_name}(void* ptr) : {base_type}(ptr) {{}}"
                 ),
             })
             .into(),
@@ -1034,7 +1039,9 @@ pub trait CSType: Sized {
             let make_param_cpp_type_name = |cpp_type: &mut CppType| {
                 let name =
                     cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, must_include);
-                cpp_type.il2cpp_byref(name, m_ret_type)
+                let byref = cpp_type.il2cpp_byref(name, param_type);
+
+                cpp_type.il2cpp_interfacewrap(byref, param_type, metadata)
             };
 
             let param_cpp_name = match is_generic_inst {
@@ -1078,7 +1085,9 @@ pub trait CSType: Sized {
 
         let make_ret_cpp_type_name = |cpp_type: &mut CppType| {
             let name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false);
-            cpp_type.il2cpp_byref(name, m_ret_type)
+            let byref = cpp_type.il2cpp_byref(name, m_ret_type);
+
+            cpp_type.il2cpp_interfacewrap(byref, m_ret_type, metadata)
         };
 
         let m_ret_cpp_type_byref_name = match is_generic_inst {
@@ -1372,6 +1381,22 @@ pub trait CSType: Sized {
             requirements.needs_byref_include();
 
             return format!("ByRefConst<{cpp_name}>");
+        }
+
+        cpp_name
+    }
+    fn il2cpp_interfacewrap(
+        &mut self,
+        cpp_name: String,
+        typ: &Il2CppType,
+        metadata: &Metadata,
+    ) -> String {
+        if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
+            let td = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+            if td.is_interface() {
+                return format!("::cordl_internals::InterfaceW<{cpp_name}>");
+            }
         }
 
         cpp_name

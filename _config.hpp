@@ -103,4 +103,21 @@ CORDL_HIDDEN void setValueTypeStatic(T&& t) {
   return *val;
 }
 
+template <typename T>
+concept il2cpp_value_type = requires(T const& t) {
+  { std::is_array_v<decltype(t.__instance)> };
+  T::__CORDL_IS_VALUE_TYPE == true;
+  //   { T::__CORDL_IS_VALUE_TYPE } -> std::equal_to_v<true>;
+};
+
+struct InterfaceW {
+  void* instance;
+  InterfaceW(::bs_hook::Il2CppWrapperObject o) : instance(o.instance) {}
+
+  // template <il2cpp_value_type T> InterfaceW(T o) : instance(il2cpp_utils::box(o)) {}
+  template <il2cpp_value_type T> InterfaceW(T o) : instance(nullptr) {
+    // TODO:
+  }
+};
+
 } // namespace cordl_internals
