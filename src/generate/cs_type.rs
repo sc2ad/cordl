@@ -207,6 +207,7 @@ pub trait CSType: Sized {
             method_generic_instantiation_map: Default::default(),
 
             is_stub: generics.is_some(),
+            is_hidden: true,
             nested_types: Default::default(),
         };
 

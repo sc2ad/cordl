@@ -15,6 +15,8 @@ use super::{
     writer::Writable,
 };
 
+const CORDL_TYPE_MACRO: &str = "CORDL_TYPE";
+
 #[derive(Debug, Clone, Default)]
 pub struct CppTypeRequirements {
     pub forward_declares: HashSet<(CppForwardDeclare, CppInclude)>,
@@ -61,6 +63,7 @@ pub struct CppType {
     pub generic_instantiation_args: Option<Vec<String>>, // generic_instantiations_args_types but formatted
     pub method_generic_instantiation_map: HashMap<MethodIndex, Vec<TypeIndex>>, // MethodIndex -> Generic Args
     pub is_stub: bool,
+    pub is_hidden: bool,
 
     pub nested_types: HashMap<CppTypeTag, CppType>,
 }
@@ -269,12 +272,15 @@ impl CppType {
             //     writeln!(writer, "template<>")?;
             // }
 
+            let cordl_hide = match self.is_hidden {
+                true => CORDL_TYPE_MACRO,
+                false => "",
+            };
             match self.inherit.is_empty() {
-                true => writeln!(writer, "{} {clazz_name} {{", &type_kind)?,
+                true => writeln!(writer, "{type_kind} {cordl_hide} {clazz_name} {{")?,
                 false => writeln!(
                     writer,
-                    "{} {clazz_name} : {} {{",
-                    &type_kind,
+                    "{type_kind} {cordl_hide} {clazz_name} : {} {{",
                     self.inherit
                         .iter()
                         .map(|s| format!("public {s}"))
