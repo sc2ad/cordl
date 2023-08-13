@@ -67,7 +67,7 @@ pub struct CppType {
 
 impl CppTypeRequirements {
     pub fn need_wrapper(&mut self) {
-        self.required_includes.insert(CppInclude::new(
+        self.required_includes.insert(CppInclude::new_exact(
             "beatsaber-hook/shared/utils/base-wrapper-type.hpp",
         ));
     }
@@ -80,19 +80,20 @@ impl CppTypeRequirements {
             .insert(CppInclude::new_system("cmath"));
     }
     pub fn needs_stringw_include(&mut self) {
-        self.required_includes.insert(CppInclude::new(
+        self.required_includes.insert(CppInclude::new_exact(
             "beatsaber-hook/shared/utils/typedefs-string.hpp",
         ));
     }
     pub fn needs_arrayw_include(&mut self) {
-        self.required_includes.insert(CppInclude::new(
+        self.required_includes.insert(CppInclude::new_exact(
             "beatsaber-hook/shared/utils/typedefs-array.hpp",
         ));
     }
 
     pub fn needs_byref_include(&mut self) {
-        self.required_includes
-            .insert(CppInclude::new("beatsaber-hook/shared/utils/byref.hpp"));
+        self.required_includes.insert(CppInclude::new_exact(
+            "beatsaber-hook/shared/utils/byref.hpp",
+        ));
     }
 }
 

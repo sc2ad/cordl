@@ -39,5 +39,5 @@ fn unity_object_handler(cpp_type: &mut CppType) {
     cpp_type
         .requirements
         .required_includes
-        .insert(CppInclude::new(path));
+        .insert(CppInclude::new_exact(path));
 }

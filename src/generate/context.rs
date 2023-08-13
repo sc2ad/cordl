@@ -159,7 +159,7 @@ impl CppContext {
         self.typedef_types.insert(cpp_type.self_tag, cpp_type);
     }
 
-    pub fn write(&self) -> color_eyre::Result<()> {
+    pub fn write(&self, config: &GenerationConfig) -> color_eyre::Result<()> {
         // Write typedef file first
         if Path::exists(self.typedef_path.as_path()) {
             remove_file(self.typedef_path.as_path())?;
@@ -197,8 +197,14 @@ impl CppContext {
         writeln!(typedef_writer, "#pragma once")?;
         writeln!(typeimpl_writer, "#pragma once")?;
         writeln!(fundamental_writer, "#pragma once")?;
+        let base_path = &config.header_path;
 
-        let base_path = &STATIC_CONFIG.header_path;
+        // Include cordl config
+        // this is so confusing but basically gets the relative folder
+        // navigation for `_config.hpp`
+        let dest_path = diff_paths(&STATIC_CONFIG.dest_header_config_file, self.typedef_path.parent().unwrap()).unwrap();
+
+        CppInclude::new_exact(dest_path).write(&mut typedef_writer)?;
 
         let typedef_root_types_sorted = self
             .typedef_types
@@ -266,7 +272,7 @@ impl CppContext {
         // write forward declares
         // and includes for impl
         {
-            CppInclude::new(diff_paths(&self.typedef_path, base_path).unwrap())
+            CppInclude::new_exact(diff_paths(&self.typedef_path, base_path).unwrap())
                 .write(&mut typeimpl_writer)?;
 
             typedef_types_sorted
@@ -325,9 +331,9 @@ impl CppContext {
             .iter()
             .try_for_each(|t| Self::write_il2cpp_arg_macros(t, &mut typedef_writer))?;
 
-        CppInclude::new(diff_paths(&self.typedef_path, base_path).unwrap())
+        CppInclude::new_exact(diff_paths(&self.typedef_path, base_path).unwrap())
             .write(&mut fundamental_writer)?;
-        CppInclude::new(diff_paths(&self.type_impl_path, base_path).unwrap())
+        CppInclude::new_exact(diff_paths(&self.type_impl_path, base_path).unwrap())
             .write(&mut fundamental_writer)?;
 
         // TODO: Write type impl and fundamental files here
