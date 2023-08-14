@@ -28,7 +28,7 @@ use super::{
     context_collection::{CppContextCollection, CppTypeTag},
     cpp_type::{self, CppType},
     members::{
-        CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl,
+        CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
         CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl, CppStaticAssert,
         CppTemplate,
@@ -475,21 +475,52 @@ pub trait CSType: Sized {
                 let ref_def_value = match f_type.valuetype {
                     true => def_value,
                     false => Some(def_value.unwrap_or("nullptr".to_string())),
-                };
+                }
+                .expect("Constant with no default value");
 
-                let field_decl = CppFieldDecl {
-                    cpp_name: config.name_cpp(f_name),
-                    field_ty: field_ty_cpp_name,
-                    instance: !f_type.is_static() && !f_type.is_constant(),
-                    readonly: f_type.is_constant(),
-                    value: ref_def_value,
-                    const_expr: f_type.is_constant(),
-                    brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
-                };
+                match cpp_type.is_enum_type {
+                    true => {
+                        // enum type
+                        let field_decl = CppFieldDecl {
+                            cpp_name: config.name_cpp(f_name),
+                            field_ty: field_ty_cpp_name,
+                            instance: !f_type.is_static() && !f_type.is_constant(),
+                            readonly: f_type.is_constant(),
+                            value: None,
+                            const_expr: false,
+                            brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
+                        };
+                        let field_impl = CppFieldImpl {
+                            value: ref_def_value,
+                            const_expr: true,
+                            declaring_type: cpp_type.cpp_full_name.clone(),
+                            ..field_decl.clone().into()
+                        };
 
-                cpp_type
-                    .declarations
-                    .push(CppMember::FieldDecl(field_decl).into());
+                        cpp_type
+                            .declarations
+                            .push(CppMember::FieldDecl(field_decl).into());
+                        cpp_type
+                            .implementations
+                            .push(CppMember::FieldImpl(field_impl).into());
+                    }
+                    false => {
+                        // ref/value type
+                        let field_decl = CppFieldDecl {
+                            cpp_name: config.name_cpp(f_name),
+                            field_ty: field_ty_cpp_name,
+                            instance: !f_type.is_static() && !f_type.is_constant(),
+                            readonly: f_type.is_constant(),
+                            value: Some(ref_def_value),
+                            const_expr: f_type.is_constant(),
+                            brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
+                        };
+
+                        cpp_type
+                            .declarations
+                            .push(CppMember::FieldDecl(field_decl).into());
+                    }
+                }
             } else {
                 let declaring_type_specifier = match t.is_value_type() || t.is_enum_type() {
                     true => "ValueType",

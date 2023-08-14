@@ -86,6 +86,7 @@ pub struct CppUsingAlias {
 #[derive(Clone, Debug)]
 pub enum CppMember {
     FieldDecl(CppFieldDecl),
+    FieldImpl(CppFieldImpl),
     MethodDecl(CppMethodDecl),
     MethodImpl(CppMethodImpl),
     Property(CppPropertyDecl),
@@ -126,6 +127,28 @@ pub struct CppFieldDecl {
     pub const_expr: bool,
     pub value: Option<String>,
     pub brief_comment: Option<String>,
+}
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CppFieldImpl {
+    pub declaring_type: String,
+    pub cpp_name: String,
+    pub field_ty: String,
+    pub readonly: bool,
+    pub const_expr: bool,
+    pub value: String,
+}
+
+impl From<CppFieldDecl> for CppFieldImpl {
+    fn from(value: CppFieldDecl) -> Self {
+        Self {
+            const_expr: value.const_expr,
+            readonly: value.readonly,
+            cpp_name: value.cpp_name,
+            field_ty: value.field_ty,
+            declaring_type: "".to_string(),
+            value: value.value.unwrap_or_default(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
