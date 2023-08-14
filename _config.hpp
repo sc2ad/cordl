@@ -36,7 +36,8 @@ CORDL_HIDDEN inline T getReferenceTypeInstance(void* instance) {
 template <typename T, std::size_t offset>
 CORDL_HIDDEN void setReferenceTypeInstance(void* instance, T t) {
   ::il2cpp_functions::Init();
-  ::il2cpp_functions::gc_wbarrier_set_field(instance, getAtOffset(), t.convert());
+  ::il2cpp_functions::gc_wbarrier_set_field(instance, getAtOffset(),
+                                            t.convert());
 }
 
 template <typename T, std::size_t offset>
@@ -110,13 +111,26 @@ concept il2cpp_value_type = requires(T const& t) {
   //   { T::__CORDL_IS_VALUE_TYPE } -> std::equal_to_v<true>;
 };
 
-struct InterfaceW {
-  void* instance;
-  InterfaceW(::bs_hook::Il2CppWrapperObject o) : instance(o.instance) {}
+template <typename T>
+concept il2cpp_reference_type = requires(T const& t) {
+  { std::is_array_v<decltype(t.__instance)> };
+  T::__CORDL_IS_VALUE_TYPE == false;
+  //   { T::__CORDL_IS_VALUE_TYPE } -> std::equal_to_v<true>;
+} && std::is_assignable_v<T, ::bs_hook::Il2CppWrapperObject>;
 
-  // template <il2cpp_value_type T> InterfaceW(T o) : instance(il2cpp_utils::box(o)) {}
-  template <il2cpp_value_type T> InterfaceW(T o) : instance(nullptr) {
-    // TODO:
+template <typename IT> struct InterfaceW {
+  void* instance;
+
+  // reference type ctor
+  template <il2cpp_reference_type U>
+    requires(std::is_assignable_v<U, IT>)
+  constexpr InterfaceW(U o) : instance(o.instance) {}
+
+  // value type convert
+  template <il2cpp_value_type U>
+    requires(std::is_assignable<U, IT>)
+  InterfaceW(U&& o)
+      : instance(il2cpp_functions::value_box(classof(U), &std::forward<U>(o))) {
   }
 };
 

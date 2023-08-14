@@ -134,6 +134,31 @@ impl Writable for CppFieldDecl {
     }
 }
 
+impl Writable for CppFieldImpl {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        let ty = &self.field_ty;
+        let name = &self.cpp_name;
+        let declaring_ty = &self.declaring_type;
+        let mut prefix_mods: Vec<&str> = vec![];
+        let mut suffix_mods: Vec<&str> = vec![];
+
+
+        if self.const_expr {
+            prefix_mods.push("constexpr");
+        } else if self.readonly {
+            suffix_mods.push("const");
+        }
+
+        let prefixes = prefix_mods.join(" ");
+        let suffixes = suffix_mods.join(" ");
+
+        let value = &self.value;
+        writeln!(writer, "static {prefixes} {ty} {suffixes} {declaring_ty}::{name}{{{value}}};")?;
+
+        Ok(())
+    }
+}
+
 impl Writable for CppMethodDecl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -465,6 +490,7 @@ impl Writable for CppMember {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         match self {
             CppMember::FieldDecl(f) => f.write(writer),
+            CppMember::FieldImpl(f) => f.write(writer),
             CppMember::MethodDecl(m) => m.write(writer),
             CppMember::Property(p) => p.write(writer),
             CppMember::Comment(c) => c.write(writer),
