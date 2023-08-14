@@ -472,11 +472,8 @@ pub trait CSType: Sized {
 
             // TODO: Static fields
             if f_type.is_constant() {
-                let ref_def_value = match f_type.valuetype {
-                    true => def_value,
-                    false => Some(def_value.unwrap_or("nullptr".to_string())),
-                }
-                .expect("Constant with no default value");
+
+                let def_value = def_value.expect("Constant with no default value?");
 
                 match cpp_type.is_enum_type {
                     true => {
@@ -491,7 +488,7 @@ pub trait CSType: Sized {
                             brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
                         };
                         let field_impl = CppFieldImpl {
-                            value: ref_def_value,
+                            value: def_value,
                             const_expr: true,
                             declaring_type: cpp_type.cpp_full_name.clone(),
                             ..field_decl.clone().into()
@@ -511,7 +508,7 @@ pub trait CSType: Sized {
                             field_ty: field_ty_cpp_name,
                             instance: !f_type.is_static() && !f_type.is_constant(),
                             readonly: f_type.is_constant(),
-                            value: Some(ref_def_value),
+                            value: Some(def_value),
                             const_expr: f_type.is_constant(),
                             brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
                         };
@@ -1334,7 +1331,7 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::Genericinst
             | Il2CppTypeEnum::Object
             | Il2CppTypeEnum::Class
-            | Il2CppTypeEnum::Szarray => "nullptr".to_string(),
+            | Il2CppTypeEnum::Szarray => format!("/* TODO: Fix these default values */ {ty:?} */nullptr"),
 
             _ => "unknown".to_string(),
         }
