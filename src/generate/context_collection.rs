@@ -618,7 +618,7 @@ impl CppContextCollection {
         &self.all_contexts
     }
 
-    pub fn write_all(&self) -> color_eyre::Result<()> {
+    pub fn write_all(&self, config: &GenerationConfig) -> color_eyre::Result<()> {
         let amount = self.all_contexts.len() as f64;
         self.all_contexts
             .iter()
@@ -631,7 +631,7 @@ impl CppContextCollection {
                     amount,
                     c.fundamental_path.display(),
                 );
-                c.write()
+                c.write(config)
             })
     }
 

@@ -7,6 +7,7 @@
 #![feature(return_position_impl_trait_in_trait)]
 #![feature(lazy_cell)]
 #![feature(exit_status_error)]
+#![feature(result_option_inspect)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
 use color_eyre::Result;
@@ -60,6 +61,8 @@ enum Commands {}
 pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| GenerationConfig {
     header_path: PathBuf::from("./codegen/include"),
     source_path: PathBuf::from("./codegen/src"),
+    original_header_config_file: PathBuf::from("./_config.hpp"),
+    dest_header_config_file: PathBuf::from("./codegen/include/_config.hpp"),
 });
 
 fn main() -> color_eyre::Result<()> {
@@ -73,6 +76,18 @@ fn main() -> color_eyre::Result<()> {
     //     libil2cpp: PathBuf::from("libil2cpp.so"),
     //     command: None,
     // };
+
+    println!(
+        "Copying config to codegen folder {:?}",
+        STATIC_CONFIG.dest_header_config_file
+    );
+
+    std::fs::create_dir_all(STATIC_CONFIG.dest_header_config_file.parent().unwrap())?;
+
+    std::fs::copy(
+        &STATIC_CONFIG.original_header_config_file,
+        &STATIC_CONFIG.dest_header_config_file,
+    )?;
 
     let global_metadata_data = fs::read(cli.metadata)?;
     let elf_data = fs::read(cli.libil2cpp)?;
@@ -122,7 +137,7 @@ fn main() -> color_eyre::Result<()> {
                 tdi,
                 CppTypeTag::TypeDefinitionIndex(tdi),
                 &metadata,
-                false
+                false,
             );
         }
     }
@@ -251,7 +266,7 @@ fn main() -> color_eyre::Result<()> {
 
     let write_all = false;
     if write_all {
-        cpp_context_collection.write_all()?;
+        cpp_context_collection.write_all(&STATIC_CONFIG)?;
         cpp_context_collection.write_namespace_headers()?;
     } else {
         // for t in &metadata.type_definitions {
@@ -284,7 +299,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| c.get_types().iter().any(|(_, t)| t.cpp_template.is_some()))
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         println!("List Generic type");
         cpp_context_collection
             .get()
@@ -296,7 +311,7 @@ fn main() -> color_eyre::Result<()> {
             })
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         println!("Value type");
         cpp_context_collection
             .get()
@@ -308,7 +323,7 @@ fn main() -> color_eyre::Result<()> {
             })
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         // println!("Nested type");
         // cpp_context_collection
         //     .get()
@@ -347,7 +362,7 @@ fn main() -> color_eyre::Result<()> {
             })
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         println!("Default param");
         cpp_context_collection
             .get()
@@ -366,7 +381,7 @@ fn main() -> color_eyre::Result<()> {
             .nth(2)
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         println!("Enum type");
         cpp_context_collection
             .get()
@@ -374,7 +389,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| c.get_types().iter().any(|(_, t)| t.is_enum_type))
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         println!("UnityEngine.Object");
         cpp_context_collection
             .get()
@@ -386,7 +401,7 @@ fn main() -> color_eyre::Result<()> {
             })
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         println!("BeatmapSaveDataHelpers");
         cpp_context_collection
             .get()
@@ -398,7 +413,7 @@ fn main() -> color_eyre::Result<()> {
             })
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         println!("HMUI.ViewController");
         cpp_context_collection
             .get()
@@ -410,7 +425,7 @@ fn main() -> color_eyre::Result<()> {
             })
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         println!("UnityEngine.Component");
         cpp_context_collection
             .get()
@@ -422,7 +437,7 @@ fn main() -> color_eyre::Result<()> {
             })
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         println!("MainFlowCoordinator");
         cpp_context_collection
             .get()
@@ -434,7 +449,7 @@ fn main() -> color_eyre::Result<()> {
             })
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
         println!("HMUI.IValueChanger");
         cpp_context_collection
             .get()
@@ -446,7 +461,31 @@ fn main() -> color_eyre::Result<()> {
             })
             .unwrap()
             .1
-            .write()?;
+            .write(&STATIC_CONFIG)?;
+        println!("System.ValueType");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace == "System" && t.name == "ValueType")
+            })
+            .unwrap()
+            .1
+            .write(&STATIC_CONFIG)?;
+        println!("System.Enum");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace == "System" && t.name == "Enum")
+            })
+            .unwrap()
+            .1
+            .write(&STATIC_CONFIG)?;
         // for (_, context) in cpp_context_collection.get() {
         //     context.write().unwrap();
         // }

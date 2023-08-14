@@ -341,7 +341,7 @@ impl CppInclude {
         }
     }
 
-    pub fn new<P: AsRef<Path>>(str: P) -> Self {
+    pub fn new_exact<P: AsRef<Path>>(str: P) -> Self {
         Self {
             include: str.as_ref().to_path_buf(),
             system: false,
