@@ -472,12 +472,17 @@ pub trait CSType: Sized {
 
             // TODO: Static fields
             if f_type.is_constant() {
+                let ref_def_value = match f_type.valuetype {
+                    true => def_value,
+                    false => Some(def_value.unwrap_or("nullptr".to_string())),
+                };
+
                 let field_decl = CppFieldDecl {
                     cpp_name: config.name_cpp(f_name),
                     field_ty: field_ty_cpp_name,
                     instance: !f_type.is_static() && !f_type.is_constant(),
                     readonly: f_type.is_constant(),
-                    value: def_value,
+                    value: ref_def_value,
                     const_expr: f_type.is_constant(),
                     brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
                 };
@@ -862,7 +867,14 @@ pub trait CSType: Sized {
                     ty: cpp_name,
                     modifiers: "".to_string(),
                     // no default value for first param
-                    def_value: if i == 0 { None } else { Some("{}".to_string()) },
+                    def_value: if i == 0 {
+                        None
+                    } else {
+                        Some(match f_type.valuetype {
+                            true => "{}".to_string(),
+                            false => "nullptr".to_string(),
+                        })
+                    },
                 })
             })
             .collect_vec();
