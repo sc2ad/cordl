@@ -278,6 +278,7 @@ pub struct CppConstructorImpl {
     pub declaring_full_name: String,
 
     pub parameters: Vec<CppParam>,
+    pub base_ctor: Option<(String, String)>,
     pub initialized_values: HashMap<String, String>,
 
     pub is_constexpr: bool,
@@ -292,6 +293,7 @@ impl From<CppConstructorDecl> for CppConstructorImpl {
             body: value.body.unwrap_or_default(),
             declaring_full_name: value.cpp_name,
             is_constexpr: value.is_constexpr,
+            base_ctor: value.base_ctor,
             initialized_values: value.initialized_values,
             parameters: value.parameters,
             template: value.template,
