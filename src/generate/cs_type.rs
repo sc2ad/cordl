@@ -969,6 +969,13 @@ pub trait CSType: Sized {
             return;
         }
 
+        cpp_type.declarations.push(
+            CppMember::CppLine(CppLine {
+                line: format!("constexpr virtual ~{cpp_name}() = default;"),
+            })
+            .into(),
+        );
+
         // Delegates and such are reference types with no inheritance
         if cpp_type.inherit.is_empty() {
             return;
@@ -998,12 +1005,7 @@ pub trait CSType: Sized {
             })
             .into(),
         );
-        cpp_type.declarations.push(
-            CppMember::CppLine(CppLine {
-                line: format!("constexpr virtual ~{cpp_name}() = default;"),
-            })
-            .into(),
-        );
+
     }
 
     fn create_ref_constructor(
