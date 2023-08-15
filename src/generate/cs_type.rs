@@ -1146,6 +1146,7 @@ pub trait CSType: Sized {
         if m_name == ".ctor" && !declaring_type.is_value_type() {
             Self::create_ref_constructor(cpp_type, &m_params, &template);
         }
+        let cpp_m_name = config.name_cpp(&m_name);
         let declaring_type = method.declaring_type(metadata.metadata);
         let tag = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
 
@@ -1164,7 +1165,7 @@ pub trait CSType: Sized {
             .into(),
             is_const: false,
             is_constexpr: false,
-            cpp_name: config.name_cpp(m_name),
+            cpp_name: cpp_m_name.clone(),
             return_type: m_ret_cpp_type_byref_name.clone(),
             parameters: m_params.clone(),
             instance: !method.is_static_method(),
@@ -1194,7 +1195,8 @@ pub trait CSType: Sized {
         let params_format = CppParam::params_types(&method_decl.parameters).join(", ");
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
 
-        let method_line = format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_byref_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{m_name})>::methodInfo();");
+
+        let method_line = format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_byref_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_m_name})>::methodInfo();");
         let run_line = format!(
             "return ::il2cpp_utils::RunMethodRethrow<{m_ret_cpp_type_byref_name}, false>({});",
             method_invoke_params
