@@ -1,10 +1,10 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, rc::Rc};
 
 use color_eyre::Result;
 
 use crate::generate::{
     cpp_type::CppType,
-    members::CppInclude,
+    members::{CppInclude, CppMember},
     metadata::{Il2cppFullName, Metadata},
 };
 
@@ -40,4 +40,19 @@ fn unity_object_handler(cpp_type: &mut CppType) {
         .requirements
         .required_includes
         .insert(CppInclude::new_exact(path));
+
+    // Fixup ctor call
+    cpp_type
+        .declarations
+        .iter_mut()
+        .filter(|t| matches!(t.as_ref(), CppMember::ConstructorDecl(_)))
+        .for_each(|d| {
+            let CppMember::ConstructorDecl(constructor) = Rc::get_mut(d).unwrap() else {
+                panic!()
+            };
+
+            if let Some(base_ctor) = &mut constructor.base_ctor {
+                base_ctor.0 = "UnityW".to_string();
+            }
+        });
 }

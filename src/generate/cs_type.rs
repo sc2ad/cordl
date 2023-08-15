@@ -8,8 +8,8 @@ use std::{
 
 use brocolib::{
     global_metadata::{
-        FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex,
-        TypeDefinitionIndex, TypeIndex,
+        FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex, TypeDefinitionIndex,
+        TypeIndex,
     },
     runtime_metadata::{
         Il2CppMethodSpec, Il2CppType, Il2CppTypeDefinitionSizes, Il2CppTypeEnum, TypeData,
@@ -19,19 +19,16 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use itertools::Itertools;
 
-use crate::{
-    generate::members::CppUsingAlias, helpers::cursor::ReadBytesExtensions,
-};
+use crate::{generate::members::CppUsingAlias, helpers::cursor::ReadBytesExtensions};
 
 use super::{
     config::GenerationConfig,
     context_collection::{CppContextCollection, CppTypeTag},
-    cpp_type::{CppType},
+    cpp_type::CppType,
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
-        CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl,
-        CppTemplate,
+        CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl, CppTemplate,
     },
     metadata::Metadata,
     type_extensions::{
@@ -472,7 +469,6 @@ pub trait CSType: Sized {
 
             // TODO: Static fields
             if f_type.is_constant() {
-
                 let def_value = def_value.expect("Constant with no default value?");
 
                 match cpp_type.is_enum_type {
@@ -984,11 +980,21 @@ pub trait CSType: Sized {
             .expect("No parent for reference type?");
 
         cpp_type.declarations.push(
-            CppMember::CppLine(CppLine {
-                line: format!(
-                    // Pointer construction
-                    "constexpr explicit {cpp_name}(void* ptr) : {base_type}(ptr) {{}}"
-                ),
+            CppMember::ConstructorDecl(CppConstructorDecl {
+                cpp_name: cpp_name.clone(),
+                parameters: vec![CppParam {
+                    name: "ptr".to_string(),
+                    modifiers: "".to_string(),
+                    ty: "void*".to_string(),
+                    def_value: None,
+                }],
+                template: None,
+                is_constexpr: true,
+                is_explicit: true,
+                base_ctor: Some((base_type.clone(), "ptr".to_string())),
+                initialized_values: HashMap::new(),
+                brief: None,
+                body: Some(vec![]),
             })
             .into(),
         );
@@ -1005,7 +1011,7 @@ pub trait CSType: Sized {
         m_params: &[CppParam],
         template: &Option<CppTemplate>,
     ) {
-        let decl = CppConstructorDecl {
+        let decl: CppConstructorDecl = CppConstructorDecl {
             cpp_name: cpp_type.cpp_name.clone(),
             parameters: m_params.to_vec(),
             template: template.clone(),
@@ -1195,7 +1201,6 @@ pub trait CSType: Sized {
         let params_format = CppParam::params_types(&method_decl.parameters).join(", ");
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
 
-
         let method_line = format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_byref_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_m_name})>::methodInfo();");
         let run_line = format!(
             "return ::il2cpp_utils::RunMethodRethrow<{m_ret_cpp_type_byref_name}, false>({});",
@@ -1335,7 +1340,9 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::Genericinst
             | Il2CppTypeEnum::Object
             | Il2CppTypeEnum::Class
-            | Il2CppTypeEnum::Szarray => format!("/* TODO: Fix these default values */ {ty:?} */nullptr"),
+            | Il2CppTypeEnum::Szarray => {
+                format!("/* TODO: Fix these default values */ {ty:?} */nullptr")
+            }
 
             _ => "unknown".to_string(),
         }

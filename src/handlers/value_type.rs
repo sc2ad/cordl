@@ -1,7 +1,10 @@
+use std::rc::Rc;
+
 use color_eyre::Result;
 
 use crate::generate::{
     cpp_type::CppType,
+    members::CppMember,
     metadata::{Il2cppFullName, Metadata},
 };
 
