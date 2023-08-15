@@ -8,7 +8,7 @@ use std::{
 
 use brocolib::{
     global_metadata::{
-        FieldIndex, Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, ParameterIndex,
+        FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex,
         TypeDefinitionIndex, TypeIndex,
     },
     runtime_metadata::{
@@ -20,17 +20,17 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use itertools::Itertools;
 
 use crate::{
-    generate::members::CppUsingAlias, helpers::cursor::ReadBytesExtensions, STATIC_CONFIG,
+    generate::members::CppUsingAlias, helpers::cursor::ReadBytesExtensions,
 };
 
 use super::{
     config::GenerationConfig,
     context_collection::{CppContextCollection, CppTypeTag},
-    cpp_type::{self, CppType},
+    cpp_type::{CppType},
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
-        CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl, CppStaticAssert,
+        CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl,
         CppTemplate,
     },
     metadata::Metadata,
@@ -395,7 +395,7 @@ pub trait CSType: Sized {
                 .reserve(t.method_count as usize + 1);
 
             // Then, for each method, write it out
-            for (i, method) in t.methods(metadata.metadata).iter().enumerate() {
+            for (i, _method) in t.methods(metadata.metadata).iter().enumerate() {
                 let method_index = MethodIndex::new(t.method_start.index() + i as u32);
                 self.create_method(t, method_index, metadata, ctx_collection, config, false);
             }
@@ -674,9 +674,9 @@ pub trait CSType: Sized {
                     .metadata_registration
                     .types[t.declaring_type_index as usize];
 
-                let parent_type_tag =
+                let _parent_type_tag =
                     CppTypeTag::from_type_data(parent_type.data, metadata.metadata);
-                let declaring_type_tag =
+                let _declaring_type_tag =
                     CppTypeTag::from_type_data(declaring_ty.data, metadata.metadata);
 
                 if t.parent_index == t.declaring_type_index
@@ -812,7 +812,7 @@ pub trait CSType: Sized {
             let p_ty_cpp_name =
                 cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
 
-            let method_map = |p: MethodIndex| {
+            let _method_map = |p: MethodIndex| {
                 let method_calc = metadata.method_calculations.get(&p).unwrap();
                 CppMethodData {
                     estimated_size: method_calc.estimated_size,
@@ -820,7 +820,7 @@ pub trait CSType: Sized {
                 }
             };
 
-            let abstr = p_getter.is_some_and(|p| p.is_abstract_method())
+            let _abstr = p_getter.is_some_and(|p| p.is_abstract_method())
                 || p_setter.is_some_and(|p| p.is_abstract_method());
 
             // Need to include this type
@@ -928,6 +928,7 @@ pub trait CSType: Sized {
                     cpp_name: cpp_type.cpp_name().clone(),
                     template: None,
                     is_constexpr: true,
+                    is_explicit: false,
                     base_ctor,
                     initialized_values: HashMap::new(),
                     // initialize values with params
@@ -1013,6 +1014,7 @@ pub trait CSType: Sized {
             base_ctor: Default::default(),
             initialized_values: Default::default(), // TODO:!
             is_constexpr: false,
+            is_explicit: true,
         };
 
         let klassof = cpp_type.classof_cpp_name();
@@ -1618,7 +1620,7 @@ pub trait CSType: Sized {
                         cpp_type.method_generic_instantiation_map.get(&method_index);
 
                     if method_args_opt.is_none() {
-                        return format!("{}", gen_param.name(metadata.metadata));
+                        return gen_param.name(metadata.metadata).to_string();
                     }
 
                     let method_args = method_args_opt.unwrap();

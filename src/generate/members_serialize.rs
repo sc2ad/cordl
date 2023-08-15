@@ -2,7 +2,7 @@ use super::{
     members::*,
     writer::{CppWriter, Writable},
 };
-use color_eyre::eyre::bail;
+
 use itertools::Itertools;
 use std::io::Write;
 
@@ -142,7 +142,6 @@ impl Writable for CppFieldImpl {
         let mut prefix_mods: Vec<&str> = vec![];
         let mut suffix_mods: Vec<&str> = vec![];
 
-
         if self.const_expr {
             prefix_mods.push("constexpr");
         } else if self.readonly {
@@ -153,7 +152,10 @@ impl Writable for CppFieldImpl {
         let suffixes = suffix_mods.join(" ");
 
         let value = &self.value;
-        writeln!(writer, "static {prefixes} {ty} {suffixes} {declaring_ty}::{name}{{{value}}};")?;
+        writeln!(
+            writer,
+            "static {prefixes} {ty} {suffixes} {declaring_ty}::{name}{{{value}}};"
+        )?;
 
         Ok(())
     }
@@ -273,7 +275,7 @@ impl Writable for CppMethodImpl {
             suffix_modifiers.push("const");
         }
 
-        let suffixes = suffix_modifiers.join(" ");
+        let _suffixes = suffix_modifiers.join(" ");
         let prefixes = prefix_modifiers.join(" ");
         let ret = &self.return_type;
         let declaring_type = &self.declaring_cpp_full_name;
@@ -303,9 +305,6 @@ impl Writable for CppConstructorDecl {
             template.write(writer)?;
         }
 
-        let name = &self.cpp_name;
-        let params = CppParam::params_as_args(&self.parameters).join(", ");
-
         // Add empty body if initialize values or base ctor are defined
         let body = self.body.clone().or_else(|| {
             match self.initialized_values.is_empty() && self.base_ctor.is_none() {
@@ -314,12 +313,27 @@ impl Writable for CppConstructorDecl {
             }
         });
 
-        if let Some(body) = &body {
-            let inline_literal = match self.is_constexpr {
-                true => "constexpr",
-                false => "inline",
-            };
+        let name = &self.cpp_name;
+        let params = CppParam::params_as_args(&self.parameters).join(", ");
 
+        let mut prefix_modifiers = vec![];
+
+        if body.is_some() {
+            if self.is_constexpr {
+                prefix_modifiers.push("constexpr")
+            } else if self.body.is_some() {
+                //implicitly inline
+                prefix_modifiers.push("inline")
+            }
+        }
+
+        if self.is_explicit {
+            prefix_modifiers.push("explicit");
+        }
+
+        let prefixes = prefix_modifiers.join(" ");
+
+        if let Some(body) = &body {
             let initializers = match self.initialized_values.is_empty() && self.base_ctor.is_none()
             {
                 true => "".to_string(),
@@ -338,15 +352,12 @@ impl Writable for CppConstructorDecl {
                 }
             };
 
-            writeln!(
-                writer,
-                "{inline_literal} {name}({params}) {initializers} {{",
-            )?;
+            writeln!(writer, "{prefixes} {name}({params}) {initializers} {{",)?;
 
             body.iter().try_for_each(|w| w.write(writer))?;
             writeln!(writer, "}}")?;
         } else {
-            writeln!(writer, "{name}({params});")?;
+            writeln!(writer, "{prefixes} {name}({params});")?;
         }
 
         Ok(())
