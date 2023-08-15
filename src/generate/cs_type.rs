@@ -1005,14 +1005,18 @@ pub trait CSType: Sized {
             })
             .into(),
         );
-
     }
 
     fn create_ref_constructor(
         cpp_type: &mut CppType,
+        declaring_type: &Il2CppTypeDefinition,
         m_params: &[CppParam],
         template: &Option<CppTemplate>,
     ) {
+        if declaring_type.is_value_type() || declaring_type.is_enum_type() {
+            return;
+        }
+
         let decl: CppConstructorDecl = CppConstructorDecl {
             cpp_name: cpp_type.cpp_name.clone(),
             parameters: m_params.to_vec(),
@@ -1031,12 +1035,12 @@ pub trait CSType: Sized {
             CppMember::ConstructorImpl(CppConstructorImpl {
                 body: vec![], // TODO:!
                 declaring_full_name: cpp_type.cpp_full_name.clone(),
-                initialized_values: HashMap::from([(
+                base_ctor: Some((
                     OBJECT_WRAPPER_TYPE.to_string(),
                     format!(
                         "::il2cpp_utils::New<Il2CppObject*>(classof({klassof}), {param_names})"
                     ),
-                )]),
+                )),
                 ..decl.clone().into()
             })
             .into(),
@@ -1151,10 +1155,10 @@ pub trait CSType: Sized {
         };
 
         // Reference type constructor
-        if m_name == ".ctor" && !declaring_type.is_value_type() {
-            Self::create_ref_constructor(cpp_type, &m_params, &template);
+        if m_name == ".ctor" {
+            Self::create_ref_constructor(cpp_type, declaring_type, &m_params, &template);
         }
-        let cpp_m_name = config.name_cpp(&m_name);
+        let cpp_m_name = config.name_cpp(m_name);
         let declaring_type = method.declaring_type(metadata.metadata);
         let tag = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
 

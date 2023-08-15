@@ -374,16 +374,20 @@ impl Writable for CppConstructorImpl {
             template.write(writer)?;
         }
 
-        let initializers = match self.initialized_values.is_empty() {
+        let initializers = match self.initialized_values.is_empty() && self.base_ctor.is_none() {
             true => "".to_string(),
             false => {
-                let initializers_list = self
+                let mut initializers_list = self
                     .initialized_values
                     .iter()
                     .map(|(name, value)| format!("{}({})", name, value))
-                    .collect_vec()
-                    .join(",");
-                format!(": {}", initializers_list)
+                    .collect_vec();
+
+                if let Some((base_ctor, args)) = &self.base_ctor {
+                    initializers_list.insert(0, format!("{base_ctor}({args})"))
+                }
+
+                format!(": {}", initializers_list.join(","))
             }
         };
 
