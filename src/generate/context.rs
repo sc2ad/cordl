@@ -93,7 +93,7 @@ impl CppContext {
         let name = t.name(metadata.metadata);
 
         let cpp_namespace = config.namespace_cpp(ns);
-        let cpp_name = config.namespace_cpp(name);
+        let _cpp_name = config.namespace_cpp(name);
 
         let ns_path = config.namespace_path(ns);
         let path = if ns_path.is_empty() {

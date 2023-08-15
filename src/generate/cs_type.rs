@@ -8,8 +8,8 @@ use std::{
 
 use brocolib::{
     global_metadata::{
-        FieldIndex, Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, ParameterIndex,
-        TypeDefinitionIndex, TypeIndex,
+        FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex, TypeDefinitionIndex,
+        TypeIndex,
     },
     runtime_metadata::{
         Il2CppMethodSpec, Il2CppType, Il2CppTypeDefinitionSizes, Il2CppTypeEnum, TypeData,
@@ -19,19 +19,16 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use itertools::Itertools;
 
-use crate::{
-    generate::members::CppUsingAlias, helpers::cursor::ReadBytesExtensions, STATIC_CONFIG,
-};
+use crate::{generate::members::CppUsingAlias, helpers::cursor::ReadBytesExtensions};
 
 use super::{
     config::GenerationConfig,
     context_collection::{CppContextCollection, CppTypeTag},
-    cpp_type::{self, CppType},
+    cpp_type::CppType,
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
-        CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl, CppStaticAssert,
-        CppTemplate,
+        CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl, CppTemplate,
     },
     metadata::Metadata,
     type_extensions::{
@@ -395,7 +392,7 @@ pub trait CSType: Sized {
                 .reserve(t.method_count as usize + 1);
 
             // Then, for each method, write it out
-            for (i, method) in t.methods(metadata.metadata).iter().enumerate() {
+            for (i, _method) in t.methods(metadata.metadata).iter().enumerate() {
                 let method_index = MethodIndex::new(t.method_start.index() + i as u32);
                 self.create_method(t, method_index, metadata, ctx_collection, config, false);
             }
@@ -472,7 +469,6 @@ pub trait CSType: Sized {
 
             // TODO: Static fields
             if f_type.is_constant() {
-
                 let def_value = def_value.expect("Constant with no default value?");
 
                 match cpp_type.is_enum_type {
@@ -674,9 +670,9 @@ pub trait CSType: Sized {
                     .metadata_registration
                     .types[t.declaring_type_index as usize];
 
-                let parent_type_tag =
+                let _parent_type_tag =
                     CppTypeTag::from_type_data(parent_type.data, metadata.metadata);
-                let declaring_type_tag =
+                let _declaring_type_tag =
                     CppTypeTag::from_type_data(declaring_ty.data, metadata.metadata);
 
                 if t.parent_index == t.declaring_type_index
@@ -812,7 +808,7 @@ pub trait CSType: Sized {
             let p_ty_cpp_name =
                 cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
 
-            let method_map = |p: MethodIndex| {
+            let _method_map = |p: MethodIndex| {
                 let method_calc = metadata.method_calculations.get(&p).unwrap();
                 CppMethodData {
                     estimated_size: method_calc.estimated_size,
@@ -820,7 +816,7 @@ pub trait CSType: Sized {
                 }
             };
 
-            let abstr = p_getter.is_some_and(|p| p.is_abstract_method())
+            let _abstr = p_getter.is_some_and(|p| p.is_abstract_method())
                 || p_setter.is_some_and(|p| p.is_abstract_method());
 
             // Need to include this type
@@ -928,6 +924,7 @@ pub trait CSType: Sized {
                     cpp_name: cpp_type.cpp_name().clone(),
                     template: None,
                     is_constexpr: true,
+                    is_explicit: true,
                     base_ctor,
                     initialized_values: HashMap::new(),
                     // initialize values with params
@@ -983,11 +980,21 @@ pub trait CSType: Sized {
             .expect("No parent for reference type?");
 
         cpp_type.declarations.push(
-            CppMember::CppLine(CppLine {
-                line: format!(
-                    // Pointer construction
-                    "constexpr explicit {cpp_name}(void* ptr) : {base_type}(ptr) {{}}"
-                ),
+            CppMember::ConstructorDecl(CppConstructorDecl {
+                cpp_name: cpp_name.clone(),
+                parameters: vec![CppParam {
+                    name: "ptr".to_string(),
+                    modifiers: "".to_string(),
+                    ty: "void*".to_string(),
+                    def_value: None,
+                }],
+                template: None,
+                is_constexpr: true,
+                is_explicit: true,
+                base_ctor: Some((base_type.clone(), "ptr".to_string())),
+                initialized_values: HashMap::new(),
+                brief: None,
+                body: Some(vec![]),
             })
             .into(),
         );
@@ -1004,7 +1011,7 @@ pub trait CSType: Sized {
         m_params: &[CppParam],
         template: &Option<CppTemplate>,
     ) {
-        let decl = CppConstructorDecl {
+        let decl: CppConstructorDecl = CppConstructorDecl {
             cpp_name: cpp_type.cpp_name.clone(),
             parameters: m_params.to_vec(),
             template: template.clone(),
@@ -1013,6 +1020,7 @@ pub trait CSType: Sized {
             base_ctor: Default::default(),
             initialized_values: Default::default(), // TODO:!
             is_constexpr: false,
+            is_explicit: true,
         };
 
         let klassof = cpp_type.classof_cpp_name();
@@ -1144,6 +1152,7 @@ pub trait CSType: Sized {
         if m_name == ".ctor" && !declaring_type.is_value_type() {
             Self::create_ref_constructor(cpp_type, &m_params, &template);
         }
+        let cpp_m_name = config.name_cpp(&m_name);
         let declaring_type = method.declaring_type(metadata.metadata);
         let tag = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
 
@@ -1162,7 +1171,7 @@ pub trait CSType: Sized {
             .into(),
             is_const: false,
             is_constexpr: false,
-            cpp_name: config.name_cpp(m_name),
+            cpp_name: cpp_m_name.clone(),
             return_type: m_ret_cpp_type_byref_name.clone(),
             parameters: m_params.clone(),
             instance: !method.is_static_method(),
@@ -1192,7 +1201,7 @@ pub trait CSType: Sized {
         let params_format = CppParam::params_types(&method_decl.parameters).join(", ");
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
 
-        let method_line = format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_byref_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{m_name})>::methodInfo();");
+        let method_line = format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_byref_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_m_name})>::methodInfo();");
         let run_line = format!(
             "return ::il2cpp_utils::RunMethodRethrow<{m_ret_cpp_type_byref_name}, false>({});",
             method_invoke_params
@@ -1331,7 +1340,9 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::Genericinst
             | Il2CppTypeEnum::Object
             | Il2CppTypeEnum::Class
-            | Il2CppTypeEnum::Szarray => format!("/* TODO: Fix these default values */ {ty:?} */nullptr"),
+            | Il2CppTypeEnum::Szarray => {
+                format!("/* TODO: Fix these default values */ {ty:?} */nullptr")
+            }
 
             _ => "unknown".to_string(),
         }
@@ -1618,7 +1629,7 @@ pub trait CSType: Sized {
                         cpp_type.method_generic_instantiation_map.get(&method_index);
 
                     if method_args_opt.is_none() {
-                        return format!("{}", gen_param.name(metadata.metadata));
+                        return gen_param.name(metadata.metadata).to_string();
                     }
 
                     let method_args = method_args_opt.unwrap();

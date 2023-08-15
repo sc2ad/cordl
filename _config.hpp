@@ -1,11 +1,16 @@
 #pragma once
 #include <stdint.h>
 #include <array>
+#include <concepts>
+#include <type_traits>
+#include "beatsaber-hook/shared/utils/base-wrapper-type.hpp"
+#include "beatsaber-hook/shared/utils/il2cpp-functions.hpp"
+#include "beatsaber-hook/shared/utils/il2cpp-utils-fields.hpp"
 
 // always inline attribute
 #define CORDL_ALWAYS_INLINE __attribute__((alwaysinline))
 // hidden attribute
-#define CORDL_HIDDEN __attribute__((hidden))
+#define CORDL_HIDDEN __attribute__((visibility("hidden")))
 
 #define CORDL_METHOD CORDL_HIDDEN CORDL_ALWAYS_INLINE
 #define CORDL_TYPE CORDL_HIDDEN
@@ -36,7 +41,7 @@ CORDL_HIDDEN inline T getReferenceTypeInstance(void* instance) {
 template <typename T, std::size_t offset>
 CORDL_HIDDEN void setReferenceTypeInstance(void* instance, T t) {
   ::il2cpp_functions::Init();
-  ::il2cpp_functions::gc_wbarrier_set_field(instance, getAtOffset(),
+  ::il2cpp_functions::gc_wbarrier_set_field(instance, getAtOffset<offset>(),
                                             t.convert());
 }
 
@@ -113,24 +118,24 @@ concept il2cpp_value_type = requires(T const& t) {
 
 template <typename T>
 concept il2cpp_reference_type = requires(T const& t) {
-  { std::is_array_v<decltype(t.__instance)> };
+  { t.convert() } -> convertible_to<void*>;
   T::__CORDL_IS_VALUE_TYPE == false;
   //   { T::__CORDL_IS_VALUE_TYPE } -> std::equal_to_v<true>;
-} && std::is_assignable_v<T, ::bs_hook::Il2CppWrapperObject>;
+} && std::is_assignable_v<T, ::bs_hook::Il2CppWrapperType>;
 
-template <typename IT> struct InterfaceW {
+template <typename IT> struct InterfaceW : IT {
   void* instance;
 
   // reference type ctor
   template <il2cpp_reference_type U>
     requires(std::is_assignable_v<U, IT>)
-  constexpr InterfaceW(U o) : instance(o.instance) {}
+  constexpr InterfaceW(U o) : instance(o.convert()) {}
 
   // value type convert
   template <il2cpp_value_type U>
-    requires(std::is_assignable<U, IT>)
+    requires(std::is_assignable_v<U, IT>)
   InterfaceW(U&& o)
-      : instance(il2cpp_functions::value_box(classof(U), &std::forward<U>(o))) {
+      : instance(il2cpp_utils::box(std::forward<U>(o))) {
   }
 };
 

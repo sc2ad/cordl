@@ -42,7 +42,7 @@ impl From<&str> for CppLine {
 
 impl CppLine {
     pub fn make(v: String) -> Self {
-        return CppLine { line: v };
+        CppLine { line: v }
     }
 }
 
@@ -264,6 +264,7 @@ pub struct CppConstructorDecl {
     pub template: Option<CppTemplate>,
 
     pub is_constexpr: bool,
+    pub is_explicit: bool,
 
     // call base ctor
     pub base_ctor: Option<(String, String)>,
@@ -380,7 +381,7 @@ impl CppUsingAlias {
     ) -> Self {
         let generic_instantiation_args = generic_instantiation_args_opt.unwrap_or_default();
 
-        let (literals, template) = match &cpp_type.cpp_template {
+        let (_literals, template) = match &cpp_type.cpp_template {
             Some(template) => {
                 // Skip the first args as those aren't necessary
                 let extra_args = template

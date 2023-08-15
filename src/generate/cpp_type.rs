@@ -6,7 +6,7 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use brocolib::global_metadata::{MethodIndex, TypeDefinitionIndex, TypeIndex};
+use brocolib::global_metadata::{MethodIndex, TypeIndex};
 use itertools::Itertools;
 
 use super::{

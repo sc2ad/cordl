@@ -4,7 +4,7 @@ use brocolib::{
     Metadata,
 };
 
-use super::config::{self, GenerationConfig};
+use super::config::{GenerationConfig};
 
 pub const OBJECT_WRAPPER_TYPE: &str = "::bs_hook::Il2CppWrapperType";
 
@@ -204,11 +204,11 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
             };
 
             full_name.push_str(&declaring_ty);
-            full_name.push_str("/");
+            full_name.push('/');
         } else {
             // only write namespace if no declaring type
             full_name.push_str(&namespace);
-            full_name.push_str(".");
+            full_name.push('.');
         }
 
         full_name.push_str(&name);

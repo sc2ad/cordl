@@ -1,4 +1,4 @@
-use std::{fs::File, hash::Hash, io::Write};
+use std::{fs::File, io::Write};
 
 pub struct CppWriter {
     pub stream: File,
