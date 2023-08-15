@@ -3,7 +3,6 @@ use std::{
     collections::{HashMap, HashSet},
     fs::File,
     io::Write,
-    path::{Path, PathBuf},
 };
 
 use brocolib::{
@@ -82,7 +81,7 @@ impl CppTypeTag {
         let generic_inst = &metadata
             .runtime_metadata
             .metadata_registration
-            .generic_classes[generic_inst_idx as usize];
+            .generic_classes[generic_inst_idx];
 
         let ty: brocolib::runtime_metadata::Il2CppType =
             metadata.runtime_metadata.metadata_registration.types[generic_inst.type_index];
@@ -142,7 +141,7 @@ impl CppContextCollection {
     }
 
     pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, type_tag: CppTypeTag) {
-        let tdi = CppType::get_cpp_tag_tdi(type_tag);
+        let _tdi = CppType::get_cpp_tag_tdi(type_tag);
 
         let context_tag = self.get_context_root_tag(type_tag);
 
@@ -278,7 +277,7 @@ impl CppContextCollection {
         tdi: TypeDefinitionIndex,
     ) -> Option<&mut CppContext> {
         let ty_data = CppTypeTag::TypeDefinitionIndex(tdi);
-        let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
+        let _ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
         let context_root_tag = self.get_context_root_tag(ty_data);
 
         if self.filling_types.contains(&context_root_tag) {
@@ -323,7 +322,7 @@ impl CppContextCollection {
 
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
-        let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
+        let _ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
 
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;

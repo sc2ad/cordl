@@ -1,6 +1,5 @@
 use brocolib::{
-    global_metadata::{Il2CppTypeDefinition, TypeDefinitionIndex},
-    runtime_metadata::Il2CppType,
+    global_metadata::{TypeDefinitionIndex},
 };
 
 use super::{

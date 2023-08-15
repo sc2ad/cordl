@@ -928,7 +928,7 @@ pub trait CSType: Sized {
                     cpp_name: cpp_type.cpp_name().clone(),
                     template: None,
                     is_constexpr: true,
-                    is_explicit: false,
+                    is_explicit: true,
                     base_ctor,
                     initialized_values: HashMap::new(),
                     // initialize values with params
