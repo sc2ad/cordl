@@ -109,6 +109,9 @@ CORDL_HIDDEN void setValueTypeStatic(T&& t) {
   return *val;
 }
 
+template <typename T, typename U>
+concept convertible_to = std::is_convertible_v<T, U>;
+
 template <typename T>
 concept il2cpp_value_type = requires(T const& t) {
   { std::is_array_v<decltype(t.__instance)> };
