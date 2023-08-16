@@ -20,6 +20,8 @@
 #define CORDL_FIELD CORDL_HIDDEN
 #define CORDL_PROP CORDL_HIDDEN
 
+#define csnull ::cordl_internals::NullArg()
+
 namespace cordl_internals {
 namespace internal {
 template <std::size_t sz> struct NTTPString {
@@ -157,5 +159,36 @@ template <typename IT> struct InterfaceW : IT {
     requires(std::is_assignable_v<U, IT>)
   InterfaceW(U&& o)
       : instance(il2cpp_utils::ToIl2CppObject(std::forward<U>(o))) {}
+};
+
+struct NullArg {
+  template <il2cpp_reference_type T> constexpr operator T() const {
+    return T(nullptr);
+  }
+  constexpr operator ::bs_hook::Il2CppWrapperType() const {
+    return ::bs_hook::Il2CppWrapperType(nullptr);
+  }
+
+  // convert to null anyways
+  // this might cause issues when we have `Foo(il2cpp_reference_type)` and
+  // `Foo(void*)`, hopefully not
+  constexpr operator std::nullptr_t() const {
+    return nullptr;
+  }
+  constexpr operator ::StringW() const {
+    return StringW(nullptr);
+  }
+
+  template <typename T> constexpr operator ::ArrayW<T>() const {
+    return ArrayW<T>(nullptr);
+  }
+
+  template <typename T> constexpr operator InterfaceW<T>() const {
+    return InterfaceW<T>(nullptr);
+  }
+
+  template <typename T, typename U> constexpr operator ::ListW<T, U>() const {
+    return ListW<T, U>(nullptr);
+  }
 };
 } // namespace cordl_internals
