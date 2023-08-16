@@ -4,6 +4,9 @@
 #include <concepts>
 #include <type_traits>
 #include "beatsaber-hook/shared/utils/base-wrapper-type.hpp"
+#include "beatsaber-hook/shared/utils/typedefs-string.hpp"
+#include "beatsaber-hook/shared/utils/typedefs-array.hpp"
+#include "beatsaber-hook/shared/utils/typedefs-list.hpp"
 #include "beatsaber-hook/shared/utils/il2cpp-functions.hpp"
 #include "beatsaber-hook/shared/utils/il2cpp-utils-fields.hpp"
 
@@ -144,17 +147,20 @@ struct NullArg {
   }
 
   // convert to null anyways
-  // this might cause issues when we have `Foo(il2cpp_reference_type)` and `Foo(void*)`, hopefully not
+  // this might cause issues when we have `Foo(il2cpp_reference_type)` and
+  // `Foo(void*)`, hopefully not
   constexpr operator std::nullptr_t() const {
     return nullptr;
   }
   constexpr operator ::StringW() const {
     return StringW(nullptr);
   }
-  constexpr operator ::ArrayW() const {
+
+  template <typename T> constexpr operator ::ArrayW<T>() const {
     return ArrayW(nullptr);
   }
-  constexpr operator ::ListW() const {
+
+  template <typename T, typename U> constexpr operator ::ListW<T, U>() const {
     return ListW(nullptr);
   }
 };
