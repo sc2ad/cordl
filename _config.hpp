@@ -129,8 +129,8 @@ concept il2cpp_reference_type = requires(T const& t) {
   { t.convert() } -> convertible_to<void*>;
 
   // ensure these constructors exist
-  requires std::constructible_from<T, void*>;
-  requires std::constructible_from<T, std::nullptr_t>;
+  requires std::is_constructible_v<T, void*>;
+  requires std::is_constructible_v<T, std::nullptr_t>;
   // and ensure cordl value type is set to false
   {
     std::bool_constant<T::__CORDL_IS_VALUE_TYPE == false>()
