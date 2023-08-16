@@ -1028,21 +1028,21 @@ pub trait CSType: Sized {
                 line: format!(
                     "        
   constexpr {cpp_name}& operator=(std::nullptr_t) {{
-    ::bs_hook::Il2CppWrapperObject::instance = nullptr;
+    {OBJECT_WRAPPER_TYPE}::instance = nullptr;
     return *this;
   }};
 
   constexpr {cpp_name}& operator=(void* o) {{
-    ::bs_hook::Il2CppWrapperObject::instance = o;
+    {OBJECT_WRAPPER_TYPE}::instance = o;
     return *this;
   }};
 
-  constexpr {cpp_name}& operator=(::bs_hook::Il2CppWrapperObject&& o) {{
-    ::bs_hook::Il2CppWrapperObject::instance = o.instance;
+  constexpr {cpp_name}& operator=({OBJECT_WRAPPER_TYPE}&& o) {{
+    {OBJECT_WRAPPER_TYPE}::instance = o.instance;
     return *this;
   }};
-  constexpr {cpp_name}& operator=(::bs_hook::Il2CppWrapperObject const& o) {{
-    ::bs_hook::Il2CppWrapperObject::instance = o.instance;
+  constexpr {cpp_name}& operator=({OBJECT_WRAPPER_TYPE} const& o) {{
+    {OBJECT_WRAPPER_TYPE}::instance = o.instance;
     return *this;
   }};
 
