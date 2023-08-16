@@ -275,6 +275,7 @@ pub trait CSType: Sized {
             self.create_valuetype_field_wrapper();
         } else if !t.is_interface() {
             self.create_ref_default_constructor();
+            self.create_ref_default_operators();
         }
 
         self.make_nested_types(metadata, ctx_collection, config, tdi);
@@ -1002,6 +1003,53 @@ pub trait CSType: Sized {
                 initialized_values: HashMap::new(),
                 brief: None,
                 body: Some(vec![]),
+            })
+            .into(),
+        );
+    }
+    fn create_ref_default_operators(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        let cpp_name = cpp_type.cpp_name().clone();
+
+        // Skip if System.ValueType or System.Enum
+        if cpp_type.namespace() == "System"
+            && (cpp_type.cpp_name() == "ValueType" || cpp_type.cpp_name() == "Enum")
+        {
+            return;
+        }
+
+        // Delegates and such are reference types with no inheritance
+        if cpp_type.inherit.is_empty() {
+            return;
+        }
+
+        cpp_type.declarations.push(
+            CppMember::CppLine(CppLine {
+                line: format!(
+                    "        
+  constexpr {cpp_name}& operator=(std::nullptr_t) {{
+    ::bs_hook::Il2CppWrapperObject::instance = nullptr;
+    return *this;
+  }};
+
+  constexpr {cpp_name}& operator=(void* o) {{
+    ::bs_hook::Il2CppWrapperObject::instance = o;
+    return *this;
+  }};
+
+  constexpr {cpp_name}& operator=(::bs_hook::Il2CppWrapperObject&& o) {{
+    ::bs_hook::Il2CppWrapperObject::instance = o.instance;
+    return *this;
+  }};
+  constexpr {cpp_name}& operator=(::bs_hook::Il2CppWrapperObject const& o) {{
+    ::bs_hook::Il2CppWrapperObject::instance = o.instance;
+    return *this;
+  }};
+
+  constexpr {cpp_name}& operator=({cpp_name}&& o) = default;
+  constexpr {cpp_name}& operator=({cpp_name} const& o) = default;
+                "
+                ),
             })
             .into(),
         );
