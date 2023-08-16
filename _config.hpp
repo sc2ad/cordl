@@ -141,6 +141,26 @@ concept il2cpp_reference_type = requires(T const& t) {
 // TODO: Do this when Il2CppWrapperType has __CORDL_IS_VALUE_TYPE == false
 // static_assert(il2cpp_reference_type<::bs_hook::Il2CppWrapperType>);
 
+
+template <typename IT> struct InterfaceW : IT {
+  void* instance;
+
+  // pointer type
+  explicit constexpr InterfaceW(void* o) : instance(o) {}
+
+  // reference type ctor
+  template <il2cpp_reference_type U>
+    requires(std::is_assignable_v<U, IT>)
+  constexpr InterfaceW(U o) : instance(o.convert()) {}
+
+
+  // value type convert
+  template <il2cpp_value_type U>
+    requires(std::is_assignable_v<U, IT>)
+  InterfaceW(U&& o)
+      : instance(il2cpp_utils::ToIl2CppObject(std::forward<U>(o))) {}
+};
+
 struct NullArg {
   template <il2cpp_reference_type T> constexpr operator T() const {
     return T(nullptr);
@@ -163,24 +183,12 @@ struct NullArg {
     return ArrayW<T>(nullptr);
   }
 
+  template <typename T> constexpr operator InterfaceW<T>() const {
+    return InterfaceW<T>(nullptr);
+  }
+
   template <typename T, typename U> constexpr operator ::ListW<T, U>() const {
     return ListW<T, U>(nullptr);
   }
 };
-
-template <typename IT> struct InterfaceW : IT {
-  void* instance;
-
-  // reference type ctor
-  template <il2cpp_reference_type U>
-    requires(std::is_assignable_v<U, IT>)
-  constexpr InterfaceW(U o) : instance(o.convert()) {}
-
-  // value type convert
-  template <il2cpp_value_type U>
-    requires(std::is_assignable_v<U, IT>)
-  InterfaceW(U&& o)
-      : instance(il2cpp_utils::ToIl2CppObject(std::forward<U>(o))) {}
-};
-
 } // namespace cordl_internals
