@@ -1037,15 +1037,6 @@ pub trait CSType: Sized {
     return *this;
   }};
 
-  constexpr {cpp_name}& operator=({OBJECT_WRAPPER_TYPE}&& o) {{
-    {OBJECT_WRAPPER_TYPE}::instance = o.convert();
-    return *this;
-  }};
-  constexpr {cpp_name}& operator=({OBJECT_WRAPPER_TYPE} const& o) {{
-    {OBJECT_WRAPPER_TYPE}::instance = o.convert();
-    return *this;
-  }};
-
   constexpr {cpp_name}& operator=({cpp_name}&& o) = default;
   constexpr {cpp_name}& operator=({cpp_name} const& o) = default;
                 "
