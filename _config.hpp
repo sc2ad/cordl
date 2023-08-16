@@ -17,6 +17,8 @@
 #define CORDL_FIELD CORDL_HIDDEN
 #define CORDL_PROP CORDL_HIDDEN
 
+#define csnull ::cordl_internals::NullArg()
+
 namespace cordl_internals {
 namespace internal {
 template <std::size_t sz> struct NTTPString {
@@ -140,8 +142,22 @@ struct NullArg {
   template <il2cpp_reference_type T> constexpr operator T() const {
     return T(nullptr);
   }
+
+  // convert to null anyways
+  // this might cause issues when we have `Foo(il2cpp_reference_type)` and `Foo(void*)`, hopefully not
+  constexpr operator std::nullptr_t() const {
+    return nullptr;
+  }
+  constexpr operator ::StringW() const {
+    return StringW(nullptr);
+  }
+  constexpr operator ::ArrayW() const {
+    return ArrayW(nullptr);
+  }
+  constexpr operator ::ListW() const {
+    return ListW(nullptr);
+  }
 };
-#define csnull NullArg()
 
 template <typename IT> struct InterfaceW : IT {
   void* instance;
