@@ -122,9 +122,26 @@ concept il2cpp_value_type = requires(T const& t) {
 template <typename T>
 concept il2cpp_reference_type = requires(T const& t) {
   { t.convert() } -> convertible_to<void*>;
-  T::__CORDL_IS_VALUE_TYPE == false;
-  //   { T::__CORDL_IS_VALUE_TYPE } -> std::equal_to_v<true>;
-} && std::is_assignable_v<T, ::bs_hook::Il2CppWrapperType>;
+
+  // ensure these constructors exist
+  requires std::constructible_from<T, void*>;
+  requires std::constructible_from<T, std::nullptr_t>;
+  // and ensure cordl value type is set to false
+  {
+    std::bool_constant<T::__CORDL_IS_VALUE_TYPE == false>()
+  } -> std::same_as<std::true_type>;
+};
+
+// ensure bs-hook il2cpp wrapper type matches our expectations
+// TODO: Do this when Il2CppWrapperType has __CORDL_IS_VALUE_TYPE == false
+// static_assert(il2cpp_reference_type<::bs_hook::Il2CppWrapperType>);
+
+struct NullArg {
+  template <il2cpp_reference_type T> constexpr operator T() const {
+    return T(nullptr);
+  }
+};
+#define csnull NullArg()
 
 template <typename IT> struct InterfaceW : IT {
   void* instance;

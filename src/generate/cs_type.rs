@@ -897,7 +897,7 @@ pub trait CSType: Sized {
                     } else {
                         Some(match f_type.valuetype {
                             true => "{}".to_string(),
-                            false => "nullptr".to_string(),
+                            false => "csnull".to_string(),
                         })
                     },
                 })
@@ -1034,15 +1034,6 @@ pub trait CSType: Sized {
 
   constexpr {cpp_name}& operator=(void* o) {{
     {OBJECT_WRAPPER_TYPE}::instance = o;
-    return *this;
-  }};
-
-  constexpr {cpp_name}& operator=({OBJECT_WRAPPER_TYPE}&& o) {{
-    {OBJECT_WRAPPER_TYPE}::instance = o.convert();
-    return *this;
-  }};
-  constexpr {cpp_name}& operator=({OBJECT_WRAPPER_TYPE} const& o) {{
-    {OBJECT_WRAPPER_TYPE}::instance = o.convert();
     return *this;
   }};
 
@@ -1395,7 +1386,7 @@ pub trait CSType: Sized {
             | Il2CppTypeEnum::Object
             | Il2CppTypeEnum::Class
             | Il2CppTypeEnum::Szarray => {
-                format!("/* TODO: Fix these default values */ {ty:?} */nullptr")
+                format!("/* TODO: Fix these default values */ {ty:?} */ csnull")
             }
 
             _ => "unknown".to_string(),
@@ -1442,7 +1433,7 @@ pub trait CSType: Sized {
                     .unwrap();
 
                 if !def.data_index.is_valid() {
-                    return "nullptr".to_string();
+                    return "csnull".to_string();
                 }
 
                 if let Il2CppTypeEnum::Valuetype = ty.ty {
