@@ -6,7 +6,10 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use brocolib::global_metadata::{MethodIndex, TypeIndex};
+use brocolib::{
+    global_metadata::{MethodIndex, TypeIndex},
+    runtime_metadata::TypeData,
+};
 use itertools::Itertools;
 
 use super::{
@@ -24,6 +27,33 @@ pub struct CppTypeRequirements {
 
     // Only value types or classes
     pub required_includes: HashSet<CppInclude>,
+
+    // Lists both types we forward declare or include
+    pub depending_types: HashSet<CppTypeTag>,
+}
+
+impl CppTypeRequirements {
+    pub fn add_forward_declare(
+        &mut self,
+        cpp_type: &CppType,
+        cpp_data: (CppForwardDeclare, CppInclude),
+    ) {
+        // self.depending_types.insert(cpp_type.self_tag);
+        self.forward_declares.insert(cpp_data);
+    }
+
+    pub fn add_include(&mut self, cpp_type: Option<&CppType>, cpp_include: CppInclude) {
+        if let Some(cpp_type) = cpp_type {
+            self.depending_types.insert(cpp_type.self_tag);
+        }
+        self.required_includes.insert(cpp_include);
+    }
+    pub fn add_dependency(&mut self, cpp_type: &CppType) {
+        self.depending_types.insert(cpp_type.self_tag);
+    }
+    pub fn add_dependency_tag(&mut self, tag: CppTypeTag) {
+        self.depending_types.insert(tag);
+    }
 }
 
 // Represents all of the information necessary for a C++ TYPE!
@@ -71,33 +101,35 @@ pub struct CppType {
 
 impl CppTypeRequirements {
     pub fn need_wrapper(&mut self) {
-        self.required_includes.insert(CppInclude::new_exact(
-            "beatsaber-hook/shared/utils/base-wrapper-type.hpp",
-        ));
+        self.add_include(
+            None,
+            CppInclude::new_exact("beatsaber-hook/shared/utils/base-wrapper-type.hpp"),
+        );
     }
     pub fn needs_int_include(&mut self) {
-        self.required_includes
-            .insert(CppInclude::new_system("cstdint"));
+        self.add_include(None, CppInclude::new_system("cstdint"));
     }
     pub fn needs_math_include(&mut self) {
-        self.required_includes
-            .insert(CppInclude::new_system("cmath"));
+        self.add_include(None, CppInclude::new_system("cmath"));
     }
     pub fn needs_stringw_include(&mut self) {
-        self.required_includes.insert(CppInclude::new_exact(
-            "beatsaber-hook/shared/utils/typedefs-string.hpp",
-        ));
+        self.add_include(
+            None,
+            CppInclude::new_exact("beatsaber-hook/shared/utils/typedefs-string.hpp"),
+        );
     }
     pub fn needs_arrayw_include(&mut self) {
-        self.required_includes.insert(CppInclude::new_exact(
-            "beatsaber-hook/shared/utils/typedefs-array.hpp",
-        ));
+        self.add_include(
+            None,
+            CppInclude::new_exact("beatsaber-hook/shared/utils/typedefs-array.hpp"),
+        );
     }
 
     pub fn needs_byref_include(&mut self) {
-        self.required_includes.insert(CppInclude::new_exact(
-            "beatsaber-hook/shared/utils/byref.hpp",
-        ));
+        self.add_include(
+            None,
+            CppInclude::new_exact("beatsaber-hook/shared/utils/byref.hpp"),
+        );
     }
 }
 

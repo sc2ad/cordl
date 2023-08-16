@@ -7,10 +7,12 @@ use std::{
 };
 
 use brocolib::global_metadata::TypeDefinitionIndex;
+use brocolib::runtime_metadata::TypeData;
 use color_eyre::eyre::ContextCompat;
 
 use itertools::Itertools;
 use pathdiff::diff_paths;
+use topological_sort::TopologicalSort;
 
 use crate::generate::members::CppForwardDeclare;
 use crate::generate::{
@@ -202,32 +204,22 @@ impl CppContext {
         // Include cordl config
         // this is so confusing but basically gets the relative folder
         // navigation for `_config.hpp`
-        let dest_path = diff_paths(&STATIC_CONFIG.dest_header_config_file, self.typedef_path.parent().unwrap()).unwrap();
+        let dest_path = diff_paths(
+            &STATIC_CONFIG.dest_header_config_file,
+            self.typedef_path.parent().unwrap(),
+        )
+        .unwrap();
 
         CppInclude::new_exact(dest_path).write(&mut typedef_writer)?;
 
-        let typedef_root_types_sorted = self
-            .typedef_types
-            .values()
-            .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
-            .sorted_by(|a, b| {
-                if a.is_stub {
-                    Ordering::Less
-                } else if b.is_stub {
-                    Ordering::Greater
-                } else {
-                    Ordering::Equal
-                }
-            })
-            .collect_vec();
-
-        let typedef_types_sorted = self
+        // alphabetical sorted
+        let typedef_types = self
             .typedef_types
             .values()
             .flat_map(|t: &CppType| -> Vec<&CppType> {
                 t.nested_types_flattened().values().copied().collect_vec()
             })
-            .chain(typedef_root_types_sorted.iter().cloned())
+            .chain(self.typedef_types.values())
             .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
             // Enums go after stubs
             .sorted_by(|a, b| {
@@ -276,8 +268,27 @@ impl CppContext {
             })
             .collect_vec();
 
+        let typedef_root_types = typedef_types
+            .iter()
+            .cloned()
+            .filter(|t| !t.nested)
+            .collect_vec();
+
+        let mut ts = TopologicalSort::<CppTypeTag>::new();
+        for cpp_type in &typedef_root_types {
+            for d in &cpp_type.requirements.depending_types {
+                ts.add_dependency(*d, cpp_type.self_tag)
+            }
+        }
+
+        let mut typedef_root_types_sorted =
+            ts.filter_map(|t| self.typedef_types.get(&t)).collect_vec();
+
+        // we want from most depended to least depended
+        typedef_root_types_sorted.reverse();
+
         // Write includes for typedef
-        typedef_types_sorted
+        typedef_types
             .iter()
             .flat_map(|t| &t.requirements.required_includes)
             .unique()
@@ -290,7 +301,7 @@ impl CppContext {
             CppInclude::new_exact(diff_paths(&self.typedef_path, base_path).unwrap())
                 .write(&mut typeimpl_writer)?;
 
-            typedef_types_sorted
+            typedef_types
                 .iter()
                 .flat_map(|t| &t.requirements.forward_declares)
                 .unique()
@@ -303,7 +314,7 @@ impl CppContext {
 
             writeln!(typedef_writer, "// Forward declare root types")?;
             //Forward declare all types
-            typedef_root_types_sorted
+            typedef_root_types
                 .iter()
                 .map(|t| CppForwardDeclare::from_cpp_type(t))
                 // TODO: Check forward declare is not of own type
@@ -342,7 +353,7 @@ impl CppContext {
         }
 
         // write macros
-        typedef_types_sorted
+        typedef_types
             .iter()
             .try_for_each(|t| Self::write_il2cpp_arg_macros(t, &mut typedef_writer))?;
 
