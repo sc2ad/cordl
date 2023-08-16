@@ -145,6 +145,9 @@ struct NullArg {
   template <il2cpp_reference_type T> constexpr operator T() const {
     return T(nullptr);
   }
+  constexpr operator ::bs_hook::Il2CppWrapperType() const {
+    return ::bs_hook::Il2CppWrapperType(nullptr);
+  }
 
   // convert to null anyways
   // this might cause issues when we have `Foo(il2cpp_reference_type)` and
@@ -157,11 +160,11 @@ struct NullArg {
   }
 
   template <typename T> constexpr operator ::ArrayW<T>() const {
-    return ArrayW(nullptr);
+    return ArrayW<T>(nullptr);
   }
 
   template <typename T, typename U> constexpr operator ::ListW<T, U>() const {
-    return ListW(nullptr);
+    return ListW<T, U>(nullptr);
   }
 };
 
