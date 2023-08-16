@@ -151,6 +151,12 @@ struct NullArg {
   constexpr operator ::StringW() const {
     return StringW(nullptr);
   }
+  constexpr operator ::ArrayW() const {
+    return StringW(nullptr);
+  }
+  constexpr operator ::ListW() const {
+    return StringW(nullptr);
+  }
 };
 
 template <typename IT> struct InterfaceW : IT {
