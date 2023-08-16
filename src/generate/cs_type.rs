@@ -885,7 +885,11 @@ pub trait CSType: Sized {
                     return None;
                 }
 
-                let cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false);
+                let cpp_name = {
+                    // add include because it's required
+                    let ret = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, true);
+                    cpp_type.il2cpp_interfacewrap(ret, f_type, metadata)
+                };
 
                 Some(CppParam {
                     name: config.name_cpp(field.name(metadata.metadata)),
