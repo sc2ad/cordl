@@ -145,6 +145,9 @@ struct NullArg {
   template <il2cpp_reference_type T> constexpr operator T() const {
     return T(nullptr);
   }
+  constexpr operator ::bs_hook::Il2CppWrapperType() const {
+    return ::bs_hook::Il2CppWrapperType(nullptr);
+  }
 
   // convert to null anyways
   // this might cause issues when we have `Foo(il2cpp_reference_type)` and
