@@ -152,10 +152,10 @@ struct NullArg {
     return StringW(nullptr);
   }
   constexpr operator ::ArrayW() const {
-    return StringW(nullptr);
+    return ArrayW(nullptr);
   }
   constexpr operator ::ListW() const {
-    return StringW(nullptr);
+    return ListW(nullptr);
   }
 };
 
