@@ -265,10 +265,12 @@ pub struct CppConstructorDecl {
 
     pub is_constexpr: bool,
     pub is_explicit: bool,
+    pub is_default: bool,
 
     // call base ctor
     pub base_ctor: Option<(String, String)>,
     pub initialized_values: HashMap<String, String>,
+
 
     pub brief: Option<String>,
     pub body: Option<Vec<Arc<dyn Writable>>>,

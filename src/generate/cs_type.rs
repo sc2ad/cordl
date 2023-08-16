@@ -363,7 +363,11 @@ pub trait CSType: Sized {
         cpp_type.cpp_full_name = format!(
             "{}<{}>",
             cpp_type.cpp_full_name,
-            cpp_type.generic_instantiation_args.as_ref().unwrap().join(",")
+            cpp_type
+                .generic_instantiation_args
+                .as_ref()
+                .unwrap()
+                .join(",")
         )
     }
 
@@ -935,6 +939,7 @@ pub trait CSType: Sized {
                     template: None,
                     is_constexpr: true,
                     is_explicit: false,
+                    is_default: false,
                     base_ctor,
                     initialized_values: HashMap::new(),
                     // initialize values with params
@@ -986,6 +991,48 @@ pub trait CSType: Sized {
             .into(),
         );
 
+        let copy_ctor = CppConstructorDecl {
+            cpp_name: cpp_name.clone(),
+            parameters: vec![CppParam {
+                name: "".to_string(),
+                modifiers: " const&".to_string(),
+                ty: cpp_name.clone(),
+                def_value: None,
+            }],
+            template: None,
+            is_constexpr: true,
+            is_explicit: true,
+            is_default: true,
+            base_ctor: None,
+            initialized_values: HashMap::new(),
+            brief: None,
+            body: Some(vec![]),
+        };
+        let move_ctor = CppConstructorDecl {
+            cpp_name: cpp_name.clone(),
+            parameters: vec![CppParam {
+                name: "".to_string(),
+                modifiers: "&&".to_string(),
+                ty: cpp_name.clone(),
+                def_value: None,
+            }],
+            template: None,
+            is_constexpr: true,
+            is_explicit: true,
+            is_default: true,
+            base_ctor: None,
+            initialized_values: HashMap::new(),
+            brief: None,
+            body: Some(vec![]),
+        };
+
+        cpp_type
+            .declarations
+            .push(CppMember::ConstructorDecl(copy_ctor).into());
+        cpp_type
+            .declarations
+            .push(CppMember::ConstructorDecl(move_ctor).into());
+
         // Delegates and such are reference types with no inheritance
         if cpp_type.inherit.is_empty() {
             return;
@@ -1008,6 +1055,8 @@ pub trait CSType: Sized {
                 template: None,
                 is_constexpr: true,
                 is_explicit: true,
+                is_default: false,
+
                 base_ctor: Some((base_type.clone(), "ptr".to_string())),
                 initialized_values: HashMap::new(),
                 brief: None,
@@ -1075,6 +1124,7 @@ pub trait CSType: Sized {
             initialized_values: Default::default(), // TODO:!
             is_constexpr: false,
             is_explicit: true,
+            is_default: false,
         };
 
         let klassof = cpp_type.classof_cpp_name();
