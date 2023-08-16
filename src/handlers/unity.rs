@@ -38,8 +38,7 @@ fn unity_object_handler(cpp_type: &mut CppType) {
 
     cpp_type
         .requirements
-        .required_includes
-        .insert(CppInclude::new_exact(path));
+        .add_include(None, CppInclude::new_exact(path));
 
     // Fixup ctor call
     cpp_type
