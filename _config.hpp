@@ -157,11 +157,11 @@ struct NullArg {
   }
 
   template <typename T> constexpr operator ::ArrayW<T>() const {
-    return ArrayW(nullptr);
+    return ArrayW<T>(nullptr);
   }
 
   template <typename T, typename U> constexpr operator ::ListW<T, U>() const {
-    return ListW(nullptr);
+    return ListW<T, U>(nullptr);
   }
 };
 
