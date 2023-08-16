@@ -200,6 +200,8 @@ pub struct CppMethodDecl {
     pub is_virtual: bool,
     pub is_constexpr: bool,
     pub is_const: bool,
+    pub is_no_except: bool,
+
 
     pub brief: Option<String>,
     pub body: Option<Vec<Arc<dyn Writable>>>,
@@ -214,6 +216,7 @@ impl From<CppMethodDecl> for CppMethodImpl {
             declaring_cpp_full_name: "".into(),
             instance: value.instance,
             is_const: value.is_const,
+            is_no_except: value.is_no_except,
             is_virtual: value.is_virtual,
             parameters: value.parameters,
             prefix_modifiers: value.prefix_modifiers,
@@ -237,6 +240,8 @@ pub struct CppMethodImpl {
     pub template: Option<CppTemplate>,
     pub is_const: bool,
     pub is_virtual: bool,
+    pub is_no_except: bool,
+
 
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:
@@ -266,6 +271,7 @@ pub struct CppConstructorDecl {
     pub is_constexpr: bool,
     pub is_explicit: bool,
     pub is_default: bool,
+    pub is_no_except: bool,
 
     // call base ctor
     pub base_ctor: Option<(String, String)>,
@@ -284,6 +290,8 @@ pub struct CppConstructorImpl {
     pub initialized_values: HashMap<String, String>,
 
     pub is_constexpr: bool,
+    pub is_no_except: bool,
+
     pub template: Option<CppTemplate>,
 
     pub body: Vec<Arc<dyn Writable>>,
@@ -297,6 +305,7 @@ impl From<CppConstructorDecl> for CppConstructorImpl {
             is_constexpr: value.is_constexpr,
             base_ctor: value.base_ctor,
             initialized_values: value.initialized_values,
+            is_no_except: value.is_no_except,
             parameters: value.parameters,
             template: value.template,
         }
