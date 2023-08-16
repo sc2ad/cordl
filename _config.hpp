@@ -138,8 +138,7 @@ template <typename IT> struct InterfaceW : IT {
   template <il2cpp_value_type U>
     requires(std::is_assignable_v<U, IT>)
   InterfaceW(U&& o)
-      : instance(il2cpp_utils::box(std::forward<U>(o))) {
-  }
+      : instance(il2cpp_utils::ToIl2CppObject(std::forward<U>(o))) {}
 };
 
 } // namespace cordl_internals
