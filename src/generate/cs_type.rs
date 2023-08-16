@@ -44,7 +44,7 @@ type Endian = LittleEndian;
 const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
 const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "__instance";
-const REFERENCE_WRAPPER_INSTANCE_NAME: &str = concat!("OBJECT_WRAPPER_TYPE", "::instance");
+const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
 
 pub trait CSType: Sized {
     fn get_mut_cpp_type(&mut self) -> &mut CppType; // idk how else to do this
@@ -544,7 +544,7 @@ pub trait CSType: Sized {
                     }
                     false => {
                         format!(
-                            "return get{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>({self_wrapper_instance});"
+                            "return get{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance});"
                         )
                     }
                 };
@@ -558,7 +558,7 @@ pub trait CSType: Sized {
                     }
                     false => {
                         format!(
-                            "set{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>({self_wrapper_instance}, {setter_var_name});"
+                            "set{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance}, {setter_var_name});"
                         )
                     }
                 };
@@ -1094,12 +1094,12 @@ pub trait CSType: Sized {
                 line: format!(
                     "        
   constexpr {cpp_name}& operator=(std::nullptr_t) noexcept {{
-    {OBJECT_WRAPPER_TYPE}::instance = nullptr;
+    this->{REFERENCE_WRAPPER_INSTANCE_NAME} = nullptr;
     return *this;
   }};
 
   constexpr {cpp_name}& operator=(void* o) noexcept {{
-    {OBJECT_WRAPPER_TYPE}::instance = o;
+    this->{REFERENCE_WRAPPER_INSTANCE_NAME} = o;
     return *this;
   }};
 
