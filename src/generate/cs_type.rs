@@ -33,7 +33,7 @@ use super::{
     metadata::Metadata,
     type_extensions::{
         MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
-        TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
+        TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE, NULL_WRAPPER_TYPE,
     },
     writer::Writable,
 };
@@ -1058,6 +1058,27 @@ pub trait CSType: Sized {
                 is_default: false,
 
                 base_ctor: Some((base_type.clone(), "ptr".to_string())),
+                initialized_values: HashMap::new(),
+                brief: None,
+                body: Some(vec![]),
+            })
+            .into(),
+        );
+        cpp_type.declarations.push(
+            CppMember::ConstructorDecl(CppConstructorDecl {
+                cpp_name: cpp_name.clone(),
+                parameters: vec![CppParam {
+                    name: "n".to_string(),
+                    modifiers: "".to_string(),
+                    ty: NULL_WRAPPER_TYPE.to_string(),
+                    def_value: None,
+                }],
+                template: None,
+                is_constexpr: true,
+                is_explicit: true,
+                is_default: false,
+
+                base_ctor: Some((base_type.clone(), "n".to_string())),
                 initialized_values: HashMap::new(),
                 brief: None,
                 body: Some(vec![]),
