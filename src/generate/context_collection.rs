@@ -407,14 +407,7 @@ impl CppContextCollection {
         self.borrow_cpp_type(generic_class_ty_data, |collection, mut cpp_type| {
             let method_index = method_spec.method_definition_index;
             cpp_type.add_method_generic_inst(method_spec, metadata);
-            cpp_type.create_method(
-                ty_def,
-                method_index,
-                metadata,
-                collection,
-                config,
-                true,
-            );
+            cpp_type.create_method(ty_def, method_index, metadata, collection, config, true);
 
             cpp_type
         });
@@ -429,6 +422,10 @@ impl CppContextCollection {
         config: &GenerationConfig,
     ) -> Option<&mut CppContext> {
         if method_spec.class_inst_index == u32::MAX {
+            return None;
+        }
+        // Skip generic methods?
+        if method_spec.method_inst_index != u32::MAX {
             return None;
         }
 
@@ -452,16 +449,7 @@ impl CppContextCollection {
         };
 
         self.borrow_cpp_type(generic_class_ty_data, |collection, mut cpp_type| {
-            cpp_type.make_generics_args(metadata, collection);
-            cpp_type.cpp_full_name = format!(
-                "{}<{}>",
-                cpp_type.cpp_full_name,
-                cpp_type
-                    .generic_instantiation_args
-                    .as_ref()
-                    .unwrap()
-                    .join(", ")
-            );
+            // cpp_type.make_generics_args(metadata, collection);
             collection.fill_cpp_type(&mut cpp_type, metadata, config);
 
             cpp_type

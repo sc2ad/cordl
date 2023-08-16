@@ -37,7 +37,7 @@ pub struct CppType {
     pub(crate) namespace: String,
     pub(crate) cpp_namespace: String,
     pub(crate) name: String,
-    pub(crate) cpp_name: String,
+    pub(crate) cpp_name: String, // does not include literals
 
     pub calculated_size: Option<usize>,
 

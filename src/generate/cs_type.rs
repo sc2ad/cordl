@@ -360,6 +360,11 @@ pub trait CSType: Sized {
         // TODO: Base off a CppType the alias path
 
         cpp_type.generic_instantiation_args = Some(generic_instantiation_args);
+        cpp_type.cpp_full_name = format!(
+            "{}<{}>",
+            cpp_type.cpp_full_name,
+            cpp_type.generic_instantiation_args.as_ref().unwrap().join(",")
+        )
     }
 
     fn make_methods(
