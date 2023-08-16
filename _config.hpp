@@ -141,18 +141,16 @@ concept il2cpp_reference_type = requires(T const& t) {
 // TODO: Do this when Il2CppWrapperType has __CORDL_IS_VALUE_TYPE == false
 // static_assert(il2cpp_reference_type<::bs_hook::Il2CppWrapperType>);
 
-
 template <typename IT> struct InterfaceW : IT {
   void* instance;
 
   // pointer type
-  explicit constexpr InterfaceW(void* o) : instance(o) {}
+  explicit constexpr InterfaceW(void* o) noexcept : instance(o) {}
 
   // reference type ctor
   template <il2cpp_reference_type U>
     requires(std::is_assignable_v<U, IT>)
-  constexpr InterfaceW(U o) : instance(o.convert()) {}
-
+  constexpr InterfaceW(U o) noexcept : instance(o.convert()) {}
 
   // value type convert
   template <il2cpp_value_type U>
@@ -161,33 +159,35 @@ template <typename IT> struct InterfaceW : IT {
       : instance(il2cpp_utils::ToIl2CppObject(std::forward<U>(o))) {}
 };
 
+// Type tag for passing null as a parameter without setting instance to null
 struct NullArg {
-  template <il2cpp_reference_type T> constexpr operator T() const {
+  template <il2cpp_reference_type T> constexpr operator T() const noexcept {
     return T(nullptr);
   }
-  constexpr operator ::bs_hook::Il2CppWrapperType() const {
+  constexpr operator ::bs_hook::Il2CppWrapperType() const noexcept {
     return ::bs_hook::Il2CppWrapperType(nullptr);
   }
 
   // convert to null anyways
   // this might cause issues when we have `Foo(il2cpp_reference_type)` and
   // `Foo(void*)`, hopefully not
-  constexpr operator std::nullptr_t() const {
+  constexpr operator std::nullptr_t() const noexcept {
     return nullptr;
   }
-  constexpr operator ::StringW() const {
+  constexpr operator ::StringW() const noexcept {
     return StringW(nullptr);
   }
 
-  template <typename T> constexpr operator ::ArrayW<T>() const {
+  template <typename T> constexpr operator ::ArrayW<T>() const noexcept {
     return ArrayW<T>(nullptr);
   }
 
-  template <typename T> constexpr operator InterfaceW<T>() const {
+  template <typename T> constexpr operator InterfaceW<T>() const noexcept {
     return InterfaceW<T>(nullptr);
   }
 
-  template <typename T, typename U> constexpr operator ::ListW<T, U>() const {
+  template <typename T, typename U>
+  constexpr operator ::ListW<T, U>() const noexcept {
     return ListW<T, U>(nullptr);
   }
 };

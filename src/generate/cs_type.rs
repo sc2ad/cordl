@@ -363,7 +363,11 @@ pub trait CSType: Sized {
         cpp_type.cpp_full_name = format!(
             "{}<{}>",
             cpp_type.cpp_full_name,
-            cpp_type.generic_instantiation_args.as_ref().unwrap().join(",")
+            cpp_type
+                .generic_instantiation_args
+                .as_ref()
+                .unwrap()
+                .join(",")
         )
     }
 
@@ -570,6 +574,7 @@ pub trait CSType: Sized {
                     is_const: !f_type.is_static(), // TODO: readonly fields?
                     is_constexpr: true,
                     is_virtual: false,
+                    is_no_except: false, // TODO:
                     parameters: vec![],
                     prefix_modifiers: vec![],
                     suffix_modifiers: vec![],
@@ -586,6 +591,7 @@ pub trait CSType: Sized {
                     is_const: false,     // TODO: readonly fields?
                     is_constexpr: true,
                     is_virtual: false,
+                    is_no_except: false, // TODO:
                     parameters: vec![CppParam {
                         def_value: None,
                         modifiers: "".to_string(),
@@ -935,6 +941,9 @@ pub trait CSType: Sized {
                     template: None,
                     is_constexpr: true,
                     is_explicit: false,
+                    is_default: false,
+                    is_no_except: true,
+
                     base_ctor,
                     initialized_values: HashMap::new(),
                     // initialize values with params
@@ -986,6 +995,51 @@ pub trait CSType: Sized {
             .into(),
         );
 
+        let copy_ctor = CppConstructorDecl {
+            cpp_name: cpp_name.clone(),
+            parameters: vec![CppParam {
+                name: "".to_string(),
+                modifiers: " const&".to_string(),
+                ty: cpp_name.clone(),
+                def_value: None,
+            }],
+            template: None,
+            is_constexpr: true,
+            is_explicit: false,
+            is_default: true,
+            is_no_except: true,
+
+            base_ctor: None,
+            initialized_values: HashMap::new(),
+            brief: None,
+            body: Some(vec![]),
+        };
+        let move_ctor = CppConstructorDecl {
+            cpp_name: cpp_name.clone(),
+            parameters: vec![CppParam {
+                name: "".to_string(),
+                modifiers: "&&".to_string(),
+                ty: cpp_name.clone(),
+                def_value: None,
+            }],
+            template: None,
+            is_constexpr: true,
+            is_explicit: false,
+            is_default: true,
+            is_no_except: true,
+            base_ctor: None,
+            initialized_values: HashMap::new(),
+            brief: None,
+            body: Some(vec![]),
+        };
+
+        cpp_type
+            .declarations
+            .push(CppMember::ConstructorDecl(copy_ctor).into());
+        cpp_type
+            .declarations
+            .push(CppMember::ConstructorDecl(move_ctor).into());
+
         // Delegates and such are reference types with no inheritance
         if cpp_type.inherit.is_empty() {
             return;
@@ -1008,6 +1062,9 @@ pub trait CSType: Sized {
                 template: None,
                 is_constexpr: true,
                 is_explicit: true,
+                is_default: false,
+                is_no_except: true,
+
                 base_ctor: Some((base_type.clone(), "ptr".to_string())),
                 initialized_values: HashMap::new(),
                 brief: None,
@@ -1036,18 +1093,18 @@ pub trait CSType: Sized {
             CppMember::CppLine(CppLine {
                 line: format!(
                     "        
-  constexpr {cpp_name}& operator=(std::nullptr_t) {{
+  constexpr {cpp_name}& operator=(std::nullptr_t) noexcept {{
     {OBJECT_WRAPPER_TYPE}::instance = nullptr;
     return *this;
   }};
 
-  constexpr {cpp_name}& operator=(void* o) {{
+  constexpr {cpp_name}& operator=(void* o) noexcept {{
     {OBJECT_WRAPPER_TYPE}::instance = o;
     return *this;
   }};
 
-  constexpr {cpp_name}& operator=({cpp_name}&& o) = default;
-  constexpr {cpp_name}& operator=({cpp_name} const& o) = default;
+  constexpr {cpp_name}& operator=({cpp_name}&& o) noexcept = default;
+  constexpr {cpp_name}& operator=({cpp_name} const& o) noexcept = default;
                 "
                 ),
             })
@@ -1073,8 +1130,10 @@ pub trait CSType: Sized {
             brief: None,
             base_ctor: Default::default(),
             initialized_values: Default::default(), // TODO:!
+            is_no_except: false,
             is_constexpr: false,
             is_explicit: true,
+            is_default: false,
         };
 
         let klassof = cpp_type.classof_cpp_name();
@@ -1225,6 +1284,7 @@ pub trait CSType: Sized {
             .into(),
             is_const: false,
             is_constexpr: false,
+            is_no_except: false,
             cpp_name: cpp_m_name.clone(),
             return_type: m_ret_cpp_type_byref_name.clone(),
             parameters: m_params.clone(),

@@ -231,6 +231,10 @@ impl CppContext {
             .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
             // Enums go after stubs
             .sorted_by(|a, b| {
+                if a.is_enum_type == b.is_enum_type {
+                    return Ordering::Equal;
+                }
+
                 if a.is_enum_type {
                     Ordering::Less
                 } else if b.is_enum_type {
@@ -241,6 +245,10 @@ impl CppContext {
             })
             // Stubs are first
             .sorted_by(|a, b| {
+                if a.is_stub == b.is_stub {
+                    return Ordering::Equal;
+                }
+
                 if a.is_stub {
                     Ordering::Less
                 } else if b.is_stub {
@@ -251,9 +259,16 @@ impl CppContext {
             })
             // Value types are last
             .sorted_by(|a, b| {
-                if a.is_value_type && !a.is_enum_type {
+                let a_strictly_vt = a.is_value_type && !a.is_enum_type;
+                let b_strictly_vt = b.is_value_type && !b.is_enum_type;
+
+                if a_strictly_vt == b_strictly_vt {
+                    return Ordering::Equal;
+                }
+
+                if a_strictly_vt {
                     Ordering::Greater
-                } else if b.is_value_type && !b.is_enum_type {
+                } else if b_strictly_vt {
                     Ordering::Less
                 } else {
                     Ordering::Equal

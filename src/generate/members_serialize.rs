@@ -212,6 +212,9 @@ impl Writable for CppMethodDecl {
         if self.is_const {
             suffix_modifiers.push("const");
         }
+                if self.is_no_except {
+            suffix_modifiers.push("noexcept");
+        }
 
         let suffixes = suffix_modifiers.join(" ");
         let prefixes = prefix_modifiers.join(" ");
@@ -274,6 +277,9 @@ impl Writable for CppMethodImpl {
         if self.is_const {
             suffix_modifiers.push("const");
         }
+                if self.is_no_except {
+            suffix_modifiers.push("noexcept");
+        }
 
         let _suffixes = suffix_modifiers.join(" ");
         let prefixes = prefix_modifiers.join(" ");
@@ -317,6 +323,7 @@ impl Writable for CppConstructorDecl {
         let params = CppParam::params_as_args(&self.parameters).join(", ");
 
         let mut prefix_modifiers = vec![];
+        let mut suffix_modifiers = vec![];
 
         if body.is_some() {
             if self.is_constexpr {
@@ -330,10 +337,14 @@ impl Writable for CppConstructorDecl {
         if self.is_explicit {
             prefix_modifiers.push("explicit");
         }
+        if self.is_no_except {
+            suffix_modifiers.push("noexcept");
+        }
 
         let prefixes = prefix_modifiers.join(" ");
+        let suffixes = suffix_modifiers.join(" ");
 
-        if let Some(body) = &body {
+        if let Some(body) = &body && !self.is_default {
             let initializers = match self.initialized_values.is_empty() && self.base_ctor.is_none()
             {
                 true => "".to_string(),
@@ -352,12 +363,16 @@ impl Writable for CppConstructorDecl {
                 }
             };
 
-            writeln!(writer, "{prefixes} {name}({params}) {initializers} {{",)?;
+            writeln!(writer, "{prefixes} {name}({params}) {suffixes} {initializers} {{",)?;
 
             body.iter().try_for_each(|w| w.write(writer))?;
             writeln!(writer, "}}")?;
         } else {
-            writeln!(writer, "{prefixes} {name}({params});")?;
+            match self.is_default {
+                true => writeln!(writer, "{prefixes} {name}({params}) {suffixes} = default;")?,
+                false => writeln!(writer, "{prefixes} {name}({params}) {suffixes};")?,
+            };
+            
         }
 
         Ok(())
