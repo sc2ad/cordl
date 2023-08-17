@@ -886,8 +886,7 @@ pub trait CSType: Sized {
         let instance_fields = t
             .fields(metadata.metadata)
             .iter()
-            .enumerate()
-            .filter_map(|(i, field)| {
+            .filter_map(|field| {
                 let f_type = metadata
                     .metadata_registration
                     .types
@@ -910,15 +909,19 @@ pub trait CSType: Sized {
                     ty: cpp_name,
                     modifiers: "".to_string(),
                     // no default value for first param
-                    def_value: if i == 0 {
-                        None
-                    } else {
-                        Some(match f_type.valuetype {
-                            true => "{}".to_string(),
-                            false => "csnull".to_string(),
-                        })
-                    },
+                    def_value: Some(match f_type.valuetype {
+                        true => "{}".to_string(),
+                        false => "csnull".to_string(),
+                    }),
                 })
+            })
+            .enumerate()
+            .map(|(i, mut param)| {
+                if i == 0 {
+                    param.def_value = None;
+                }
+
+                param
             })
             .collect_vec();
 
