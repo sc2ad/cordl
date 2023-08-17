@@ -1342,9 +1342,9 @@ pub trait CSType: Sized {
         let params_format = CppParam::params_types(&method_decl.parameters).join(", ");
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
 
-        let method_line = format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_byref_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_m_name})>::methodInfo();");
+        let method_line = format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_m_name})>::methodInfo();");
         let run_line = format!(
-            "return ::il2cpp_utils::RunMethodRethrow<{m_ret_cpp_type_byref_name}, false>({});",
+            "return ::il2cpp_utils::RunMethodRethrow<{m_ret_cpp_type_name}, false>({});",
             method_invoke_params
                 .into_iter()
                 .chain(param_names)
