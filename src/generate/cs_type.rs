@@ -46,6 +46,9 @@ const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "__instance";
 const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
 
+pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
+pub const ENUM_WRAPPER_TYPE: &str = "::bs_hook::EnumTypeWrapper";
+
 pub trait CSType: Sized {
     fn get_mut_cpp_type(&mut self) -> &mut CppType; // idk how else to do this
     fn get_cpp_type(&self) -> &CppType; // idk how else to do this
@@ -1656,6 +1659,21 @@ pub trait CSType: Sized {
                 // Self
                 if typ_cpp_tag == cpp_type.self_tag {
                     return cpp_type.formatted_complete_cpp_name().clone();
+                }
+
+                if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
+                    let td = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+                    if td.namespace(metadata.metadata) == "System"
+                        && td.name(metadata.metadata) == "ValueType"
+                    {
+                        return VALUE_WRAPPER_TYPE.to_string();
+                    }
+                    if td.namespace(metadata.metadata) == "System"
+                        && td.name(metadata.metadata) == "Enum"
+                    {
+                        return ENUM_WRAPPER_TYPE.to_string();
+                    }
                 }
 
                 // Skip nested classes

@@ -4,6 +4,7 @@ use color_eyre::Result;
 
 use crate::generate::{
     cpp_type::CppType,
+    cs_type::{ENUM_WRAPPER_TYPE, VALUE_WRAPPER_TYPE},
     members::CppMember,
     metadata::{Il2cppFullName, Metadata},
 };
@@ -32,16 +33,13 @@ fn register_value_type_object_handler(metadata: &mut Metadata) -> Result<()> {
         .insert(*value_type_tdi, Box::new(value_type_handler));
     metadata
         .custom_type_handler
-        .insert(*enum_type_tdi, Box::new(value_type_handler));
+        .insert(*enum_type_tdi, Box::new(enum_type_handler));
 
     Ok(())
 }
 
-fn value_type_handler(cpp_type: &mut CppType) {
-    println!("Found System.ValueType or System.Enum type, removing inheritance!");
-
-    // Should not inherit wrapper types!
-    cpp_type.inherit.clear();
+fn unified_type_handler(cpp_type: &mut CppType, base_ctor: &str) {
+    cpp_type.inherit = vec![base_ctor.to_string()];
 
     // Fixup ctor call
     cpp_type
@@ -56,8 +54,16 @@ fn value_type_handler(cpp_type: &mut CppType) {
                 panic!()
             };
 
-            constructor.base_ctor = None;
+            constructor.base_ctor = Some((base_ctor.to_string(), "".to_string()));
             constructor.body = Some(vec![]);
             constructor.is_constexpr = true;
         });
+}
+fn value_type_handler(cpp_type: &mut CppType) {
+    println!("Found System.ValueType, removing inheritance!");
+    unified_type_handler(cpp_type, VALUE_WRAPPER_TYPE);
+}
+fn enum_type_handler(cpp_type: &mut CppType) {
+    println!("Found System.Enum type, removing inheritance!");
+    unified_type_handler(cpp_type, ENUM_WRAPPER_TYPE);
 }
