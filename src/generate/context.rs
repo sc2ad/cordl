@@ -276,6 +276,8 @@ impl CppContext {
 
         let mut ts = TopologicalSort::<CppTypeTag>::new();
         for cpp_type in &typedef_root_types {
+            ts.insert(cpp_type.self_tag);
+
             for d in &cpp_type.requirements.depending_types {
                 ts.add_dependency(*d, cpp_type.self_tag)
             }
