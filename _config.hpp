@@ -22,6 +22,15 @@
 
 #define csnull ::cordl_internals::NullArg()
 
+namespace bs_hook {
+struct ValueTypeWrapper {
+  constexpr static bool __CORDL_IS_VALUE_TYPE = true;
+};
+struct EnumTypeWrapper : public ValueTypeWrapper {
+  constexpr static bool __CORDL_IS_VALUE_TYPE = true;
+};
+} // namespace bs_hook
+
 namespace cordl_internals {
 namespace internal {
 template <std::size_t sz> struct NTTPString {
