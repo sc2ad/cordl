@@ -1623,11 +1623,6 @@ pub trait CSType: Sized {
         let typ_tag = typ.data;
 
         let cpp_type = self.get_mut_cpp_type();
-        let mut nested_types: HashMap<CppTypeTag, String> = cpp_type
-            .nested_types_flattened()
-            .into_iter()
-            .map(|(t, c)| (t, c.formatted_complete_cpp_name().clone()))
-            .collect();
 
         let requirements = &mut cpp_type.requirements;
         match typ.ty {
@@ -1676,9 +1671,8 @@ pub trait CSType: Sized {
                     }
                 }
 
-                // Skip nested classes
-                if let Some(nested) = nested_types.remove(&typ_cpp_tag) {
-                    return nested;
+                if add_include {
+                    requirements.add_dependency_tag(typ_cpp_tag);
                 }
 
                 // In this case, just inherit the type

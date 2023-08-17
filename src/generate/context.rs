@@ -271,20 +271,36 @@ impl CppContext {
         let typedef_root_types = typedef_types
             .iter()
             .cloned()
-            .filter(|t| !t.nested)
+            .filter(|t| self.typedef_types.contains_key(&t.self_tag))
             .collect_vec();
 
         let mut ts = TopologicalSort::<CppTypeTag>::new();
         for cpp_type in &typedef_root_types {
             ts.insert(cpp_type.self_tag);
 
-            for d in &cpp_type.requirements.depending_types {
+            for d in cpp_type.requirements.depending_types.iter().sorted() {
                 ts.add_dependency(*d, cpp_type.self_tag)
             }
         }
 
+        // types that don't depend on anyone
+        // we take these because they get undeterministically sorted
+        // and can be first anyways
+        let mut undepended_cpp_types = ts
+            .pop_all()
+            .into_iter()
+            .filter_map(|t| self.typedef_types.get(&t))
+            .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
+            .collect_vec();
+
+        // currently sorted from root to dependencies
+        // aka least depended to most depended
         let mut typedef_root_types_sorted =
             ts.filter_map(|t| self.typedef_types.get(&t)).collect_vec();
+
+        // add the items with no dependencies at the tail
+        // when reversed these will be first and can be allowed to be first
+        typedef_root_types_sorted.append(&mut undepended_cpp_types);
 
         // we want from most depended to least depended
         typedef_root_types_sorted.reverse();
