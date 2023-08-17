@@ -284,6 +284,8 @@ impl CppContext {
         }
 
         // types that don't depend on anyone
+        // we take these because they get undeterministically sorted
+        // and can be first anyways
         let mut undepended_cpp_types = ts
             .pop_all()
             .into_iter()
