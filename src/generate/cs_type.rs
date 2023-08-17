@@ -1488,7 +1488,11 @@ pub trait CSType: Sized {
                 _ => todo!(),
             },
             Il2CppTypeEnum::Object | Il2CppTypeEnum::Class | Il2CppTypeEnum::Szarray => {
-                format!("/* TODO: Fix these default values */ {ty:?} */ csnull")
+                let def = match ty.valuetype {
+                    true => "{}",
+                    false => "csnull",
+                };
+                format!("/* TODO: Fix these default values */ {ty:?} */ {def}")
             }
 
             _ => "unknown".to_string(),
