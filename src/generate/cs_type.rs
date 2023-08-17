@@ -904,15 +904,30 @@ pub trait CSType: Sized {
                     cpp_type.il2cpp_interfacewrap(ret, f_type, metadata)
                 };
 
+                let matched_ty = match f_type.data {
+                    TypeData::GenericClassIndex(inst_idx) => {
+                        let gen_class = &metadata
+                            .metadata
+                            .runtime_metadata
+                            .metadata_registration
+                            .generic_classes[inst_idx];
+
+                        &metadata.metadata_registration.types[gen_class.type_index]
+                    }
+                    _ => f_type,
+                };
+
+                let def_value = match matched_ty.valuetype {
+                    true => "{}".to_string(),
+                    false => "csnull".to_string(),
+                };
+
                 Some(CppParam {
                     name: config.name_cpp(field.name(metadata.metadata)),
                     ty: cpp_name,
                     modifiers: "".to_string(),
                     // no default value for first param
-                    def_value: Some(match f_type.valuetype {
-                        true => "{}".to_string(),
-                        false => "csnull".to_string(),
-                    }),
+                    def_value: Some(def_value),
                 })
             })
             .collect_vec();
@@ -1392,7 +1407,7 @@ pub trait CSType: Sized {
 
     fn default_value_blob(
         metadata: &Metadata,
-        ty: Il2CppTypeEnum,
+        ty: &Il2CppType,
         data_index: usize,
         string_quotes: bool,
         string_as_u16: bool,
@@ -1405,7 +1420,7 @@ pub trait CSType: Sized {
 
         let mut cursor = Cursor::new(data);
 
-        match ty {
+        match ty.ty {
             Il2CppTypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
             Il2CppTypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
             Il2CppTypeEnum::I2 => cursor.read_i16::<Endian>().unwrap().to_string(),
@@ -1450,10 +1465,27 @@ pub trait CSType: Sized {
 
                 res
             }
-            Il2CppTypeEnum::Genericinst
-            | Il2CppTypeEnum::Object
-            | Il2CppTypeEnum::Class
-            | Il2CppTypeEnum::Szarray => {
+            Il2CppTypeEnum::Genericinst => match ty.data {
+                TypeData::GenericClassIndex(inst_idx) => {
+                    let gen_class = &metadata
+                        .metadata
+                        .runtime_metadata
+                        .metadata_registration
+                        .generic_classes[inst_idx];
+
+                    let inner_ty = &metadata.metadata_registration.types[gen_class.type_index];
+
+                    Self::default_value_blob(
+                        metadata,
+                        inner_ty,
+                        data_index,
+                        string_quotes,
+                        string_as_u16,
+                    )
+                }
+                _ => todo!(),
+            },
+            Il2CppTypeEnum::Object | Il2CppTypeEnum::Class | Il2CppTypeEnum::Szarray => {
                 format!("/* TODO: Fix these default values */ {ty:?} */ csnull")
             }
 
@@ -1470,19 +1502,13 @@ pub trait CSType: Sized {
             .iter()
             .find(|f| f.field_index == field_index)
             .map(|def| {
-                let ty = metadata
+                let ty: &Il2CppType = metadata
                     .metadata_registration
                     .types
                     .get(def.type_index as usize)
                     .unwrap();
 
-                Self::default_value_blob(
-                    metadata,
-                    ty.ty,
-                    def.data_index.index() as usize,
-                    true,
-                    true,
-                )
+                Self::default_value_blob(metadata, ty, def.data_index.index() as usize, true, true)
             })
     }
     fn param_default_value(metadata: &Metadata, parameter_index: ParameterIndex) -> Option<String> {
@@ -1524,13 +1550,7 @@ pub trait CSType: Sized {
                     }
                 }
 
-                Self::default_value_blob(
-                    metadata,
-                    ty.ty,
-                    def.data_index.index() as usize,
-                    true,
-                    true,
-                )
+                Self::default_value_blob(metadata, ty, def.data_index.index() as usize, true, true)
             })
     }
 
