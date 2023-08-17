@@ -1467,27 +1467,33 @@ pub trait CSType: Sized {
 
                 res
             }
-            Il2CppTypeEnum::Genericinst => match ty.data {
-                TypeData::GenericClassIndex(inst_idx) => {
-                    let gen_class = &metadata
-                        .metadata
-                        .runtime_metadata
-                        .metadata_registration
-                        .generic_classes[inst_idx];
+            // Il2CppTypeEnum::Genericinst => match ty.data {
+            //     TypeData::GenericClassIndex(inst_idx) => {
+            //         let gen_class = &metadata
+            //             .metadata
+            //             .runtime_metadata
+            //             .metadata_registration
+            //             .generic_classes[inst_idx];
 
-                    let inner_ty = &metadata.metadata_registration.types[gen_class.type_index];
+            //         let inner_ty = &metadata.metadata_registration.types[gen_class.type_index];
 
-                    Self::default_value_blob(
-                        metadata,
-                        inner_ty,
-                        data_index,
-                        string_quotes,
-                        string_as_u16,
-                    )
-                }
-                _ => todo!(),
-            },
-            Il2CppTypeEnum::Object | Il2CppTypeEnum::Class | Il2CppTypeEnum::Szarray => {
+            //         Self::default_value_blob(
+            //             metadata,
+            //             inner_ty,
+            //             data_index,
+            //             string_quotes,
+            //             string_as_u16,
+            //         )
+            //     }
+            //     _ => todo!(),
+            // },
+            Il2CppTypeEnum::Genericinst
+            | Il2CppTypeEnum::Byref
+            | Il2CppTypeEnum::Ptr
+            | Il2CppTypeEnum::Array
+            | Il2CppTypeEnum::Object
+            | Il2CppTypeEnum::Class
+            | Il2CppTypeEnum::Szarray => {
                 let def = match ty.valuetype {
                     true => "{}",
                     false => "csnull",
@@ -1532,8 +1538,12 @@ pub trait CSType: Sized {
                     .get(def.type_index as usize)
                     .unwrap();
 
+                    // This occurs when the type is `null` or `default(T)` for value types
                 if !def.data_index.is_valid() {
-                    return "csnull".to_string();
+                    return match ty.valuetype {
+                        true => "{}".to_string(),
+                        false => "csnull".to_string(),
+                    };
                 }
 
                 if let Il2CppTypeEnum::Valuetype = ty.ty {
