@@ -904,6 +904,8 @@ pub trait CSType: Sized {
                     cpp_type.il2cpp_interfacewrap(ret, f_type, metadata)
                 };
 
+                // Get the inner type of a Generic Inst
+                // e.g ReadOnlySpan<char> -> ReadOnlySpan<T>
                 let matched_ty = match f_type.data {
                     TypeData::GenericClassIndex(inst_idx) => {
                         let gen_class = &metadata
