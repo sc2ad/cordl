@@ -915,14 +915,6 @@ pub trait CSType: Sized {
                     }),
                 })
             })
-            .enumerate()
-            .map(|(i, mut param)| {
-                if i == 0 {
-                    param.def_value = None;
-                }
-
-                param
-            })
             .collect_vec();
 
         if !instance_fields.is_empty() {
@@ -971,7 +963,6 @@ pub trait CSType: Sized {
             CppMember::CppLine(CppLine {
                 line: format!(
                     "
-                    constexpr {cpp_name}() = default;
                     constexpr {cpp_name}({cpp_name} const&) = default;
                     constexpr {cpp_name}({cpp_name}&&) = default;
                     constexpr {cpp_name}& operator=({cpp_name} const&) = default;
