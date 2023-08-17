@@ -1274,9 +1274,11 @@ pub trait CSType: Sized {
         let method_decl = CppMethodDecl {
             body: None,
             brief: format!(
-                "Method {m_name} addr 0x{:x} size 0x{:x}",
+                "Method {m_name} addr 0x{:x} size 0x{:x} virtual {} final {}",
                 method_calc.map(|m| m.addrs).unwrap_or(u64::MAX),
-                method_calc.map(|m| m.estimated_size).unwrap_or(usize::MAX)
+                method_calc.map(|m| m.estimated_size).unwrap_or(usize::MAX),
+                method.is_virtual_method(),
+                method.is_final_method()
             )
             .into(),
             is_const: false,
@@ -1289,7 +1291,7 @@ pub trait CSType: Sized {
             template: template.clone(),
             suffix_modifiers: Default::default(),
             prefix_modifiers: Default::default(),
-            is_virtual: method.is_virtual_method() && !method.is_final_method(),
+            is_virtual: false,
         };
 
         let complete_type_name = &cpp_type.cpp_full_name;
