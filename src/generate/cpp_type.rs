@@ -269,11 +269,9 @@ impl CppType {
         writer: &mut super::writer::CppWriter,
         namespace: Option<&str>,
     ) -> color_eyre::Result<()> {
-        self.prefix_comments.iter().for_each(|pc| {
-            writeln!(writer, "// {pc}")
-                .context("Prefix comment")
-                .unwrap();
-        });
+        self.prefix_comments
+            .iter()
+            .try_for_each(|pc| writeln!(writer, "// {pc}").context("Prefix comment"))?;
 
         let type_kind = match self.is_value_type {
             true => "struct",
