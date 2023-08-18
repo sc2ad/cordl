@@ -373,6 +373,9 @@ impl CppContextCollection {
         Some(context)
     }
 
+    ///
+    /// It's important this gets called AFTER the type is filled
+    ///
     pub fn fill_generic_method_inst(
         &mut self,
         method_spec: &Il2CppMethodSpec,
