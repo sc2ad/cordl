@@ -1286,7 +1286,7 @@ pub trait CSType: Sized {
             // different ret types can exist
             // so we add their ret types
             match cpp_m_name == "op_Implicit" {
-                true => cpp_m_name + "_" + &m_ret_cpp_type_name,
+                true => cpp_m_name + "_" + &config.generic_nested_name(&m_ret_cpp_type_name),
                 false => cpp_m_name,
             }
         };
