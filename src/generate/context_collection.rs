@@ -319,10 +319,23 @@ impl CppContextCollection {
         if method_spec.class_inst_index == u32::MAX {
             return None;
         }
+        // Skip generic methods?
+        if method_spec.method_inst_index != u32::MAX {
+            return None;
+        }
 
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
-        let _ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
+        let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
+
+        if ty_def.is_interface() {
+            // Skip interface
+            println!(
+                "Skipping make interface for generic instantiation {}",
+                ty_def.full_name(metadata.metadata, true)
+            );
+            return None;
+        }
 
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
@@ -400,6 +413,15 @@ impl CppContextCollection {
         // only make generic spatialization
         let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
 
+        if ty_def.is_interface() {
+            // Skip interface
+            println!(
+                "Skipping fill generic method interface for generic instantiation {}",
+                ty_def.full_name(metadata.metadata, true)
+            );
+            return None;
+        }
+
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
 
@@ -442,10 +464,20 @@ impl CppContextCollection {
         let method =
             &metadata.metadata.global_metadata.methods[method_spec.method_definition_index];
 
-        // is reference type
+        let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
+
         // only make generic spatialization
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
+
+        if ty_def.is_interface() {
+            // Skip interface
+            println!(
+                "Skipping fill class interface for generic instantiation {}",
+                ty_def.full_name(metadata.metadata, true)
+            );
+            return None;
+        }
 
         let context_root_tag = self.get_context_root_tag(type_data);
 
