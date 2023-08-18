@@ -1,6 +1,4 @@
-use brocolib::{
-    global_metadata::{TypeDefinitionIndex},
-};
+use brocolib::global_metadata::TypeDefinitionIndex;
 
 use super::{
     context_collection::{CppContextCollection, CppTypeTag},

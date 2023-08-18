@@ -4,7 +4,7 @@ use brocolib::{
     Metadata,
 };
 
-use super::config::{GenerationConfig};
+use super::config::GenerationConfig;
 
 pub const OBJECT_WRAPPER_TYPE: &str = "::bs_hook::Il2CppWrapperType";
 

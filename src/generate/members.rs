@@ -201,7 +201,7 @@ pub struct CppMethodDecl {
     pub is_constexpr: bool,
     pub is_const: bool,
     pub is_no_except: bool,
-
+    pub is_operator: bool,
 
     pub brief: Option<String>,
     pub body: Option<Vec<Arc<dyn Writable>>>,
@@ -217,6 +217,7 @@ impl From<CppMethodDecl> for CppMethodImpl {
             instance: value.instance,
             is_const: value.is_const,
             is_no_except: value.is_no_except,
+            is_operator: value.is_operator,
             is_virtual: value.is_virtual,
             parameters: value.parameters,
             prefix_modifiers: value.prefix_modifiers,
@@ -241,7 +242,7 @@ pub struct CppMethodImpl {
     pub is_const: bool,
     pub is_virtual: bool,
     pub is_no_except: bool,
-
+    pub is_operator: bool,
 
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:
@@ -276,7 +277,6 @@ pub struct CppConstructorDecl {
     // call base ctor
     pub base_ctor: Option<(String, String)>,
     pub initialized_values: HashMap<String, String>,
-
 
     pub brief: Option<String>,
     pub body: Option<Vec<Arc<dyn Writable>>>,

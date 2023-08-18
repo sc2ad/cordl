@@ -48,6 +48,7 @@ const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::ins
 
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
 pub const ENUM_WRAPPER_TYPE: &str = "::bs_hook::EnumTypeWrapper";
+pub const INTERFACE_WRAPPER_TYPE: &str = "::cordl_internals::InterfaceW";
 
 pub trait CSType: Sized {
     fn get_mut_cpp_type(&mut self) -> &mut CppType; // idk how else to do this
@@ -206,15 +207,10 @@ pub trait CSType: Sized {
             generic_instantiation_args: Default::default(),
             method_generic_instantiation_map: Default::default(),
 
-            is_stub: generics.is_some(),
+            is_stub: false,
             is_hidden: true,
             nested_types: Default::default(),
         };
-
-        // Generic container
-        if generics.is_some() {
-            cpptype.is_stub = true;
-        }
 
         // Nested type unnesting fix
         if t.declaring_type_index != u32::MAX {
@@ -276,7 +272,9 @@ pub trait CSType: Sized {
         if t.is_value_type() || t.is_enum_type() {
             self.create_valuetype_constructor(metadata, ctx_collection, config, tdi);
             self.create_valuetype_field_wrapper();
-        } else if !t.is_interface() {
+        } else if t.is_interface() {
+            self.make_interface_constructors();
+        } else {
             self.create_ref_default_constructor();
             self.create_ref_default_operators();
         }
@@ -577,6 +575,7 @@ pub trait CSType: Sized {
                     is_const: !f_type.is_static(), // TODO: readonly fields?
                     is_constexpr: true,
                     is_virtual: false,
+                    is_operator: false,
                     is_no_except: false, // TODO:
                     parameters: vec![],
                     prefix_modifiers: vec![],
@@ -594,6 +593,7 @@ pub trait CSType: Sized {
                     is_const: false,     // TODO: readonly fields?
                     is_constexpr: true,
                     is_virtual: false,
+                    is_operator: false,
                     is_no_except: false, // TODO:
                     parameters: vec![CppParam {
                         def_value: None,
@@ -666,8 +666,13 @@ pub trait CSType: Sized {
 
         if t.parent_index == u32::MAX {
             // TYPE_ATTRIBUTE_INTERFACE = 0x00000020
-            if t.flags & TYPE_ATTRIBUTE_INTERFACE == 0 {
-                println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
+            match t.is_interface() {
+                true => {
+                    cpp_type.inherit.push(INTERFACE_WRAPPER_TYPE.to_string());
+                }
+                false => {
+                    println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
+                }
             }
         } else if let Some(parent_type) = metadata
             .metadata_registration
@@ -711,8 +716,38 @@ pub trait CSType: Sized {
             let int_ty = &metadata.metadata_registration.types[interface_index as usize];
 
             // We have an interface, lets do something with it
-            let inherit_type = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, true);
-            cpp_type.inherit.push(inherit_type);
+            let interface_cpp_name =
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, true);
+
+            let convert_line = match t.is_value_type() || t.is_enum_type() {
+                true => {
+                    // box
+                    format!("il2cpp_utils::ToIl2CppObject({VALUE_TYPE_WRAPPER_INSTANCE_NAME})")
+                }
+                false => REFERENCE_WRAPPER_INSTANCE_NAME.to_string(),
+            };
+
+            cpp_type.declarations.push(
+                CppMember::MethodDecl(CppMethodDecl {
+                    body: Some(vec![Arc::new(CppLine::make(format!(
+                        "return {interface_cpp_name}({convert_line});"
+                    )))]),
+                    brief: Some(format!("Convert operator to {interface_cpp_name}")),
+                    cpp_name: interface_cpp_name,
+                    return_type: "".to_string(),
+                    instance: true,
+                    is_const: true,
+                    is_constexpr: true,
+                    is_no_except: !t.is_value_type() && !t.is_enum_type(),
+                    is_operator: true,
+                    is_virtual: false,
+                    parameters: vec![],
+                    template: None,
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                })
+                .into(),
+            );
         }
     }
 
@@ -901,7 +936,7 @@ pub trait CSType: Sized {
                 let cpp_name = {
                     // add include because it's required
                     let ret = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, true);
-                    cpp_type.il2cpp_interfacewrap(ret, f_type, metadata)
+                    ret
                 };
 
                 // Get the inner type of a Generic Inst
@@ -1087,6 +1122,45 @@ pub trait CSType: Sized {
             .into(),
         );
     }
+    fn make_interface_constructors(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        let cpp_name = cpp_type.cpp_name().clone();
+
+        cpp_type.declarations.push(
+            CppMember::CppLine(CppLine {
+                line: format!("constexpr ~{cpp_name}() = default;"),
+            })
+            .into(),
+        );
+
+        let base_type = cpp_type
+            .inherit
+            .get(0)
+            .expect("No parent for interface type?");
+
+        cpp_type.declarations.push(
+            CppMember::ConstructorDecl(CppConstructorDecl {
+                cpp_name: cpp_name.clone(),
+                parameters: vec![CppParam {
+                    name: "ptr".to_string(),
+                    modifiers: "".to_string(),
+                    ty: "void*".to_string(),
+                    def_value: None,
+                }],
+                template: None,
+                is_constexpr: true,
+                is_explicit: true,
+                is_default: false,
+                is_no_except: true,
+
+                base_ctor: Some((base_type.clone(), "ptr".to_string())),
+                initialized_values: HashMap::new(),
+                brief: None,
+                body: Some(vec![]),
+            })
+            .into(),
+        );
+    }
     fn create_ref_default_operators(&mut self) {
         let cpp_type = self.get_mut_cpp_type();
         let cpp_name = cpp_type.cpp_name().clone();
@@ -1216,7 +1290,7 @@ pub trait CSType: Sized {
                     cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, must_include);
                 let byref = cpp_type.il2cpp_byref(name, param_type);
 
-                cpp_type.il2cpp_interfacewrap(byref, param_type, metadata)
+                byref
             };
 
             let param_cpp_name = match is_generic_inst {
@@ -1262,7 +1336,7 @@ pub trait CSType: Sized {
             let name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false);
             let byref = cpp_type.il2cpp_byref(name, m_ret_type);
 
-            cpp_type.il2cpp_interfacewrap(byref, m_ret_type, metadata)
+            byref
         };
 
         let m_ret_cpp_type_name = match is_generic_inst {
@@ -1286,7 +1360,7 @@ pub trait CSType: Sized {
             // different ret types can exist
             // so we add their ret types
             match cpp_m_name == "op_Implicit" {
-                true => cpp_m_name + "_" + &m_ret_cpp_type_name,
+                true => cpp_m_name + "_" + &config.generic_nested_name(&m_ret_cpp_type_name),
                 false => cpp_m_name,
             }
         };
@@ -1320,6 +1394,7 @@ pub trait CSType: Sized {
             suffix_modifiers: Default::default(),
             prefix_modifiers: Default::default(),
             is_virtual: false,
+            is_operator: false,
         };
 
         let complete_type_name = &cpp_type.cpp_full_name;
@@ -1592,22 +1667,6 @@ pub trait CSType: Sized {
             requirements.needs_byref_include();
 
             return format!("ByRefConst<{cpp_name}>");
-        }
-
-        cpp_name
-    }
-    fn il2cpp_interfacewrap(
-        &mut self,
-        cpp_name: String,
-        typ: &Il2CppType,
-        metadata: &Metadata,
-    ) -> String {
-        if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
-            let td = &metadata.metadata.global_metadata.type_definitions[tdi];
-
-            if td.is_interface() {
-                return format!("::cordl_internals::InterfaceW<{cpp_name}>");
-            }
         }
 
         cpp_name

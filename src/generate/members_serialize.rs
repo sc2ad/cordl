@@ -186,6 +186,8 @@ impl Writable for CppMethodDecl {
             template.write(writer)?;
         }
 
+        let body = &self.body;
+
         let mut prefix_modifiers = self
             .prefix_modifiers
             .iter()
@@ -201,18 +203,27 @@ impl Writable for CppMethodDecl {
         if !self.instance {
             prefix_modifiers.push("static");
         }
-        if self.is_constexpr {
-            prefix_modifiers.push("constexpr");
+
+        if body.is_some() {
+            if self.is_constexpr {
+                prefix_modifiers.push("constexpr")
+            } else if self.body.is_some() {
+                //implicitly inline
+                prefix_modifiers.push("inline")
+            }
         }
 
         if self.is_virtual {
             prefix_modifiers.push("virtual");
         }
+        if self.is_operator {
+            prefix_modifiers.push("operator")
+        }
 
         if self.is_const {
             suffix_modifiers.push("const");
         }
-                if self.is_no_except {
+        if self.is_no_except {
             suffix_modifiers.push("noexcept");
         }
 
@@ -223,7 +234,18 @@ impl Writable for CppMethodDecl {
         let name = &self.cpp_name;
         let params = CppParam::params_as_args(&self.parameters).join(", ");
 
-        writeln!(writer, "{prefixes} {ret} {name}({params}) {suffixes};",)?;
+        match body {
+            Some(body) => {
+                writeln!(writer, "{prefixes} {ret} {name}({params}) {suffixes} {{")?;
+                // Body
+                body.iter().try_for_each(|w| w.write(writer))?;
+
+                writeln!(writer, "}}")?;
+            }
+            None => {
+                writeln!(writer, "{prefixes} {ret} {name}({params}) {suffixes};",)?;
+            }
+        }
 
         Ok(())
     }
@@ -273,11 +295,14 @@ impl Writable for CppMethodImpl {
         if self.is_virtual {
             prefix_modifiers.push("virtual");
         }
+        if self.is_operator {
+            prefix_modifiers.push("operator")
+        }
 
         if self.is_const {
             suffix_modifiers.push("const");
         }
-                if self.is_no_except {
+        if self.is_no_except {
             suffix_modifiers.push("noexcept");
         }
 
@@ -372,7 +397,6 @@ impl Writable for CppConstructorDecl {
                 true => writeln!(writer, "{prefixes} {name}({params}) {suffixes} = default;")?,
                 false => writeln!(writer, "{prefixes} {name}({params}) {suffixes};")?,
             };
-            
         }
 
         Ok(())
