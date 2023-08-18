@@ -150,22 +150,19 @@ concept il2cpp_reference_type = requires(T const& t) {
 // TODO: Do this when Il2CppWrapperType has __CORDL_IS_VALUE_TYPE == false
 // static_assert(il2cpp_reference_type<::bs_hook::Il2CppWrapperType>);
 
-template <typename IT> struct InterfaceW : IT {
+
+struct InterfaceW {
   void* instance;
 
   // pointer type
   explicit constexpr InterfaceW(void* o) noexcept : instance(o) {}
 
-  // reference type ctor
-  template <il2cpp_reference_type U>
-    requires(std::is_assignable_v<U, IT>)
-  constexpr InterfaceW(U o) noexcept : instance(o.convert()) {}
 
-  // value type convert
-  template <il2cpp_value_type U>
-    requires(std::is_assignable_v<U, IT>)
-  InterfaceW(U&& o)
-      : instance(il2cpp_utils::ToIl2CppObject(std::forward<U>(o))) {}
+  constexpr void* convert() const {
+    return instance;
+  }
+
+  constexpr static bool __CORDL_IS_VALUE_TYPE = false;
 };
 
 // Type tag for passing null as a parameter without setting instance to null
