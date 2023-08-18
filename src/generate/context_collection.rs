@@ -347,6 +347,13 @@ impl CppContextCollection {
             return self.get_context_mut(generic_class_ty_data);
         }
 
+        // make original type a stub
+        self.borrow_cpp_type(type_data, |_, mut cpptype| {
+            cpptype.is_stub = true;
+
+            cpptype
+        });
+
         let mut new_cpp_type = CppType::make_cpp_type(metadata, config, generic_class_ty_data, tdi)
             .expect("Failed to make generic type");
         new_cpp_type.self_tag = generic_class_ty_data;

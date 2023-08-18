@@ -207,15 +207,10 @@ pub trait CSType: Sized {
             generic_instantiation_args: Default::default(),
             method_generic_instantiation_map: Default::default(),
 
-            is_stub: generics.is_some(),
+            is_stub: false,
             is_hidden: true,
             nested_types: Default::default(),
         };
-
-        // Generic container
-        if generics.is_some() {
-            cpptype.is_stub = true;
-        }
 
         // Nested type unnesting fix
         if t.declaring_type_index != u32::MAX {
