@@ -188,10 +188,6 @@ struct NullArg {
     return ArrayW<T>(nullptr);
   }
 
-  template <typename T> constexpr operator InterfaceW<T>() const noexcept {
-    return InterfaceW<T>(nullptr);
-  }
-
   template <typename T, typename U>
   constexpr operator ::ListW<T, U>() const noexcept {
     return ListW<T, U>(nullptr);
