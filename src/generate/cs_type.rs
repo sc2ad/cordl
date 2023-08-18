@@ -570,7 +570,7 @@ pub trait CSType: Sized {
                     return_type: field_ty_cpp_name.clone(),
 
                     brief: None,
-                    body: vec![].into(), // TODO:
+                    body: None, // TODO:
                     // Const if instance for now
                     is_const: !f_type.is_static(), // TODO: readonly fields?
                     is_constexpr: true,
@@ -589,7 +589,7 @@ pub trait CSType: Sized {
                     return_type: "void".to_string(),
 
                     brief: None,
-                    body: vec![].into(), //TODO:
+                    body: None, //TODO:
                     is_const: false,     // TODO: readonly fields?
                     is_constexpr: true,
                     is_virtual: false,
