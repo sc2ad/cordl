@@ -1888,12 +1888,29 @@ pub trait CSType: Sized {
                         .find_position(|&p| p.name_index == generic_param.name_index)
                         .unwrap();
 
-                    if cpp_type.generic_instantiations_args_types.is_none() {
-                        return format!("/* TODO: FIX THIS, THIS SHOULDN'T HAPPEN! NO GENERIC INST ARGS FOUND HERE */ {}", generic_param.name(metadata.metadata));
+                    let ty_idx_opt = cpp_type
+                        .generic_instantiations_args_types
+                        .as_ref()
+                        .and_then(|args| args.get(generic_param.num as usize))
+                        .cloned();
+
+                    // true if the type is intentionally a generic template type and not a specialization
+                    let has_generic_template = cpp_type
+                        .cpp_template
+                        .as_ref()
+                        .is_some_and(|template| !template.names.is_empty());
+
+                    // if template arg is not found
+                    if ty_idx_opt.is_none() {
+                        let gen_name = generic_param.name(metadata.metadata);
+
+                        return match has_generic_template {
+                            true => gen_name.to_string(),
+                            false => format!("/* TODO: FIX THIS, THIS SHOULDN'T HAPPEN! NO GENERIC INST ARGS FOUND HERE */ {gen_name}"),
+                        };
                     }
 
-                    let ty_idx = cpp_type.generic_instantiations_args_types.as_ref().unwrap()
-                        [generic_param.num as usize];
+                    let ty_idx = ty_idx_opt.unwrap();
 
                     let ty = metadata
                         .metadata_registration
