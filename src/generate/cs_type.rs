@@ -1364,7 +1364,7 @@ pub trait CSType: Sized {
             // static functions with same name and params but
             // different ret types can exist
             // so we add their ret types
-            match cpp_m_name == "op_Implicit" {
+            match cpp_m_name == "op_Implicit" || cpp_m_name == "op_Explicit" {
                 true => cpp_m_name + "_" + &config.generic_nested_name(&m_ret_cpp_type_name),
                 false => cpp_m_name,
             }
