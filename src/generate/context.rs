@@ -19,6 +19,7 @@ use crate::generate::{
     members::CppInclude,
     type_extensions::{TypeDefinitionExtensions, OBJECT_WRAPPER_TYPE},
 };
+use crate::helpers::sorting::DependencyGraph;
 use crate::STATIC_CONFIG;
 
 use super::context_collection::CppTypeTag;
@@ -271,32 +272,30 @@ impl CppContext {
         let typedef_root_types = typedef_types
             .iter()
             .cloned()
-            .filter(|t| self.typedef_types.contains_key(&t.self_tag))
+            .filter(|t: &&CppType| self.typedef_types.contains_key(&t.self_tag))
             .collect_vec();
 
-        let mut ts = TopologicalSort::<CppTypeTag>::new();
+        let mut ts = DependencyGraph::<CppTypeTag, _>::new(|a, b| a.cmp(b));
         for cpp_type in &typedef_root_types {
-            ts.insert(cpp_type.self_tag);
+            ts.add_root_dependency(&cpp_type.self_tag);
 
             for d in cpp_type.requirements.depending_types.iter().sorted() {
-                ts.add_dependency(*d, cpp_type.self_tag)
+                ts.add_dependency(d, &cpp_type.self_tag)
             }
         }
 
         // types that don't depend on anyone
         // we take these because they get undeterministically sorted
         // and can be first anyways
-        let mut undepended_cpp_types = ts
-            .pop_all()
-            .into_iter()
-            .filter_map(|t| self.typedef_types.get(&t))
-            .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
-            .collect_vec();
+        let mut undepended_cpp_types = vec![];
 
         // currently sorted from root to dependencies
         // aka least depended to most depended
-        let mut typedef_root_types_sorted =
-            ts.filter_map(|t| self.typedef_types.get(&t)).collect_vec();
+        let mut typedef_root_types_sorted = ts
+            .get_dependencies_sorted()
+            .into_iter()
+            .filter_map(|t| self.typedef_types.get(t))
+            .collect_vec();
 
         // add the items with no dependencies at the tail
         // when reversed these will be first and can be allowed to be first
