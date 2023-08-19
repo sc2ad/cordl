@@ -901,7 +901,7 @@ pub trait CSType: Sized {
         cpp_type.declarations.push(
             CppMember::FieldDecl(CppFieldDecl {
                 cpp_name: VALUE_TYPE_WRAPPER_INSTANCE_NAME.to_string(),
-                field_ty: format!("std::array<uint8_t, 0x{size:x}>"),
+                field_ty: format!("std::array<std::byte, 0x{size:x}>"),
                 instance: true,
                 readonly: false,
                 const_expr: false,
@@ -926,9 +926,7 @@ pub trait CSType: Sized {
         let instance_fields = t
             .fields(metadata.metadata)
             .iter()
-            .enumerate()
-            .map(|(i, f)| (FieldIndex::new(t.field_start.index() + i as u32), f))
-            .filter_map(|(field_index, field)| {
+            .filter_map(|field| {
                 let f_type = metadata
                     .metadata_registration
                     .types
@@ -942,8 +940,8 @@ pub trait CSType: Sized {
 
                 let f_type_cpp_name = {
                     // add include because it's required
-                    let ret = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, true);
-                    ret
+                    
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, true)
                 };
 
                 // Get the inner type of a Generic Inst
@@ -1499,6 +1497,8 @@ pub trait CSType: Sized {
 
         let mut cursor = Cursor::new(data);
 
+        const unsigned_suffix: &str = "u";
+
         match ty.ty {
             Il2CppTypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
             Il2CppTypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
@@ -1508,12 +1508,16 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::I | Il2CppTypeEnum::I8 => {
                 cursor.read_i64::<Endian>().unwrap().to_string()
             }
-            Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string(),
-            Il2CppTypeEnum::U2 => cursor.read_u16::<Endian>().unwrap().to_string(),
-            Il2CppTypeEnum::U4 => cursor.read_compressed_u32::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string() + unsigned_suffix,
+            Il2CppTypeEnum::U2 => {
+                cursor.read_u16::<Endian>().unwrap().to_string() + unsigned_suffix
+            }
+            Il2CppTypeEnum::U4 => {
+                cursor.read_compressed_u32::<Endian>().unwrap().to_string() + unsigned_suffix
+            }
             // TODO: We assume 64 bit
             Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => {
-                cursor.read_u64::<Endian>().unwrap().to_string()
+                cursor.read_u64::<Endian>().unwrap().to_string() + unsigned_suffix
             }
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
