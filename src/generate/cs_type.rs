@@ -589,8 +589,8 @@ pub trait CSType: Sized {
                     return_type: "void".to_string(),
 
                     brief: None,
-                    body: None, //TODO:
-                    is_const: false,     // TODO: readonly fields?
+                    body: None,      //TODO:
+                    is_const: false, // TODO: readonly fields?
                     is_constexpr: true,
                     is_virtual: false,
                     is_operator: false,
@@ -783,6 +783,9 @@ pub trait CSType: Sized {
                     config.name_cpp(&nested.name),
                     nested,
                     Some(generic_instantiation_args.clone()),
+                    // if no generic args are made, we can do the generic fixup
+                    // ORDER OF PASSES MATTERS
+                    nested.generic_instantiation_args.is_none(),
                 )
             })
             .collect_vec();
@@ -792,6 +795,8 @@ pub trait CSType: Sized {
                 .declarations
                 .insert(0, CppMember::CppUsingAlias(a).into())
         }
+
+        // old way of making nested types
 
         // let mut nested_types: Vec<CppType> = Vec::with_capacity(t.nested_type_count as usize);
 
