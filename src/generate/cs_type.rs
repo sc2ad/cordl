@@ -901,7 +901,7 @@ pub trait CSType: Sized {
         cpp_type.declarations.push(
             CppMember::FieldDecl(CppFieldDecl {
                 cpp_name: VALUE_TYPE_WRAPPER_INSTANCE_NAME.to_string(),
-                field_ty: format!("std::array<uint8_t, 0x{size:x}>"),
+                field_ty: format!("std::array<std::byte, 0x{size:x}>"),
                 instance: true,
                 readonly: false,
                 const_expr: false,
