@@ -938,7 +938,7 @@ pub trait CSType: Sized {
                     return None;
                 }
 
-                let cpp_name = {
+                let f_type_cpp_name = {
                     // add include because it's required
                     let ret = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, true);
                     ret
@@ -946,7 +946,8 @@ pub trait CSType: Sized {
 
                 // Get the inner type of a Generic Inst
                 // e.g ReadOnlySpan<char> -> ReadOnlySpan<T>
-                let matched_ty = match f_type.data {
+                let matched_ty: &Il2CppType = match f_type.data {
+                    // get the generic inst
                     TypeData::GenericClassIndex(inst_idx) => {
                         let gen_class = &metadata
                             .metadata
@@ -956,6 +957,21 @@ pub trait CSType: Sized {
 
                         &metadata.metadata_registration.types[gen_class.type_index]
                     }
+                    // get the underlying type of the generic param
+                    TypeData::GenericParameterIndex(param) => match param.is_valid() {
+                        true => {
+                            let gen_param =
+                                &metadata.metadata.global_metadata.generic_parameters[param];
+
+                            cpp_type
+                                .generic_instantiations_args_types
+                                .as_ref()
+                                .and_then(|gen_args| gen_args.get(gen_param.num as usize))
+                                .map(|t| &metadata.metadata_registration.types[*t as usize])
+                                .unwrap_or(f_type)
+                        }
+                        false => f_type,
+                    },
                     _ => f_type,
                 };
 
@@ -966,7 +982,7 @@ pub trait CSType: Sized {
 
                 Some(CppParam {
                     name: config.name_cpp(field.name(metadata.metadata)),
-                    ty: cpp_name,
+                    ty: f_type_cpp_name,
                     modifiers: "".to_string(),
                     // no default value for first param
                     def_value: Some(def_value),
@@ -1364,7 +1380,7 @@ pub trait CSType: Sized {
             // static functions with same name and params but
             // different ret types can exist
             // so we add their ret types
-            match cpp_m_name == "op_Implicit" {
+            match cpp_m_name == "op_Implicit" || cpp_m_name == "op_Explicit" {
                 true => cpp_m_name + "_" + &config.generic_nested_name(&m_ret_cpp_type_name),
                 false => cpp_m_name,
             }
