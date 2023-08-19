@@ -926,9 +926,7 @@ pub trait CSType: Sized {
         let instance_fields = t
             .fields(metadata.metadata)
             .iter()
-            .enumerate()
-            .map(|(i, f)| (FieldIndex::new(t.field_start.index() + i as u32), f))
-            .filter_map(|(field_index, field)| {
+            .filter_map(|field| {
                 let f_type = metadata
                     .metadata_registration
                     .types
@@ -942,8 +940,8 @@ pub trait CSType: Sized {
 
                 let f_type_cpp_name = {
                     // add include because it's required
-                    let ret = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, true);
-                    ret
+                    
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, true)
                 };
 
                 // Get the inner type of a Generic Inst
@@ -1511,8 +1509,12 @@ pub trait CSType: Sized {
                 cursor.read_i64::<Endian>().unwrap().to_string()
             }
             Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string() + unsigned_suffix,
-            Il2CppTypeEnum::U2 => cursor.read_u16::<Endian>().unwrap().to_string() + unsigned_suffix,
-            Il2CppTypeEnum::U4 => cursor.read_compressed_u32::<Endian>().unwrap().to_string() + unsigned_suffix,
+            Il2CppTypeEnum::U2 => {
+                cursor.read_u16::<Endian>().unwrap().to_string() + unsigned_suffix
+            }
+            Il2CppTypeEnum::U4 => {
+                cursor.read_compressed_u32::<Endian>().unwrap().to_string() + unsigned_suffix
+            }
             // TODO: We assume 64 bit
             Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => {
                 cursor.read_u64::<Endian>().unwrap().to_string() + unsigned_suffix
