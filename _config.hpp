@@ -25,9 +25,27 @@
 namespace bs_hook {
 struct ValueTypeWrapper {
   constexpr static bool __CORDL_IS_VALUE_TYPE = true;
+
+  constexpr ValueTypeWrapper() = default;
+  ~ValueTypeWrapper() = default;
+
+  constexpr ValueTypeWrapper(ValueTypeWrapper&&) = default;
+  constexpr ValueTypeWrapper(ValueTypeWrapper const&) = default;
+
+  constexpr ValueTypeWrapper& operator=(ValueTypeWrapper&&) = default;
+  constexpr ValueTypeWrapper& operator=(ValueTypeWrapper const&) = default;
 };
 struct EnumTypeWrapper : public ValueTypeWrapper {
   constexpr static bool __CORDL_IS_VALUE_TYPE = true;
+
+  constexpr EnumTypeWrapper() = default;
+  ~EnumTypeWrapper() = default;
+
+  constexpr EnumTypeWrapper(EnumTypeWrapper&&) = default;
+  constexpr EnumTypeWrapper(EnumTypeWrapper const&) = default;
+
+  constexpr EnumTypeWrapper& operator=(EnumTypeWrapper&&) = default;
+  constexpr EnumTypeWrapper& operator=(EnumTypeWrapper const&) = default;
 };
 } // namespace bs_hook
 
@@ -150,13 +168,11 @@ concept il2cpp_reference_type = requires(T const& t) {
 // TODO: Do this when Il2CppWrapperType has __CORDL_IS_VALUE_TYPE == false
 // static_assert(il2cpp_reference_type<::bs_hook::Il2CppWrapperType>);
 
-
 struct InterfaceW {
   void* instance;
 
   // pointer type
   explicit constexpr InterfaceW(void* o) noexcept : instance(o) {}
-
 
   constexpr void* convert() const {
     return instance;
