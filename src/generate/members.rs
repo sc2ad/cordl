@@ -431,7 +431,7 @@ impl CppUsingAlias {
         let mut result = cpp_type.cpp_full_name.clone();
 
         // easy way to tell it's a generic instantiation
-        if fixup_generic_args {
+        if fixup_generic_args && !literals_and_template.is_empty() {
             result = format!("{result}<{}>", literals_and_template.join(", "))
         }
 
