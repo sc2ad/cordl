@@ -1715,7 +1715,12 @@ pub trait CSType: Sized {
 
     fn il2cpp_byref(&mut self, cpp_name: String, typ: &Il2CppType) -> String {
         let requirements = &mut self.get_mut_cpp_type().requirements;
-        if typ.is_param_out() {
+        // handle out T or
+        // ref T when T is a value type
+
+        // typ.valuetype -> false when T&
+        // apparently even if `T` is a valuetype
+        if typ.is_param_out() || (typ.byref && !typ.valuetype) {
             requirements.needs_byref_include();
             return format!("ByRef<{cpp_name}>");
         }
