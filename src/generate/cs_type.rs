@@ -926,7 +926,9 @@ pub trait CSType: Sized {
         let instance_fields = t
             .fields(metadata.metadata)
             .iter()
-            .filter_map(|field| {
+            .enumerate()
+            .map(|(i, f)| (FieldIndex::new(t.field_start.index() + i as u32), f))
+            .filter_map(|(field_index, field)| {
                 let f_type = metadata
                     .metadata_registration
                     .types
@@ -946,39 +948,7 @@ pub trait CSType: Sized {
 
                 // Get the inner type of a Generic Inst
                 // e.g ReadOnlySpan<char> -> ReadOnlySpan<T>
-                let matched_ty: &Il2CppType = match f_type.data {
-                    // get the generic inst
-                    TypeData::GenericClassIndex(inst_idx) => {
-                        let gen_class = &metadata
-                            .metadata
-                            .runtime_metadata
-                            .metadata_registration
-                            .generic_classes[inst_idx];
-
-                        &metadata.metadata_registration.types[gen_class.type_index]
-                    }
-                    // get the underlying type of the generic param
-                    TypeData::GenericParameterIndex(param) => match param.is_valid() {
-                        true => {
-                            let gen_param =
-                                &metadata.metadata.global_metadata.generic_parameters[param];
-
-                            cpp_type
-                                .generic_instantiations_args_types
-                                .as_ref()
-                                .and_then(|gen_args| gen_args.get(gen_param.num as usize))
-                                .map(|t| &metadata.metadata_registration.types[*t as usize])
-                                .unwrap_or(f_type)
-                        }
-                        false => f_type,
-                    },
-                    _ => f_type,
-                };
-
-                let def_value = match matched_ty.valuetype {
-                    true => "{}".to_string(),
-                    false => "csnull".to_string(),
-                };
+                let def_value = Self::type_default_value(metadata, Some(cpp_type), f_type);
 
                 Some(CppParam {
                     name: config.name_cpp(field.name(metadata.metadata)),
@@ -1601,14 +1571,77 @@ pub trait CSType: Sized {
             | Il2CppTypeEnum::Object
             | Il2CppTypeEnum::Class
             | Il2CppTypeEnum::Szarray => {
-                let def = match ty.valuetype {
-                    true => "{}",
-                    false => "csnull",
-                };
+                let def = Self::type_default_value(metadata, None, ty);
                 format!("/* TODO: Fix these default values */ {ty:?} */ {def}")
             }
 
             _ => "unknown".to_string(),
+        }
+    }
+
+    fn unbox_nullable_valuetype<'a>(metadata: &'a Metadata, ty: &'a Il2CppType) -> &'a Il2CppType {
+        if let Il2CppTypeEnum::Valuetype = ty.ty {
+            match ty.data {
+                TypeData::TypeDefinitionIndex(tdi) => {
+                    let type_def = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+                    // System.Nullable`1
+                    if type_def.name(metadata.metadata) == "Nullable`1"
+                        && type_def.namespace(metadata.metadata) == "System"
+                    {
+                        return metadata
+                            .metadata_registration
+                            .types
+                            .get(type_def.byval_type_index as usize)
+                            .unwrap();
+                    }
+                }
+                _ => todo!(),
+            }
+        }
+
+        ty
+    }
+
+    fn type_default_value(
+        metadata: &Metadata,
+        cpp_type: Option<&CppType>,
+        ty: &Il2CppType,
+    ) -> String {
+        let matched_ty: &Il2CppType = match ty.data {
+            // get the generic inst
+            TypeData::GenericClassIndex(inst_idx) => {
+                let gen_class = &metadata
+                    .metadata
+                    .runtime_metadata
+                    .metadata_registration
+                    .generic_classes[inst_idx];
+
+                &metadata.metadata_registration.types[gen_class.type_index]
+            }
+            // get the underlying type of the generic param
+            TypeData::GenericParameterIndex(param) => match param.is_valid() {
+                true => {
+                    let gen_param = &metadata.metadata.global_metadata.generic_parameters[param];
+
+                    cpp_type
+                        .and_then(|cpp_type| {
+                            cpp_type
+                                .generic_instantiations_args_types
+                                .as_ref()
+                                .and_then(|gen_args| gen_args.get(gen_param.num as usize))
+                                .map(|t| &metadata.metadata_registration.types[*t as usize])
+                        })
+                        .unwrap_or(ty)
+                }
+                false => ty,
+            },
+            _ => ty,
+        };
+
+        match matched_ty.valuetype {
+            true => "{}".to_string(),
+            false => "csnull".to_string(),
         }
     }
 
@@ -1626,6 +1659,10 @@ pub trait CSType: Sized {
                     .types
                     .get(def.type_index as usize)
                     .unwrap();
+
+                if !def.data_index.is_valid() {
+                    return Self::type_default_value(metadata, None, ty);
+                }
 
                 Self::default_value_blob(metadata, ty, def.data_index.index() as usize, true, true)
             })
@@ -1645,12 +1682,11 @@ pub trait CSType: Sized {
                     .get(def.type_index as usize)
                     .unwrap();
 
+                ty = Self::unbox_nullable_valuetype(metadata, ty);
+
                 // This occurs when the type is `null` or `default(T)` for value types
                 if !def.data_index.is_valid() {
-                    return match ty.valuetype {
-                        true => "{}".to_string(),
-                        false => "csnull".to_string(),
-                    };
+                    return Self::type_default_value(metadata, None, ty);
                 }
 
                 if let Il2CppTypeEnum::Valuetype = ty.ty {
