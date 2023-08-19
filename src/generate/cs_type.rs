@@ -1499,6 +1499,8 @@ pub trait CSType: Sized {
 
         let mut cursor = Cursor::new(data);
 
+        const unsigned_suffix: &str = "u";
+
         match ty.ty {
             Il2CppTypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
             Il2CppTypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
@@ -1508,12 +1510,12 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::I | Il2CppTypeEnum::I8 => {
                 cursor.read_i64::<Endian>().unwrap().to_string()
             }
-            Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string(),
-            Il2CppTypeEnum::U2 => cursor.read_u16::<Endian>().unwrap().to_string(),
-            Il2CppTypeEnum::U4 => cursor.read_compressed_u32::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string() + unsigned_suffix,
+            Il2CppTypeEnum::U2 => cursor.read_u16::<Endian>().unwrap().to_string() + unsigned_suffix,
+            Il2CppTypeEnum::U4 => cursor.read_compressed_u32::<Endian>().unwrap().to_string() + unsigned_suffix,
             // TODO: We assume 64 bit
             Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => {
-                cursor.read_u64::<Endian>().unwrap().to_string()
+                cursor.read_u64::<Endian>().unwrap().to_string() + unsigned_suffix
             }
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
