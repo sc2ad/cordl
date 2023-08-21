@@ -305,7 +305,7 @@ impl Writable for CppMethodImpl {
             suffix_modifiers.push("noexcept");
         }
 
-        let _suffixes = suffix_modifiers.join(" ");
+        let suffixes = suffix_modifiers.join(" ");
         let prefixes = prefix_modifiers.join(" ");
         let ret = &self.return_type;
         let declaring_type = &self.declaring_cpp_full_name;
@@ -314,7 +314,7 @@ impl Writable for CppMethodImpl {
 
         writeln!(
             writer,
-            "{prefixes} {ret} {declaring_type}::{name}({params}) {{",
+            "{prefixes} {ret} {declaring_type}::{name}({params}) {suffixes} {{",
         )?;
 
         // Body
