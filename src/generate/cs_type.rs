@@ -392,19 +392,23 @@ pub trait CSType: Sized {
 
         cpp_type.generic_instantiation_args = Some(generic_instantiation_args);
 
-        if !reference_type_templates.is_empty() {
-            cpp_type.cpp_template = Some(CppTemplate::make_ref_types(reference_type_templates));
+        match !reference_type_templates.is_empty() {
+            true => {
+                cpp_type.cpp_template = Some(CppTemplate::make_ref_types(reference_type_templates));
+            }
+            false => {
+                // only set if there are no generic ref types
+                cpp_type.cpp_full_name = format!(
+                    "{}<{}>",
+                    cpp_type.cpp_full_name,
+                    cpp_type
+                        .generic_instantiation_args
+                        .as_ref()
+                        .unwrap()
+                        .join(",")
+                )
+            }
         }
-
-        cpp_type.cpp_full_name = format!(
-            "{}<{}>",
-            cpp_type.cpp_full_name,
-            cpp_type
-                .generic_instantiation_args
-                .as_ref()
-                .unwrap()
-                .join(",")
-        )
     }
 
     fn make_methods(
@@ -2023,7 +2027,6 @@ pub trait CSType: Sized {
                     // which is slower and won't work for the reference type lookup fix
                     // we do in make_generic_args
 
-                    
                     // let ty_idx = ty_idx_opt.unwrap();
 
                     // let ty = metadata
