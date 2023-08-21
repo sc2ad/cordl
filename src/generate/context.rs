@@ -387,6 +387,10 @@ impl CppContext {
         ty: &CppType,
         writer: &mut super::writer::CppWriter,
     ) -> color_eyre::Result<()> {
+        if ty.is_stub {
+            return Ok(());
+        }
+
         let template_container_type = ty.is_stub || ty.cpp_template.as_ref().is_some_and(|t| !t.names.is_empty());
 
         if !ty.is_value_type && !ty.is_stub && !template_container_type {
