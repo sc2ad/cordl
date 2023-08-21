@@ -1013,6 +1013,11 @@ pub trait CSType: Sized {
                 .map(|arc| -> Arc<dyn Writable> { arc })
                 .collect_vec();
 
+                let params_no_def = instance_fields.iter().cloned().map(|mut c| {
+                    c.def_value = None;
+                    c
+                }).collect_vec();
+
             let constructor_decl = CppConstructorDecl {
                 cpp_name: cpp_type.cpp_name().clone(),
                 template: None,
@@ -1028,13 +1033,14 @@ pub trait CSType: Sized {
                 //     .iter()
                 //     .map(|p| (p.name.to_string(), p.name.to_string()))
                 //     .collect(),
-                parameters: instance_fields,
+                parameters: params_no_def,
                 brief: None,
                 body: None,
             };
 
             let constructor_impl = CppConstructorImpl {
                 body,
+                parameters: instance_fields,
                 ..constructor_decl.clone().into()
             };
 
