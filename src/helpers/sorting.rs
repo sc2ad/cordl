@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
+    fmt::Debug,
     hash::Hash,
 };
 
@@ -14,7 +15,7 @@ pub struct DependencyGraph<'a, A, F> {
 
 impl<'a, A, F> DependencyGraph<'a, A, F>
 where
-    A: Eq + Hash,
+    A: Eq + Hash + Debug,
     F: FnMut(&&'a A, &&'a A) -> Ordering + Copy,
 {
     // Initialize a new empty dependency graph
@@ -103,5 +104,86 @@ where
         }
 
         result
+    }
+
+    // Add a function to generate a sorted graph representation
+    pub fn generate_sorted_graph_representation(&self) -> Vec<String> {
+        let mut sorted_representation = Vec::new();
+
+        for (dependent, dependencies) in &self.dependencies {
+            let dependent_str = format!("{:?}", dependent);
+            let dependencies_str: Vec<String> = dependencies
+                .iter()
+                .map(|dep| format!("{:?}", dep))
+                .collect();
+
+            let mut dependency_line = String::new();
+            if !dependencies_str.is_empty() {
+                dependency_line.push_str(&format!("{} --> ", dependent_str));
+                dependency_line.push_str(&dependencies_str.join(" | "));
+            } else {
+                dependency_line.push_str(&format!("{} -->", dependent_str));
+            }
+
+            sorted_representation.push(dependency_line);
+        }
+
+        sorted_representation
+    }
+
+    pub fn generate_reverse_topological_visual_representation(&self) -> String {
+        let mut visual_representation = String::new();
+
+        // Create a recursive traversal function
+        fn traverse<'a, A, F>(
+            graph: &DependencyGraph<'a, A, F>,
+            dependent: &'a A,
+            level: usize,
+            representation: &mut String,
+        ) where
+            A: Eq + Hash + Debug,
+            F: FnMut(&&'a A, &&'a A) -> Ordering + Copy,
+        {
+            let mut sort_fn = graph.sorting;
+
+            representation.push_str(&format!("{:width$}", "", width = level * 4));
+            representation.push_str(&format!("{:?} --> ", dependent));
+
+            if let Some(dependencies) = graph.dependencies.get(dependent) {
+                let sorted_dependencies: Vec<_> = dependencies
+                    .iter()
+                    .sorted_by(|a, b| (sort_fn)(*a, *b))
+                    .collect();
+
+                if !sorted_dependencies.is_empty() {
+                    let mut dep_string = String::new();
+                    for (index, dependency) in sorted_dependencies.iter().enumerate() {
+                        if index > 0 {
+                            dep_string.push_str(" | ");
+                        }
+                        dep_string.push_str(&format!("{:?}", dependency));
+                    }
+                    representation.push_str(&dep_string);
+                }
+                representation.push('\n');
+
+                for dependency in sorted_dependencies {
+                    traverse(graph, dependency, level + 1, representation);
+                }
+            }
+        }
+
+        let mut sort_fn = self.sorting;
+
+        for dependent in self
+            .dependencies
+            .keys()
+            .filter(|&&dep| !self.dependencies.values().any(|deps| deps.contains(dep)))
+            .sorted_by(|a, b| (sort_fn)(*a, *b))
+        {
+            traverse(self, dependent, 0, &mut visual_representation);
+        }
+
+        visual_representation
     }
 }

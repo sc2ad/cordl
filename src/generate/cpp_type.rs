@@ -244,7 +244,6 @@ impl CppType {
             .iter()
             .try_for_each(|d| d.write(writer))?;
 
-
         // Write all declarations within the type here
         self.implementations
             .iter()
@@ -285,6 +284,17 @@ impl CppType {
                 generic_args.write(writer)?;
             }
             writeln!(writer, "// Is value type: {}", self.is_value_type)?;
+            writeln!(
+                writer,
+                "// Dependencies: {:?}",
+                self.requirements.depending_types
+            )?;
+            writeln!(
+                writer,
+                "// Self: {:?}",
+                self.self_tag
+            )?;
+
             // Type definition plus inherit lines
 
             let clazz_name = match &self.generic_instantiation_args {
