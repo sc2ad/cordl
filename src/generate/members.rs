@@ -3,7 +3,11 @@ use pathdiff::diff_paths;
 
 use crate::STATIC_CONFIG;
 
-use super::{context::CppContext, cpp_type::CppType, writer::Writable};
+use super::{
+    context::CppContext,
+    cpp_type::{CppType, CORDL_REFERENCE_TYPE_CONSTRAINT},
+    writer::Writable,
+};
 
 use std::{
     collections::HashMap,
@@ -14,8 +18,28 @@ use std::{
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
 pub struct CppTemplate {
-    pub names: Vec<String>,
+    pub names: Vec<(String, String)>,
 }
+
+impl CppTemplate {
+    pub fn make_typenames(names: Vec<String>) -> Self {
+        return CppTemplate {
+            names: names
+                .into_iter()
+                .map(|s| ("typename".to_string(), s))
+                .collect(),
+        };
+    }
+    pub fn make_ref_types(names: Vec<String>) -> Self {
+        return CppTemplate {
+            names: names
+                .into_iter()
+                .map(|s| (CORDL_REFERENCE_TYPE_CONSTRAINT.to_string(), s))
+                .collect(),
+        };
+    }
+}
+
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
 pub struct CppStaticAssert {
     pub condition: String,
@@ -399,17 +423,25 @@ impl CppUsingAlias {
         let (literals_and_template, template) = match &cpp_type.cpp_template {
             Some(template) => {
                 // Skip the first args as those aren't necessary
-                let extra_template_args = template
-                    .names
+                let extra_template_args = template.names
                     .iter()
                     .skip(forwarded_generic_args.len())
                     .cloned()
                     .collect_vec();
 
                 let new_cpp_template = match !extra_template_args.is_empty() {
-                    true => Some(CppTemplate { names: extra_template_args }),
+                    true => Some(CppTemplate {
+                        names: extra_template_args,
+                    }),
                     false => None,
                 };
+
+                // just the names of the template types
+                let template_names = template
+                    .names
+                    .iter()
+                    .map(|(constraint, t)| t)
+                    .collect_vec();
 
                 // Essentially, all nested types inherit their declaring type's generic params.
                 // Append the rest of the template params as generic parameters
@@ -417,7 +449,7 @@ impl CppUsingAlias {
                     Some(template) => (
                         forwarded_generic_args
                             .iter()
-                            .chain(&template.names)
+                            .chain(template_names)
                             .cloned()
                             .collect_vec(),
                         Some(template),

@@ -24,7 +24,7 @@ use crate::{generate::members::CppUsingAlias, helpers::cursor::ReadBytesExtensio
 use super::{
     config::GenerationConfig,
     context_collection::{CppContextCollection, CppTypeTag},
-    cpp_type::CppType,
+    cpp_type::{CppType, CppTypeRequirements},
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
@@ -159,11 +159,12 @@ pub trait CSType: Sized {
                 .collect_vec()
         });
 
-        let cpp_template = generics.as_ref().map(|g| CppTemplate {
-            names: g
-                .iter()
-                .map(|(g, _)| g.name(metadata.metadata).to_string())
-                .collect(),
+        let cpp_template = generics.as_ref().map(|g| {
+            CppTemplate::make_typenames(
+                g.iter()
+                    .map(|(g, _)| g.name(metadata.metadata).to_string())
+                    .collect(),
+            )
         });
 
         let ns = t.namespace(metadata.metadata);
@@ -262,12 +263,12 @@ pub trait CSType: Sized {
 
         let tdi: TypeDefinitionIndex = self.get_cpp_type().self_tag.into();
 
-        self.make_generics_args(metadata, ctx_collection);
+        let t = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+        self.make_generics_args(metadata, ctx_collection, tdi);
         self.make_parents(metadata, ctx_collection, tdi);
 
         // we depend on parents and generic args here
-        let t = &metadata.metadata.global_metadata.type_definitions[tdi];
-
         // default ctor
         if t.is_value_type() || t.is_enum_type() {
             self.create_valuetype_constructor(metadata, ctx_collection, config, tdi);
@@ -333,7 +334,12 @@ pub trait CSType: Sized {
     //     let cpp_type = self.get_mut_cpp_type();
     // }
 
-    fn make_generics_args(&mut self, metadata: &Metadata, ctx_collection: &CppContextCollection) {
+    fn make_generics_args(
+        &mut self,
+        metadata: &Metadata,
+        ctx_collection: &CppContextCollection,
+        tdi: TypeDefinitionIndex,
+    ) {
         let cpp_type = self.get_mut_cpp_type();
 
         if cpp_type.generic_instantiations_args_types.is_none() {
@@ -342,6 +348,12 @@ pub trait CSType: Sized {
 
         let generic_instantiations_args_types =
             cpp_type.generic_instantiations_args_types.clone().unwrap();
+
+        let td = &metadata.metadata.global_metadata.type_definitions[tdi];
+        let ty = &metadata.metadata_registration.types[td.byval_type_index as usize];
+        let generic_container = td.generic_container(metadata.metadata);
+
+        let mut reference_type_templates: Vec<String> = vec![];
 
         let generic_instantiation_args: Vec<String> = generic_instantiations_args_types
             .iter()
@@ -352,7 +364,25 @@ pub trait CSType: Sized {
                     .get(*u as usize)
                     .unwrap()
             })
-            .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true))
+            .enumerate()
+            .map(|(i, t)| {
+                // If reference type, we use a template and add a requirement
+                if !t.valuetype {
+                    let gen_param = generic_container
+                        .generic_parameters(metadata.metadata)
+                        .iter()
+                        .find(|p| p.num as usize == i)
+                        .expect("No generic parameter found for this index!");
+
+                    let gen_name = gen_param.name(metadata.metadata).to_string();
+
+                    reference_type_templates.push(gen_name.clone());
+
+                    return gen_name;
+                }
+
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true)
+            })
             .collect();
 
         // Handle nested types
@@ -361,6 +391,11 @@ pub trait CSType: Sized {
         // TODO: Base off a CppType the alias path
 
         cpp_type.generic_instantiation_args = Some(generic_instantiation_args);
+
+        if !reference_type_templates.is_empty() {
+            cpp_type.cpp_template = Some(CppTemplate::make_ref_types(reference_type_templates));
+        }
+
         cpp_type.cpp_full_name = format!(
             "{}<{}>",
             cpp_type.cpp_full_name,
@@ -940,7 +975,7 @@ pub trait CSType: Sized {
 
                 let f_type_cpp_name = {
                     // add include because it's required
-                    
+
                     cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, true)
                 };
 
@@ -1028,7 +1063,7 @@ pub trait CSType: Sized {
 
         cpp_type.declarations.push(
             CppMember::CppLine(CppLine {
-                line: format!("constexpr virtual ~{cpp_name}() = default;"),
+                line: format!("virtual ~{cpp_name}() = default;"),
             })
             .into(),
         );
@@ -1117,7 +1152,7 @@ pub trait CSType: Sized {
 
         cpp_type.declarations.push(
             CppMember::CppLine(CppLine {
-                line: format!("constexpr ~{cpp_name}() = default;"),
+                line: format!("~{cpp_name}() = default;"),
             })
             .into(),
         );
@@ -1314,7 +1349,7 @@ pub trait CSType: Sized {
                         .map(|param| param.name(metadata.metadata).to_string())
                         .collect_vec();
 
-                    Some(CppTemplate { names: generics })
+                    Some(CppTemplate::make_typenames(generics))
                 }
             }
         } else {
@@ -1976,14 +2011,27 @@ pub trait CSType: Sized {
                         };
                     }
 
-                    let ty_idx = ty_idx_opt.unwrap();
+                    cpp_type
+                        .generic_instantiation_args
+                        .as_ref()
+                        .expect("Generic instantiation args not made yet!")
+                        .get(generic_param.num as usize)
+                        .expect("No generic parameter at index found!")
+                        .clone()
 
-                    let ty = metadata
-                        .metadata_registration
-                        .types
-                        .get(ty_idx as usize)
-                        .unwrap();
-                    self.cppify_name_il2cpp(ctx_collection, metadata, ty, add_include)
+                    // This is for calculating on the fly
+                    // which is slower and won't work for the reference type lookup fix
+                    // we do in make_generic_args
+
+                    
+                    // let ty_idx = ty_idx_opt.unwrap();
+
+                    // let ty = metadata
+                    //     .metadata_registration
+                    //     .types
+                    //     .get(ty_idx as usize)
+                    //     .unwrap();
+                    // self.cppify_name_il2cpp(ctx_collection, metadata, ty, add_include)
                 }
                 _ => todo!(),
             },
