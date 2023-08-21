@@ -1299,7 +1299,7 @@ pub trait CSType: Sized {
             declaring_full_name: cpp_type.cpp_full_name.clone(),
             parameters: m_params.to_vec(),
             base_ctor: Some((
-                OBJECT_WRAPPER_TYPE.to_string(),
+                cpp_type.inherit.get(0).expect("No base ctor?").clone(),
                 format!("::il2cpp_utils::New<Il2CppObject*>({base_ctor_params})"),
             )),
             ..decl.clone().into()
