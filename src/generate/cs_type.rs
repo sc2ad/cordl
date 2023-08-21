@@ -2111,6 +2111,9 @@ pub trait CSType: Sized {
                     if add_include {
                         cpp_type
                             .requirements
+                            .add_dependency_tag(tdi.into());
+                        cpp_type
+                            .requirements
                             .add_dependency_tag(CppTypeTag::GenericInstantiation(
                                 GenericInstantiation { tdi, inst: generic_class.context.class_inst_idx.unwrap() },
                             ));
