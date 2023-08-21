@@ -286,7 +286,7 @@ impl Writable for CppMethodImpl {
             .iter()
             .map(|s| s.as_str())
             .collect_vec();
-        
+
         if self.is_virtual {
             prefix_modifiers.push("virtual");
         }
@@ -421,9 +421,13 @@ impl Writable for CppConstructorImpl {
         };
 
         let full_name = &self.declaring_full_name;
+        let declaring_name = &self.declaring_name;
         let params = CppParam::params_as_args_no_default(&self.parameters).join(", ");
 
-        write!(writer, "{full_name}({params}) {initializers} {{",)?;
+        write!(
+            writer,
+            "{full_name}::{declaring_name}({params}) {initializers} {{",
+        )?;
 
         self.body.iter().try_for_each(|w| w.write(writer))?;
         // End
@@ -490,7 +494,9 @@ impl Writable for CppMethodSizeStruct {
         let template_params_args = template
             .names
             .iter()
-            .map(|(_, t)| format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"))
+            .map(|(_, t)| {
+                format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()")
+            })
             .join(", ");
 
         let method_info_rhs = if let Some(slot) = self.slot && !self.is_final {
