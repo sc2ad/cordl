@@ -2095,6 +2095,18 @@ pub trait CSType: Sized {
                         .get(generic_class.context.class_inst_idx.unwrap())
                         .unwrap();
 
+                    let generic_type_def = &mr.types[generic_class.type_index];
+                    let type_def_name = cpp_type.cppify_name_il2cpp(
+                        ctx_collection,
+                        metadata,
+                        generic_type_def,
+                        add_include,
+                    );
+
+                    if add_include {
+                        cpp_type.requirements.add_dependency_tag(generic_type_def.data.into());
+                    }
+
                     let generic_types = generic_inst
                         .types
                         .iter()
