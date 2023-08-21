@@ -380,6 +380,7 @@ impl CppContextCollection {
         // stub.self_tag = type_data;
 
         new_cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
+        new_cpp_type.requirements.add_dependency_tag(type_data);
 
         // if generic type is a nested type
         // put it under the parent's `nested_types` field
