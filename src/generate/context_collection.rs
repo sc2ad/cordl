@@ -23,13 +23,13 @@ use super::{
 };
 
 // TODO:
-type GenericClassIndex = usize;
+type GenericClassInstIndex = usize;
 
 // TDI -> Generic inst
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GenericInstantiation {
     pub tdi: TypeDefinitionIndex,
-    pub inst: GenericClassIndex,
+    pub inst: GenericClassInstIndex,
 }
 
 // Unique identifier for a CppType
@@ -75,7 +75,7 @@ impl From<CppTypeTag> for TypeDefinitionIndex {
 
 impl CppTypeTag {
     pub fn from_generic_class_index(
-        generic_inst_idx: GenericClassIndex,
+        generic_inst_idx: GenericClassInstIndex,
         metadata: &brocolib::Metadata,
     ) -> Self {
         let generic_inst = &metadata
