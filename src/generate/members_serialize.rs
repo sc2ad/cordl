@@ -336,12 +336,7 @@ impl Writable for CppConstructorDecl {
         }
 
         // Add empty body if initialize values or base ctor are defined
-        let body = self.body.clone().or_else(|| {
-            match self.initialized_values.is_empty() && self.base_ctor.is_none() {
-                true => None,
-                false => Some(vec![]),
-            }
-        });
+        let body = &self.body;
 
         let name = &self.cpp_name;
         let params = CppParam::params_as_args(&self.parameters).join(", ");
