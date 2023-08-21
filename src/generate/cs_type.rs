@@ -980,7 +980,7 @@ pub trait CSType: Sized {
                 let f_type_cpp_name = {
                     // add include because it's required
 
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, true)
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false)
                 };
 
                 // Get the inner type of a Generic Inst
@@ -1247,9 +1247,18 @@ pub trait CSType: Sized {
             return;
         }
 
+        let params_no_default = m_params
+            .iter()
+            .cloned()
+            .map(|mut c| {
+                c.def_value = None;
+                c
+            })
+            .collect_vec();
+
         let decl: CppConstructorDecl = CppConstructorDecl {
             cpp_name: cpp_type.cpp_name.clone(),
-            parameters: m_params.to_vec(),
+            parameters: params_no_default,
             template: template.clone(),
             body: None, // TODO:
             brief: None,
@@ -1263,20 +1272,20 @@ pub trait CSType: Sized {
 
         let klassof = cpp_type.classof_cpp_name();
         let param_names = CppParam::params_names(&decl.parameters).join(", ");
-        cpp_type.implementations.push(
-            CppMember::ConstructorImpl(CppConstructorImpl {
-                body: vec![], // TODO:!
-                declaring_full_name: cpp_type.cpp_full_name.clone(),
-                base_ctor: Some((
-                    OBJECT_WRAPPER_TYPE.to_string(),
-                    format!(
-                        "::il2cpp_utils::New<Il2CppObject*>(classof({klassof}), {param_names})"
-                    ),
-                )),
-                ..decl.clone().into()
-            })
-            .into(),
-        );
+        let cpp_constructor_impl = CppConstructorImpl {
+            body: vec![], // TODO:!
+            declaring_full_name: cpp_type.cpp_full_name.clone(),
+            parameters: m_params.to_vec(),
+            base_ctor: Some((
+                OBJECT_WRAPPER_TYPE.to_string(),
+                format!("::il2cpp_utils::New<Il2CppObject*>(classof({klassof}), {param_names})"),
+            )),
+            ..decl.clone().into()
+        };
+
+        cpp_type
+            .implementations
+            .push(CppMember::ConstructorImpl(cpp_constructor_impl).into());
 
         cpp_type
             .declarations
@@ -1309,7 +1318,8 @@ pub trait CSType: Sized {
             .get(method.return_type as usize)
             .unwrap();
 
-        let mut m_params: Vec<CppParam> = Vec::with_capacity(method.parameter_count as usize);
+        let mut m_params_with_def: Vec<CppParam> =
+            Vec::with_capacity(method.parameter_count as usize);
 
         for (pi, param) in method.parameters(metadata.metadata).iter().enumerate() {
             let param_index = ParameterIndex::new(method.parameter_start.index() + pi as u32);
@@ -1320,7 +1330,7 @@ pub trait CSType: Sized {
                 .unwrap();
 
             let def_value = Self::param_default_value(metadata, param_index);
-            let must_include = def_value.is_some();
+            let must_include = false;
 
             let make_param_cpp_type_name = |cpp_type: &mut CppType| {
                 let name =
@@ -1340,13 +1350,22 @@ pub trait CSType: Sized {
                 true => make_param_cpp_type_name(cpp_type),
             };
 
-            m_params.push(CppParam {
+            m_params_with_def.push(CppParam {
                 name: config.name_cpp(param.name(metadata.metadata)),
                 def_value,
                 ty: param_cpp_name,
                 modifiers: "".to_string(),
             });
         }
+
+        let m_params_no_def: Vec<CppParam> = m_params_with_def
+            .iter()
+            .cloned()
+            .map(|mut p| {
+                p.def_value = None;
+                p
+            })
+            .collect_vec();
 
         // TODO: Add template<typename ...> if a generic inst e.g
         // T UnityEngine.Component::GetComponent<T>() -> bs_hook::Il2CppWrapperType UnityEngine.Component::GetComponent()
@@ -1388,7 +1407,7 @@ pub trait CSType: Sized {
 
         // Reference type constructor
         if m_name == ".ctor" {
-            Self::create_ref_constructor(cpp_type, declaring_type, &m_params, &template);
+            Self::create_ref_constructor(cpp_type, declaring_type, &m_params_with_def, &template);
         }
         let cpp_m_name = {
             let cpp_m_name = config.name_cpp(m_name);
@@ -1425,7 +1444,7 @@ pub trait CSType: Sized {
             is_no_except: false,
             cpp_name: cpp_m_name.clone(),
             return_type: m_ret_cpp_type_name.clone(),
-            parameters: m_params.clone(),
+            parameters: m_params_no_def.clone(),
             instance: !method.is_static_method(),
             template: template.clone(),
             suffix_modifiers: Default::default(),
@@ -1472,6 +1491,7 @@ pub trait CSType: Sized {
                 Arc::new(CppLine::make(method_line)),
                 Arc::new(CppLine::make(run_line)),
             ], //TODO:!
+            parameters: m_params_with_def.clone(),
             brief: None,
             declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
             instance: !method.is_static_method(),
@@ -1511,7 +1531,7 @@ pub trait CSType: Sized {
                     cpp_method_name: config.name_cpp(m_name),
                     complete_type_name: cpp_type.formatted_complete_cpp_name().clone(),
                     instance: !method.is_static_method(),
-                    params: m_params,
+                    params: m_params_with_def,
                     template,
                     method_data: CppMethodData {
                         addrs: method_calc.addrs,
