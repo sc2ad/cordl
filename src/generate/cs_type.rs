@@ -19,7 +19,10 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use itertools::Itertools;
 
-use crate::{generate::members::CppUsingAlias, helpers::cursor::ReadBytesExtensions};
+use crate::{
+    generate::{context_collection::GenericInstantiation, members::CppUsingAlias},
+    helpers::cursor::ReadBytesExtensions,
+};
 
 use super::{
     config::GenerationConfig,
@@ -32,8 +35,8 @@ use super::{
     },
     metadata::Metadata,
     type_extensions::{
-        MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
-        TypeExtentions, OBJECT_WRAPPER_TYPE, Il2CppTypeEnumExtensions,
+        Il2CppTypeEnumExtensions, MethodDefintionExtensions, ParameterDefinitionExtensions,
+        TypeDefinitionExtensions, TypeExtentions, OBJECT_WRAPPER_TYPE,
     },
     writer::Writable,
 };
@@ -521,7 +524,7 @@ pub trait CSType: Sized {
             if f_type.is_constant() {
                 let def_value = def_value.expect("Constant with no default value?");
 
-                match f_type.ty.is_primitive_builtin()  {
+                match f_type.ty.is_primitive_builtin() {
                     false => {
                         // other type
                         let field_decl = CppFieldDecl {
@@ -2096,6 +2099,8 @@ pub trait CSType: Sized {
                         .unwrap();
 
                     let generic_type_def = &mr.types[generic_class.type_index];
+                    let TypeData::TypeDefinitionIndex(tdi) = generic_type_def.data else {panic!()};
+
                     let type_def_name = cpp_type.cppify_name_il2cpp(
                         ctx_collection,
                         metadata,
@@ -2104,7 +2109,11 @@ pub trait CSType: Sized {
                     );
 
                     if add_include {
-                        cpp_type.requirements.add_dependency_tag(generic_type_def.data.into());
+                        cpp_type
+                            .requirements
+                            .add_dependency_tag(CppTypeTag::GenericInstantiation(
+                                GenericInstantiation { tdi, inst: generic_class.context.class_inst_idx.unwrap() },
+                            ));
                     }
 
                     let generic_types = generic_inst
