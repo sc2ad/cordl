@@ -387,7 +387,9 @@ impl CppContext {
         ty: &CppType,
         writer: &mut super::writer::CppWriter,
     ) -> color_eyre::Result<()> {
-        if !ty.is_value_type && !ty.is_stub {
+        let template_container_type = ty.is_stub || ty.cpp_template.as_ref().is_some_and(|t| !t.names.is_empty());
+
+        if !ty.is_value_type && !ty.is_stub && !template_container_type {
             // reference types need no boxing
             writeln!(writer, "NEED_NO_BOX(::{});", ty.cpp_full_name)?;
         }
@@ -401,7 +403,7 @@ impl CppContext {
 
         let macro_arg_define = {
             match //ty.generic_instantiation_args.is_some() ||  
-                    ty.is_stub || ty.cpp_template.as_ref().is_some_and(|t| !t.names.is_empty()) {
+                    template_container_type {
                     true => match ty.is_value_type {
                         true => "DEFINE_IL2CPP_ARG_TYPE_GENERIC_STRUCT",
                         false => "DEFINE_IL2CPP_ARG_TYPE_GENERIC_CLASS",
