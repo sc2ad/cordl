@@ -1013,28 +1013,37 @@ pub trait CSType: Sized {
                 .map(|arc| -> Arc<dyn Writable> { arc })
                 .collect_vec();
 
-            cpp_type.declarations.push(
-                CppMember::ConstructorDecl(CppConstructorDecl {
-                    cpp_name: cpp_type.cpp_name().clone(),
-                    template: None,
-                    is_constexpr: true,
-                    is_explicit: false,
-                    is_default: false,
-                    is_no_except: true,
+            let constructor_decl = CppConstructorDecl {
+                cpp_name: cpp_type.cpp_name().clone(),
+                template: None,
+                is_constexpr: true,
+                is_explicit: false,
+                is_default: false,
+                is_no_except: true,
 
-                    base_ctor,
-                    initialized_values: HashMap::new(),
-                    // initialize values with params
-                    // initialized_values: instance_fields
-                    //     .iter()
-                    //     .map(|p| (p.name.to_string(), p.name.to_string()))
-                    //     .collect(),
-                    parameters: instance_fields,
-                    brief: None,
-                    body: Some(body),
-                })
-                .into(),
-            );
+                base_ctor,
+                initialized_values: HashMap::new(),
+                // initialize values with params
+                // initialized_values: instance_fields
+                //     .iter()
+                //     .map(|p| (p.name.to_string(), p.name.to_string()))
+                //     .collect(),
+                parameters: instance_fields,
+                brief: None,
+                body: None,
+            };
+
+            let constructor_impl = CppConstructorImpl {
+                body,
+                ..constructor_decl.clone().into()
+            };
+
+            cpp_type
+                .declarations
+                .push(CppMember::ConstructorDecl(constructor_decl).into());
+            cpp_type
+                .implementations
+                .push(CppMember::ConstructorImpl(constructor_impl).into());
         }
 
         let cpp_name = cpp_type.cpp_name();
