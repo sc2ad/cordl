@@ -6,10 +6,7 @@ use std::{
 
 use color_eyre::eyre::Context;
 
-use brocolib::{
-    global_metadata::{MethodIndex, TypeIndex},
-    runtime_metadata::TypeData,
-};
+use brocolib::global_metadata::{MethodIndex, TypeIndex};
 use itertools::Itertools;
 
 use super::{
@@ -37,7 +34,7 @@ pub struct CppTypeRequirements {
 impl CppTypeRequirements {
     pub fn add_forward_declare(
         &mut self,
-        cpp_type: &CppType,
+        _cpp_type: &CppType,
         cpp_data: (CppForwardDeclare, CppInclude),
     ) {
         // self.depending_types.insert(cpp_type.self_tag);

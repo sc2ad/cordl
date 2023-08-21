@@ -24,7 +24,7 @@ use crate::{generate::members::CppUsingAlias, helpers::cursor::ReadBytesExtensio
 use super::{
     config::GenerationConfig,
     context_collection::{CppContextCollection, CppTypeTag},
-    cpp_type::{CppType, CppTypeRequirements},
+    cpp_type::CppType,
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
@@ -33,7 +33,7 @@ use super::{
     metadata::Metadata,
     type_extensions::{
         MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
-        TypeExtentions, OBJECT_WRAPPER_TYPE, TYPE_ATTRIBUTE_INTERFACE,
+        TypeExtentions, OBJECT_WRAPPER_TYPE,
     },
     writer::Writable,
 };
@@ -350,7 +350,7 @@ pub trait CSType: Sized {
             cpp_type.generic_instantiations_args_types.clone().unwrap();
 
         let td = &metadata.metadata.global_metadata.type_definitions[tdi];
-        let ty = &metadata.metadata_registration.types[td.byval_type_index as usize];
+        let _ty = &metadata.metadata_registration.types[td.byval_type_index as usize];
         let generic_container = td.generic_container(metadata.metadata);
 
         let mut reference_type_templates: Vec<String> = vec![];

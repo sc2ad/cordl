@@ -89,7 +89,7 @@ impl Writable for CppUsingAlias {
         }
 
         // TODO: Figure out how to forward template
-        if let Some(template) = &self.template {
+        if let Some(_template) = &self.template {
             writeln!(writer, "using {} = {};", self.alias, self.result)?;
         } else {
             writeln!(writer, "using {} = {};", self.alias, self.result)?;

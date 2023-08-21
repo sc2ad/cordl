@@ -7,12 +7,11 @@ use std::{
 };
 
 use brocolib::global_metadata::TypeDefinitionIndex;
-use brocolib::runtime_metadata::TypeData;
+
 use color_eyre::eyre::ContextCompat;
 
 use itertools::Itertools;
 use pathdiff::diff_paths;
-use topological_sort::TopologicalSort;
 
 use crate::generate::members::CppForwardDeclare;
 use crate::generate::{
@@ -391,7 +390,11 @@ impl CppContext {
             return Ok(());
         }
 
-        let template_container_type = ty.is_stub || ty.cpp_template.as_ref().is_some_and(|t| !t.names.is_empty());
+        let template_container_type = ty.is_stub
+            || ty
+                .cpp_template
+                .as_ref()
+                .is_some_and(|t| !t.names.is_empty());
 
         if !ty.is_value_type && !ty.is_stub && !template_container_type {
             // reference types need no boxing
