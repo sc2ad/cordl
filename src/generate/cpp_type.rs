@@ -244,9 +244,7 @@ impl CppType {
             .iter()
             .try_for_each(|d| d.write(writer))?;
 
-        if let Some(namespace) = namespace {
-            writeln!(writer, "namespace {namespace} {{")?;
-        }
+
         // Write all declarations within the type here
         self.implementations
             .iter()
@@ -256,10 +254,6 @@ impl CppType {
         self.nested_types
             .iter()
             .try_for_each(|(_tag, n)| n.write_impl_internal(writer, None))?;
-
-        if let Some(namespace) = namespace {
-            writeln!(writer, "}} // end namespace impl {namespace}")?;
-        }
 
         Ok(())
     }
