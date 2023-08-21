@@ -308,6 +308,7 @@ pub struct CppConstructorDecl {
 #[derive(Clone, Debug)]
 pub struct CppConstructorImpl {
     pub declaring_full_name: String,
+    pub declaring_name: String,
 
     pub parameters: Vec<CppParam>,
     pub base_ctor: Option<(String, String)>,
@@ -325,7 +326,8 @@ impl From<CppConstructorDecl> for CppConstructorImpl {
     fn from(value: CppConstructorDecl) -> Self {
         Self {
             body: value.body.unwrap_or_default(),
-            declaring_full_name: value.cpp_name,
+            declaring_full_name: value.cpp_name.clone(),
+            declaring_name: value.cpp_name,
             is_constexpr: value.is_constexpr,
             base_ctor: value.base_ctor,
             initialized_values: value.initialized_values,
