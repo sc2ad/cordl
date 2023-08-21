@@ -579,7 +579,7 @@ pub trait CSType: Sized {
                 let getter_call = match f_type.is_static() {
                     true => {
                         format!(
-                        "return {CORDL_METHOD_HELPER_NAMESPACE}::get{declaring_type_specifier}Static<{field_ty_cpp_name}, {f_name}, {klass_resolver}>();"
+                        "return {CORDL_METHOD_HELPER_NAMESPACE}::get{declaring_type_specifier}Static<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>();"
                     )
                     }
                     false => {
@@ -593,7 +593,7 @@ pub trait CSType: Sized {
                 let setter_call = match f_type.is_static() {
                     true => {
                         format!(
-                        "{CORDL_METHOD_HELPER_NAMESPACE}::set{declaring_type_specifier}Static<{field_ty_cpp_name}, {f_name}, {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                        "{CORDL_METHOD_HELPER_NAMESPACE}::set{declaring_type_specifier}Static<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
                     )
                     }
                     false => {
