@@ -1286,13 +1286,10 @@ pub trait CSType: Sized {
             is_default: false,
         };
 
-        let klassof = cpp_type.classof_cpp_name();
+        let ty_cpp_name = &cpp_type.cpp_name;
 
         // To avoid trailing ({},)
-        let base_ctor_params = [format!("{klassof}()")]
-            .into_iter()
-            .chain(CppParam::params_names(&decl.parameters).cloned())
-            .join(", ");
+        let base_ctor_params = CppParam::params_names(&decl.parameters).join(", ");
 
         let cpp_constructor_impl = CppConstructorImpl {
             body: vec![], // TODO:!
@@ -1300,7 +1297,7 @@ pub trait CSType: Sized {
             parameters: m_params.to_vec(),
             base_ctor: Some((
                 cpp_type.inherit.get(0).expect("No base ctor?").clone(),
-                format!("THROW_UNLESS(::il2cpp_utils::New<Il2CppObject*>({base_ctor_params}))"),
+                format!("THROW_UNLESS(::il2cpp_utils::New<{ty_cpp_name}>({base_ctor_params}))"),
             )),
             ..decl.clone().into()
         };
@@ -2097,6 +2094,18 @@ pub trait CSType: Sized {
                         .generic_insts
                         .get(generic_class.context.class_inst_idx.unwrap())
                         .unwrap();
+
+                    let generic_type_def = &mr.types[generic_class.type_index];
+                    let type_def_name = cpp_type.cppify_name_il2cpp(
+                        ctx_collection,
+                        metadata,
+                        generic_type_def,
+                        add_include,
+                    );
+
+                    if add_include {
+                        cpp_type.requirements.add_dependency_tag(generic_type_def.data.into());
+                    }
 
                     let generic_types = generic_inst
                         .types
