@@ -490,7 +490,7 @@ impl Writable for CppMethodSizeStruct {
         let template_params_args = template
             .names
             .iter()
-            .map(|(_, t)| format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()->byval_arg"))
+            .map(|(_, t)| format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"))
             .join(", ");
 
         let method_info_rhs = if let Some(slot) = self.slot && !self.is_final {

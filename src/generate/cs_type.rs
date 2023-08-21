@@ -1294,7 +1294,7 @@ pub trait CSType: Sized {
             parameters: m_params.to_vec(),
             base_ctor: Some((
                 OBJECT_WRAPPER_TYPE.to_string(),
-                format!("::il2cpp_utils::New<Il2CppObject*>(classof({klassof}), {param_names})"),
+                format!("::il2cpp_utils::New<Il2CppObject*>({klassof}, {param_names})"),
             )),
             ..decl.clone().into()
         };
@@ -2146,7 +2146,7 @@ pub trait CSType: Sized {
 
     fn classof_cpp_name(&self) -> String {
         format!(
-            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get",
+            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get()",
             self.get_cpp_type().formatted_complete_cpp_name()
         )
     }
