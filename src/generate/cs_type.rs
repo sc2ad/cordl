@@ -33,7 +33,7 @@ use super::{
     metadata::Metadata,
     type_extensions::{
         MethodDefintionExtensions, ParameterDefinitionExtensions, TypeDefinitionExtensions,
-        TypeExtentions, OBJECT_WRAPPER_TYPE,
+        TypeExtentions, OBJECT_WRAPPER_TYPE, Il2CppTypeEnumExtensions,
     },
     writer::Writable,
 };
@@ -521,29 +521,49 @@ pub trait CSType: Sized {
             if f_type.is_constant() {
                 let def_value = def_value.expect("Constant with no default value?");
 
-                // enum type
-                let field_decl = CppFieldDecl {
-                    cpp_name: config.name_cpp(f_name),
-                    field_ty: field_ty_cpp_name,
-                    instance: !f_type.is_static() && !f_type.is_constant(),
-                    readonly: f_type.is_constant(),
-                    value: None,
-                    const_expr: false,
-                    brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
-                };
-                let field_impl = CppFieldImpl {
-                    value: def_value,
-                    const_expr: true,
-                    declaring_type: cpp_type.cpp_full_name.clone(),
-                    ..field_decl.clone().into()
-                };
+                match f_type.ty.is_primitive_builtin()  {
+                    false => {
+                        // other type
+                        let field_decl = CppFieldDecl {
+                            cpp_name: config.name_cpp(f_name),
+                            field_ty: field_ty_cpp_name,
+                            instance: false,
+                            readonly: f_type.is_constant(),
+                            value: None,
+                            const_expr: false,
+                            brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
+                        };
+                        let field_impl = CppFieldImpl {
+                            value: def_value,
+                            const_expr: true,
+                            declaring_type: cpp_type.cpp_full_name.clone(),
+                            ..field_decl.clone().into()
+                        };
 
-                cpp_type
-                    .declarations
-                    .push(CppMember::FieldDecl(field_decl).into());
-                cpp_type
-                    .implementations
-                    .push(CppMember::FieldImpl(field_impl).into());
+                        cpp_type
+                            .declarations
+                            .push(CppMember::FieldDecl(field_decl).into());
+                        cpp_type
+                            .implementations
+                            .push(CppMember::FieldImpl(field_impl).into());
+                    }
+                    true => {
+                        // primitive type
+                        let field_decl = CppFieldDecl {
+                            cpp_name: config.name_cpp(f_name),
+                            field_ty: field_ty_cpp_name,
+                            instance: false,
+                            readonly: f_type.is_constant(),
+                            value: Some(def_value),
+                            const_expr: true,
+                            brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
+                        };
+
+                        cpp_type
+                            .declarations
+                            .push(CppMember::FieldDecl(field_decl).into());
+                    }
+                }
             } else {
                 let declaring_type_specifier = match t.is_value_type() || t.is_enum_type() {
                     true => "ValueType",
@@ -2084,9 +2104,7 @@ pub trait CSType: Sized {
                     );
 
                     if add_include {
-                        cpp_type
-                            .requirements
-                            .add_dependency_tag(generic_type_def.data.into());
+                        cpp_type.requirements.add_dependency_tag(generic_type_def.data.into());
                     }
 
                     let generic_types = generic_inst

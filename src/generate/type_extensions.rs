@@ -1,6 +1,6 @@
 use brocolib::{
     global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition},
-    runtime_metadata::Il2CppType,
+    runtime_metadata::{Il2CppType, Il2CppTypeEnum},
     Metadata,
 };
 
@@ -217,5 +217,35 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
             full_name.push_str(&gc.to_string(metadata));
         }
         full_name
+    }
+}
+
+pub trait Il2CppTypeEnumExtensions {
+    fn is_primitive_builtin(&self) -> bool;
+}
+
+impl Il2CppTypeEnumExtensions for Il2CppTypeEnum {
+    fn is_primitive_builtin(&self) -> bool {
+        !matches!(
+            self,
+            Il2CppTypeEnum::Byref
+                | Il2CppTypeEnum::Valuetype
+                | Il2CppTypeEnum::Class
+                | Il2CppTypeEnum::Var
+                | Il2CppTypeEnum::Array
+                | Il2CppTypeEnum::Genericinst
+                | Il2CppTypeEnum::Typedbyref
+                | Il2CppTypeEnum::I
+                | Il2CppTypeEnum::U
+                | Il2CppTypeEnum::Fnptr
+                | Il2CppTypeEnum::Object
+                | Il2CppTypeEnum::Szarray
+                | Il2CppTypeEnum::Mvar
+                | Il2CppTypeEnum::Internal
+                | Il2CppTypeEnum::Modifier
+                | Il2CppTypeEnum::Sentinel
+                | Il2CppTypeEnum::Pinned
+                | Il2CppTypeEnum::Enum
+        )
     }
 }
