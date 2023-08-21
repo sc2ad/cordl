@@ -50,6 +50,21 @@ struct EnumTypeWrapper : public ValueTypeWrapper {
 } // namespace bs_hook
 
 namespace cordl_internals {
+template <std::size_t sz>
+CORDL_HIDDEN constexpr void copyByByte(std::array<std::byte, sz> const& src,
+                                       std::array<std::byte, sz>& dst) {
+  for (auto i = 0; i < sz; i++) {
+    dst[i] = src[i];
+  }
+}
+template <std::size_t sz>
+CORDL_HIDDEN constexpr void moveByByte(std::array<std::byte, sz>&& src,
+                                       std::array<std::byte, sz>& dst) {
+  for (auto i = 0; i < sz; i++) {
+    dst[i] = std::move(src[i]);
+  }
+}
+
 namespace internal {
 template <std::size_t sz> struct NTTPString {
   constexpr NTTPString(char const (&n)[sz]) : data{} {
