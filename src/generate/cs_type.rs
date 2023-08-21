@@ -1287,10 +1287,12 @@ pub trait CSType: Sized {
         };
 
         let klassof = cpp_type.classof_cpp_name();
-        let param_names = CppParam::params_names(&decl.parameters).join(", ");
 
         // To avoid trailing ({},)
-        let base_ctor_params = [format!("{klassof}()"), param_names.clone()].join(", ");
+        let base_ctor_params = [format!("{klassof}()")]
+            .into_iter()
+            .chain(CppParam::params_names(&decl.parameters).cloned())
+            .join(", ");
 
         let cpp_constructor_impl = CppConstructorImpl {
             body: vec![], // TODO:!
