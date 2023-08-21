@@ -286,11 +286,7 @@ impl Writable for CppMethodImpl {
             .iter()
             .map(|s| s.as_str())
             .collect_vec();
-
-        if !self.instance {
-            prefix_modifiers.push("static");
-        }
-
+        
         if self.is_virtual {
             prefix_modifiers.push("virtual");
         }
