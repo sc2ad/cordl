@@ -24,7 +24,7 @@ use crate::{generate::members::CppUsingAlias, helpers::cursor::ReadBytesExtensio
 use super::{
     config::GenerationConfig,
     context_collection::{CppContextCollection, CppTypeTag},
-    cpp_type::CppType,
+    cpp_type::{CppType, CORDL_METHOD_HELPER_NAMESPACE},
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
@@ -579,12 +579,12 @@ pub trait CSType: Sized {
                 let getter_call = match f_type.is_static() {
                     true => {
                         format!(
-                        "return get{declaring_type_specifier}Static<{field_ty_cpp_name}, {f_name}, {klass_resolver}>();"
+                        "return {CORDL_METHOD_HELPER_NAMESPACE}::get{declaring_type_specifier}Static<{field_ty_cpp_name}, {f_name}, {klass_resolver}>();"
                     )
                     }
                     false => {
                         format!(
-                            "return get{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance});"
+                            "return {CORDL_METHOD_HELPER_NAMESPACE}::get{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance});"
                         )
                     }
                 };
@@ -593,12 +593,12 @@ pub trait CSType: Sized {
                 let setter_call = match f_type.is_static() {
                     true => {
                         format!(
-                        "set{declaring_type_specifier}Static<{field_ty_cpp_name}, {f_name}, {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                        "{CORDL_METHOD_HELPER_NAMESPACE}::set{declaring_type_specifier}Static<{field_ty_cpp_name}, {f_name}, {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
                     )
                     }
                     false => {
                         format!(
-                            "set{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance}, {setter_var_name});"
+                            "{CORDL_METHOD_HELPER_NAMESPACE}::set{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance}, {setter_var_name});"
                         )
                     }
                 };
@@ -1013,10 +1013,14 @@ pub trait CSType: Sized {
                 .map(|arc| -> Arc<dyn Writable> { arc })
                 .collect_vec();
 
-                let params_no_def = instance_fields.iter().cloned().map(|mut c| {
+            let params_no_def = instance_fields
+                .iter()
+                .cloned()
+                .map(|mut c| {
                     c.def_value = None;
                     c
-                }).collect_vec();
+                })
+                .collect_vec();
 
             let constructor_decl = CppConstructorDecl {
                 cpp_name: cpp_type.cpp_name().clone(),
