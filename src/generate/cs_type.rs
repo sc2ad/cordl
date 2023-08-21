@@ -1028,7 +1028,7 @@ pub trait CSType: Sized {
 
         cpp_type.declarations.push(
             CppMember::CppLine(CppLine {
-                line: format!("constexpr virtual ~{cpp_name}() = default;"),
+                line: format!("virtual ~{cpp_name}() = default;"),
             })
             .into(),
         );
@@ -1117,7 +1117,7 @@ pub trait CSType: Sized {
 
         cpp_type.declarations.push(
             CppMember::CppLine(CppLine {
-                line: format!("constexpr ~{cpp_name}() = default;"),
+                line: format!("~{cpp_name}() = default;"),
             })
             .into(),
         );
