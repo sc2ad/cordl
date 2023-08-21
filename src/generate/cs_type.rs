@@ -611,7 +611,7 @@ pub trait CSType: Sized {
                     brief: None,
                     body: None, // TODO:
                     // Const if instance for now
-                    is_const: !f_type.is_static(), // TODO: readonly fields?
+                    is_const: false, // TODO: readonly fields?
                     is_constexpr: true,
                     is_virtual: false,
                     is_operator: false,
