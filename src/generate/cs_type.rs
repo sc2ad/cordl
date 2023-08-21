@@ -43,7 +43,7 @@ type Endian = LittleEndian;
 // negative
 const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
-const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "__instance";
+const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::ValueTypeWrapper::__instance";
 const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
 
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
@@ -1060,8 +1060,14 @@ pub trait CSType: Sized {
                     "
                     constexpr {cpp_name}({cpp_name} const&) = default;
                     constexpr {cpp_name}({cpp_name}&&) = default;
-                    constexpr {cpp_name}& operator=({cpp_name} const&) = default;
-                    constexpr {cpp_name}& operator=({cpp_name}&&) noexcept = default;
+                    constexpr {cpp_name}& operator=({cpp_name} const& o) {{
+                        ::cordl_internals::copyByByte(o.__instance, this->__instance); 
+                        return *this;
+                    }};
+                    constexpr {cpp_name}& operator=({cpp_name}&& o) noexcept {{
+                        ::cordl_internals::copyByByte(o.__instance, this->__instance); 
+                        return *this;
+                    }};
                 "
                 ),
             })
