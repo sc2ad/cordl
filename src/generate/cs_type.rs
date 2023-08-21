@@ -1300,7 +1300,7 @@ pub trait CSType: Sized {
             parameters: m_params.to_vec(),
             base_ctor: Some((
                 cpp_type.inherit.get(0).expect("No base ctor?").clone(),
-                format!("::il2cpp_utils::New<Il2CppObject*>({base_ctor_params})"),
+                format!("THROW_UNLESS(::il2cpp_utils::New<Il2CppObject*>({base_ctor_params}))"),
             )),
             ..decl.clone().into()
         };
