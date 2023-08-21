@@ -43,7 +43,7 @@ type Endian = LittleEndian;
 // negative
 const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
-const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::ValueTypeWrapper::__instance";
+const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "__instance";
 const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
 
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
