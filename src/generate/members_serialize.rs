@@ -13,7 +13,7 @@ impl Writable for CppTemplate {
             "template<{}>",
             self.names
                 .iter()
-                .map(|s| format!("typename {s}"))
+                .map(|(constraint, t)| format!("{constraint} {t}"))
                 .collect::<Vec<_>>()
                 .join(",")
         )?;

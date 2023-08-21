@@ -18,8 +18,10 @@ use super::{
     writer::Writable,
 };
 
-const CORDL_TYPE_MACRO: &str = "CORDL_TYPE";
-const __CORDL_IS_VALUE_TYPE: &str = "__CORDL_IS_VALUE_TYPE";
+pub const CORDL_TYPE_MACRO: &str = "CORDL_TYPE";
+pub const __CORDL_IS_VALUE_TYPE: &str = "__CORDL_IS_VALUE_TYPE";
+
+pub const CORDL_REFERENCE_TYPE_CONSTRAINT: &str = "::cordl_internals::il2cpp_reference_type";
 
 #[derive(Debug, Clone, Default)]
 pub struct CppTypeRequirements {
