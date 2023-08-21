@@ -20,7 +20,7 @@ impl GenerationConfig {
 
         if ns.is_empty() && !nested {
             // essentially get GlobalNamespace
-            let ns = self.namespace_cpp(ns); 
+            let ns = self.namespace_cpp(ns);
             format!("{ns}::{formatted_string}")
         } else {
             formatted_string
@@ -32,7 +32,7 @@ impl GenerationConfig {
     }
     pub fn generic_nested_name(&self, string: &str) -> String {
         // Coincidentally the same as path_name
-        string.replace(['<', '`', '>', '/', '.', ':','|'], "_")
+        string.replace(['<', '`', '>', '/', '.', ':', '|'], "_")
     }
     pub fn namespace_path(&self, string: &str) -> String {
         string.replace(['<', '>', '`', '/'], "_").replace('.', "/")

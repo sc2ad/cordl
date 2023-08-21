@@ -423,7 +423,8 @@ impl CppUsingAlias {
         let (literals_and_template, template) = match &cpp_type.cpp_template {
             Some(template) => {
                 // Skip the first args as those aren't necessary
-                let extra_template_args = template.names
+                let extra_template_args = template
+                    .names
                     .iter()
                     .skip(forwarded_generic_args.len())
                     .cloned()
@@ -440,7 +441,7 @@ impl CppUsingAlias {
                 let template_names = template
                     .names
                     .iter()
-                    .map(|(constraint, t)| t)
+                    .map(|(_constraint, t)| t)
                     .collect_vec();
 
                 // Essentially, all nested types inherit their declaring type's generic params.
