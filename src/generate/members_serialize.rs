@@ -219,7 +219,7 @@ impl Writable for CppMethodDecl {
             prefix_modifiers.push("operator")
         }
 
-        if self.is_const {
+        if self.is_const && self.instance {
             suffix_modifiers.push("const");
         }
         if self.is_no_except {
@@ -298,7 +298,7 @@ impl Writable for CppMethodImpl {
             prefix_modifiers.push("operator")
         }
 
-        if self.is_const {
+        if self.is_const && self.instance {
             suffix_modifiers.push("const");
         }
         if self.is_no_except {
