@@ -478,19 +478,29 @@ impl Writable for CppMethodSizeStruct {
             "//  Writing Method size for method: {}.{}",
             self.complete_type_name, self.cpp_method_name
         )?;
+        let template = self.template.clone().unwrap_or_default();
+
+        let complete_type_name = &self.complete_type_name;
+        let cpp_method_name = &self.cpp_method_name;
+
+        let interface_klass_of = &self.interface_clazz_of;
+
         let params_format = CppParam::params_types(&self.params).join(", ");
+        let params_args = CppParam::params_types(&self.params)
+            .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
+            .join(", ");
+
+        // Template args
+        let template_params_args = template
+            .names
+            .iter()
+            .map(|(_, t)| format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()->byval_arg"))
+            .join(", ");
 
         let method_info_rhs = if let Some(slot) = self.slot && !self.is_final {
-            format!("THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(classof({}), {}(), {slot}))",
-                self.complete_type_name,
-                self.interface_clazz_of
-            )
+            format!("THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(classof({complete_type_name}), {interface_klass_of}(), {slot}))")
         } else {
-            format!("THROW_UNLESS(::il2cpp_utils::FindMethod(classof({}), \"{}\", std::vector<Il2CppClass*>{{}}, ::std::vector<const Il2CppType*>{{{}}}))",
-                self.complete_type_name,
-                self.cpp_method_name,
-                CppParam::params_types(&self.params).map(|t| format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<ByRef<{t}>>::get()")).join(", ")
-            )
+            format!("THROW_UNLESS(::il2cpp_utils::FindMethod(classof({complete_type_name}), \"{cpp_method_name}\", std::vector<Il2CppClass*>{{{template_params_args}}}, ::std::vector<const Il2CppType*>{{{params_args}}}))")
         };
 
         let f_ptr_prefix = if self.instance {
@@ -499,15 +509,18 @@ impl Writable for CppMethodSizeStruct {
             "".to_string()
         };
 
+        template.write(writer)?;
+
         writeln!(
             writer,
-            "template<>
+            "
 struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({f_ptr_prefix}*)({params_format})>(&{}::{})> {{
   constexpr static std::size_t size = 0x{:x};
   constexpr static std::size_t addrs = 0x{:x};
 
   inline static const ::MethodInfo* methodInfo() {{
-    return {method_info_rhs};
+    static auto* const methodInfo = {method_info_rhs};
+    return methodInfo;
   }}
 }};",
             self.ret_ty,
