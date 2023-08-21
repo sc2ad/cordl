@@ -1288,13 +1288,17 @@ pub trait CSType: Sized {
 
         let klassof = cpp_type.classof_cpp_name();
         let param_names = CppParam::params_names(&decl.parameters).join(", ");
+
+        // To avoid trailing ({},)
+        let base_ctor_params = [format!("{klassof}()"), param_names.clone()].join(", ");
+
         let cpp_constructor_impl = CppConstructorImpl {
             body: vec![], // TODO:!
             declaring_full_name: cpp_type.cpp_full_name.clone(),
             parameters: m_params.to_vec(),
             base_ctor: Some((
                 OBJECT_WRAPPER_TYPE.to_string(),
-                format!("::il2cpp_utils::New<Il2CppObject*>({klassof}(), {param_names})"),
+                format!("::il2cpp_utils::New<Il2CppObject*>({base_ctor_params})"),
             )),
             ..decl.clone().into()
         };
