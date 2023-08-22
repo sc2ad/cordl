@@ -1539,6 +1539,30 @@ pub trait CSType: Sized {
             ..method_decl.clone().into()
         };
 
+        if let Some(method_calc) = method_calc && !method_stub {
+            cpp_type
+                .nonmember_implementations
+                .push(Rc::new(CppMethodSizeStruct {
+                    ret_ty: method_decl.return_type.clone(),
+                    cpp_method_name: method_decl.cpp_name.clone(),
+                    declaring_type_name: method_impl.declaring_cpp_full_name.clone(),
+                    instance: method_decl.instance,
+                    params: method_decl.parameters.clone(),
+                    template,
+                    method_data: CppMethodData {
+                        addrs: method_calc.addrs,
+                        estimated_size: method_calc.estimated_size,
+                    },
+                    interface_clazz_of: cpp_type.classof_cpp_name(),
+                    is_final: method.is_final_method(),
+                    slot: if method.slot != u16::MAX {
+                        Some(method.slot)
+                    } else {
+                        None
+                    },
+                }));
+        }
+
         // If a generic instantiation or not a template
         if !method_stub {
             cpp_type
@@ -1551,38 +1575,6 @@ pub trait CSType: Sized {
             cpp_type
                 .declarations
                 .push(CppMember::MethodDecl(method_decl).into());
-        }
-
-        let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
-            Some(cpp_type)
-        } else {
-            ctx_collection.get_cpp_type(tag)
-        };
-
-        if let Some(method_calc) = method_calc && !method_stub {
-            cpp_type
-                .nonmember_implementations
-                .push(Rc::new(CppMethodSizeStruct {
-                    ret_ty: m_ret_cpp_type_name,
-                    cpp_method_name: config.name_cpp(m_name),
-                    complete_type_name: cpp_type.formatted_complete_cpp_name().clone(),
-                    instance: !method.is_static_method(),
-                    params: m_params_with_def,
-                    template,
-                    method_data: CppMethodData {
-                        addrs: method_calc.addrs,
-                        estimated_size: method_calc.estimated_size,
-                    },
-                    interface_clazz_of: declaring_cpp_type
-                        .map(|d| d.classof_cpp_name())
-                        .unwrap_or_else(|| format!("Bad stuff happened {declaring_type:?}")),
-                    is_final: method.is_final_method(),
-                    slot: if method.slot != u16::MAX {
-                        Some(method.slot)
-                    } else {
-                        None
-                    },
-                }));
         }
     }
 

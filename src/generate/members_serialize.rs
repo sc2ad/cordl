@@ -476,11 +476,11 @@ impl Writable for CppMethodSizeStruct {
         writeln!(
             writer,
             "//  Writing Method size for method: {}.{}",
-            self.complete_type_name, self.cpp_method_name
+            self.declaring_type_name, self.cpp_method_name
         )?;
         let template = self.template.clone().unwrap_or_default();
 
-        let complete_type_name = &self.complete_type_name;
+        let complete_type_name = &self.declaring_type_name;
         let cpp_method_name = &self.cpp_method_name;
 
         let interface_klass_of = &self.interface_clazz_of;
@@ -506,7 +506,7 @@ impl Writable for CppMethodSizeStruct {
         };
 
         let f_ptr_prefix = if self.instance {
-            format!("{}::", self.complete_type_name)
+            format!("{}::", self.declaring_type_name)
         } else {
             "".to_string()
         };
@@ -526,7 +526,7 @@ struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({f_ptr_
   }}
 }};",
             self.ret_ty,
-            self.complete_type_name,
+            self.declaring_type_name,
             self.cpp_method_name,
             self.method_data.estimated_size,
             self.method_data.addrs
