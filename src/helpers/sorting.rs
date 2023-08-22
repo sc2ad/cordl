@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
+    fmt::Debug,
     hash::Hash,
 };
 
@@ -14,7 +15,7 @@ pub struct DependencyGraph<'a, A, F> {
 
 impl<'a, A, F> DependencyGraph<'a, A, F>
 where
-    A: Eq + Hash,
+    A: Eq + Hash + Debug,
     F: FnMut(&&'a A, &&'a A) -> Ordering + Copy,
 {
     // Initialize a new empty dependency graph
@@ -40,68 +41,46 @@ where
             .insert(dependency);
     }
 
-    // Perform a topological sort with deterministic sorting
-    pub fn topological_sort(
-        &self,
-        object: &'a A,
-        visited: &mut HashSet<&'a A>,
-        result: &mut Vec<&'a A>,
-    ) {
-        visited.insert(object.clone());
-
-        if let Some(dependencies) = self.dependencies.get(&object) {
-            // Collect dependencies and sort them alphabetically
-            let sorted_dependencies: Vec<_> = dependencies
-                .iter()
-                .cloned()
-                .sorted_by(self.sorting)
-                .collect();
-
-            // Recursively process sorted dependencies
-            for dependency in sorted_dependencies {
-                if !visited.contains(&dependency) {
-                    self.topological_sort(dependency.clone(), visited, result);
-                }
-            }
-        }
-
-        // Add the current object to the result
-        result.push(object);
-    }
-    pub fn get_dependencies_sorted(&self) -> Vec<&'a A> {
-        // Identify root objects (objects with no incoming dependencies)
-        let mut root_objects = HashSet::new();
-        let mut all_objects = HashSet::new();
-
-        // Collect all objects and their dependencies
-        for (dependent, dependencies) in &self.dependencies {
-            all_objects.insert(dependent);
-            for dependency in dependencies {
-                all_objects.insert(dependency);
-            }
-        }
-
-        // Find root objects
-        for object in all_objects.iter() {
-            let has_incoming_dependencies = self
-                .dependencies
-                .values()
-                .any(|deps| deps.contains(*object));
-            if !has_incoming_dependencies {
-                root_objects.insert(object);
-            }
-        }
-
-        // Perform reverse topological sort
+    // Topologically sorts the dependency graph, handling cyclic dependencies
+    pub fn topological_sort(&self) -> Vec<&'a A> {
         let mut visited = HashSet::new();
-        let mut result = Vec::new();
+        let mut stack = VecDeque::new();
 
         let mut sort_fn = self.sorting;
 
-        for root_object in root_objects.iter().sorted_by(|a, b| (sort_fn)(**a, **b)) {
-            self.topological_sort(root_object, &mut visited, &mut result);
+        for dependent in self.dependencies.keys().sorted_by(|a, b| sort_fn(*a, *b)) {
+            if !visited.contains(dependent) {
+                self.topological_sort_recurse(dependent, &mut visited, &mut stack);
+            }
         }
 
-        result
+        stack.into_iter().collect_vec()
+    }
+
+    // Perform a recursive topological sort for the given dependency, stack, and visited collection
+    fn topological_sort_recurse(
+        &self,
+        main: &'a A,
+        visited: &mut HashSet<&'a A>,
+        stack: &mut VecDeque<&'a A>,
+    ) {
+        if visited.contains(main) {
+            return;
+        }
+
+        visited.insert(main);
+
+        let mut sort_fn = self.sorting;
+
+        if let Some(dependencies) = self.dependencies.get(main) {
+            let mut sorted_dependencies: Vec<_> = dependencies.iter().collect();
+            sorted_dependencies.sort_by(|a, b| (sort_fn)(*a, *b));
+
+            for dependency in sorted_dependencies {
+                self.topological_sort_recurse(dependency, visited, stack);
+            }
+        }
+
+        stack.push_back(main);
     }
 }

@@ -278,8 +278,8 @@ impl CppContext {
         for cpp_type in &typedef_root_types {
             ts.add_root_dependency(&cpp_type.self_tag);
 
-            for d in cpp_type.requirements.depending_types.iter().sorted() {
-                ts.add_dependency(d, &cpp_type.self_tag)
+            for dep in cpp_type.requirements.depending_types.iter().sorted() {
+                ts.add_dependency(&cpp_type.self_tag, dep);
             }
         }
 
@@ -291,7 +291,7 @@ impl CppContext {
         // currently sorted from root to dependencies
         // aka least depended to most depended
         let mut typedef_root_types_sorted = ts
-            .get_dependencies_sorted()
+            .topological_sort()
             .into_iter()
             .filter_map(|t| self.typedef_types.get(t))
             .collect_vec();
@@ -299,9 +299,7 @@ impl CppContext {
         // add the items with no dependencies at the tail
         // when reversed these will be first and can be allowed to be first
         typedef_root_types_sorted.append(&mut undepended_cpp_types);
-
-        // we want from most depended to least depended
-        typedef_root_types_sorted.reverse();
+        // typedef_root_types_sorted.reverse();
 
         // Write includes for typedef
         typedef_types
