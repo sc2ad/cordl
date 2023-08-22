@@ -289,7 +289,7 @@ impl CppType {
                 self.requirements.depending_types
             )?;
             writeln!(writer, "// Self: {:?}", self.self_tag)?;
-            writeln!(writer, "CS Name: {}", self.full_name)?;
+            writeln!(writer, "// CS Name: {}", self.full_name)?;
 
             // Type definition plus inherit lines
 
