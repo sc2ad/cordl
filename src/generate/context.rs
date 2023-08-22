@@ -275,19 +275,11 @@ impl CppContext {
             .collect_vec();
 
         let mut ts = DependencyGraph::<CppTypeTag, _>::new(|a, b| a.cmp(b));
-        let mut ts_by_name = DependencyGraph::<String, _>::new(|a, b| (*a).cmp(*b));
         for cpp_type in &typedef_root_types {
             ts.add_root_dependency(&cpp_type.self_tag);
-            ts_by_name.add_root_dependency(&cpp_type.cpp_full_name);
 
             for dep in cpp_type.requirements.depending_types.iter().sorted() {
                 ts.add_dependency(&cpp_type.self_tag, dep);
-
-                let dep_cpp_type_opt = self.get_cpp_type_recursive(*dep, *dep);
-
-                if let Some(dep_cpp_type) = dep_cpp_type_opt {
-                    ts_by_name.add_dependency(&cpp_type.cpp_full_name, &dep_cpp_type.cpp_full_name);
-                }
             }
         }
 
@@ -299,16 +291,15 @@ impl CppContext {
         // currently sorted from root to dependencies
         // aka least depended to most depended
         let mut typedef_root_types_sorted = ts
-            .get_reverse_dependencies_sorted()
+            .topological_sort()
             .into_iter()
             .filter_map(|t| self.typedef_types.get(t))
             .collect_vec();
 
         // add the items with no dependencies at the tail
         // when reversed these will be first and can be allowed to be first
-        undepended_cpp_types.append(&mut typedef_root_types_sorted);
-
-        typedef_root_types_sorted = undepended_cpp_types;
+        typedef_root_types_sorted.append(&mut undepended_cpp_types);
+        // typedef_root_types_sorted.reverse();
 
         // Write includes for typedef
         typedef_types
@@ -356,21 +347,6 @@ impl CppContext {
             //     .try_for_each(|i| i.write(&mut typeimpl_writer))?;
         }
 
-        writeln!(
-            typedef_writer,
-            "/* Dependency graph: \n{}*/",
-            ts.generate_sorted_graph_representation().join("\n")
-        )?;
-        writeln!(
-            typedef_writer,
-            "/* Reverse Dependency graph: \n{}*/",
-            ts.generate_reverse_topological_visual_representation()
-        )?;
-        writeln!(
-            typedef_writer,
-            "/* Dependency graph: \n{}*/\n",
-            ts_by_name.generate_sorted_graph_representation().join("\n")
-        )?;
         // writeln!(
         //     typedef_writer,
         //     "/* Reverse Dependency graph: \n{}*/\n",
