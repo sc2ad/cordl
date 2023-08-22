@@ -500,9 +500,20 @@ impl Writable for CppMethodSizeStruct {
             .join(", ");
 
         let method_info_rhs = if let Some(slot) = self.slot && !self.is_final {
-            format!("THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(classof({complete_type_name}), {interface_klass_of}(), {slot}))")
+            format!("
+            THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(
+                classof({complete_type_name}),
+                 {interface_klass_of}(),
+                  {slot}
+                ))")
         } else {
-            format!("THROW_UNLESS(::il2cpp_utils::FindMethod(classof({complete_type_name}), \"{cpp_method_name}\", std::vector<Il2CppClass*>{{{template_params_args}}}, ::std::vector<const Il2CppType*>{{{params_args}}}))")
+            format!("
+            THROW_UNLESS(::il2cpp_utils::FindMethod(
+                classof({complete_type_name}), 
+                \"{cpp_method_name}\",
+                std::vector<Il2CppClass*>{{{template_params_args}}}, 
+                ::std::vector<const Il2CppType*>{{{params_args}}}
+            ))")
         };
 
         let f_ptr_prefix = if self.instance {
