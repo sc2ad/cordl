@@ -1539,6 +1539,13 @@ pub trait CSType: Sized {
             ..method_decl.clone().into()
         };
 
+
+        let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
+            Some(cpp_type)
+        } else {
+            ctx_collection.get_cpp_type(tag)
+        };
+
         if let Some(method_calc) = method_calc && !method_stub {
             cpp_type
                 .nonmember_implementations
@@ -1553,7 +1560,9 @@ pub trait CSType: Sized {
                         addrs: method_calc.addrs,
                         estimated_size: method_calc.estimated_size,
                     },
-                    interface_clazz_of: cpp_type.classof_cpp_name(),
+                    interface_clazz_of: declaring_cpp_type
+                        .map(|d| d.classof_cpp_name())
+                        .unwrap_or_else(|| format!("Bad stuff happened {declaring_type:?}")),
                     is_final: method.is_final_method(),
                     slot: if method.slot != u16::MAX {
                         Some(method.slot)
