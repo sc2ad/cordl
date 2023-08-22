@@ -347,12 +347,6 @@ impl CppContext {
             //     .try_for_each(|i| i.write(&mut typeimpl_writer))?;
         }
 
-        // writeln!(
-        //     typedef_writer,
-        //     "/* Reverse Dependency graph: \n{}*/\n",
-        //     ts_by_name.generate_reverse_topological_visual_representation()
-        // )?;
-
         for t in &typedef_root_types_sorted {
             if t.nested {
                 panic!(

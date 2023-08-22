@@ -384,7 +384,7 @@ pub trait CSType: Sized {
                     return gen_name;
                 }
 
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, true)
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false)
             })
             .collect();
 
