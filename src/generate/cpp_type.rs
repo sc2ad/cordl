@@ -294,6 +294,7 @@ impl CppType {
                 "// Self: {:?}",
                 self.self_tag
             )?;
+            writeln!(writer, "CS Name: {}", self.full_name)?;
 
             // Type definition plus inherit lines
 
