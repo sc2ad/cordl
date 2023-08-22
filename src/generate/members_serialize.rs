@@ -479,9 +479,14 @@ impl Writable for CppMethodSizeStruct {
             self.declaring_type_name, self.cpp_method_name
         )?;
         let template = self.template.clone().unwrap_or_default();
+        let generic_literals = self.generic_literals.clone().unwrap_or_default();
 
         let complete_type_name = &self.declaring_type_name;
         let cpp_method_name = &self.cpp_method_name;
+        let method_name = &self.method_name;
+        let ret_type = &self.ret_ty;
+        let size = &self.method_data.estimated_size;
+        let addr = &self.method_data.addrs;
 
         let interface_klass_of = &self.interface_clazz_of;
 
@@ -491,18 +496,30 @@ impl Writable for CppMethodSizeStruct {
             .join(", ");
 
         // Template args
-        let template_params_args = template
-            .names
+
+        let template_params_args = template.names.iter().map(|(_, t)| t);
+
+        let generic_params_args = generic_literals
             .iter()
-            .map(|(_, t)| {
-                format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()")
-            })
+            .chain(template_params_args)
+            .map(|t| format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"))
             .join(", ");
 
         let method_info_rhs = if let Some(slot) = self.slot && !self.is_final {
-            format!("THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(classof({complete_type_name}), {interface_klass_of}(), {slot}))")
+            format!("
+            THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(
+                classof({complete_type_name}),
+                 {interface_klass_of}(),
+                  {slot}
+                ))")
         } else {
-            format!("THROW_UNLESS(::il2cpp_utils::FindMethod(classof({complete_type_name}), \"{cpp_method_name}\", std::vector<Il2CppClass*>{{{template_params_args}}}, ::std::vector<const Il2CppType*>{{{params_args}}}))")
+            format!("
+            THROW_UNLESS(::il2cpp_utils::FindMethod(
+                classof({complete_type_name}), 
+                \"{method_name}\",
+                std::vector<Il2CppClass*>{{{generic_params_args}}}, 
+                ::std::vector<const Il2CppType*>{{{params_args}}}
+            ))")
         };
 
         let f_ptr_prefix = if self.instance {
@@ -516,20 +533,15 @@ impl Writable for CppMethodSizeStruct {
         writeln!(
             writer,
             "
-struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{} ({f_ptr_prefix}*)({params_format})>(&{}::{})> {{
-  constexpr static std::size_t size = 0x{:x};
-  constexpr static std::size_t addrs = 0x{:x};
+struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{ret_type} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_method_name})> {{
+  constexpr static std::size_t size = 0x{size:x};
+  constexpr static std::size_t addrs = 0x{addr:x};
 
   inline static const ::MethodInfo* methodInfo() {{
     static auto* const methodInfo = {method_info_rhs};
     return methodInfo;
   }}
-}};",
-            self.ret_ty,
-            self.declaring_type_name,
-            self.cpp_method_name,
-            self.method_data.estimated_size,
-            self.method_data.addrs
+}};"
         )?;
         Ok(())
     }

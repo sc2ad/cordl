@@ -130,6 +130,7 @@ pub struct CppMethodData {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethodSizeStruct {
     pub cpp_method_name: String,
+    pub method_name: String,
     pub declaring_type_name: String,
     pub ret_ty: String,
     pub instance: bool,
@@ -137,6 +138,7 @@ pub struct CppMethodSizeStruct {
     pub method_data: CppMethodData,
 
     pub template: Option<CppTemplate>,
+    pub generic_literals: Option<Vec<String>>,
 
     pub interface_clazz_of: String,
     pub is_final: bool,

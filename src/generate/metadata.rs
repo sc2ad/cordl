@@ -111,16 +111,16 @@ impl<'a> Metadata<'a> {
     }
 
     fn parse_method_size(&mut self, gm: &brocolib::global_metadata::GlobalMetadata) {
-        // method index -> address
         // sorted by address
-        let mut method_addresses_sorted: Vec<u64> = self
+        // method index -> address
+        let method_addresses_sorted: Vec<u64> = self
             .code_registration
             .code_gen_modules
             .iter()
             .flat_map(|m| &m.method_pointers)
             .copied()
+            .sorted()
             .collect();
-        method_addresses_sorted.sort();
         // address -> method index in sorted list
         let method_addresses_sorted_map: HashMap<u64, usize> = method_addresses_sorted
             .iter()
@@ -164,11 +164,16 @@ impl<'a> Metadata<'a> {
                                 .cloned()
                                 .unwrap_or(0);
 
+                            let estimated_size = if method_pointer == 0x0 || next_method_pointer == 0x0 {
+                                usize::MAX
+                            } else {
+                                method_pointer.abs_diff(next_method_pointer) as usize
+                            };
+
                             (
                                 method_index,
                                 MethodCalculations {
-                                    estimated_size: method_pointer.abs_diff(next_method_pointer)
-                                        as usize,
+                                    estimated_size,
                                     addrs: method_pointer,
                                 },
                             )
