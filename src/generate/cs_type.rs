@@ -1363,7 +1363,7 @@ pub trait CSType: Sized {
             };
 
             let param_cpp_name = match is_generic_inst {
-                false => cpp_type.il2cpp_mparam_template_name(
+                false => cpp_type.il2cpp_mvar_use_param_name(
                     metadata,
                     method_index,
                     make_param_cpp_type_name,
@@ -1418,7 +1418,7 @@ pub trait CSType: Sized {
         };
 
         let m_ret_cpp_type_name = match is_generic_inst {
-            false => cpp_type.il2cpp_mparam_template_name(
+            false => cpp_type.il2cpp_mvar_use_param_name(
                 metadata,
                 method_index,
                 make_ret_cpp_type_name,
@@ -1437,9 +1437,23 @@ pub trait CSType: Sized {
             // static functions with same name and params but
             // different ret types can exist
             // so we add their ret types
-            match cpp_m_name == "op_Implicit" || cpp_m_name == "op_Explicit" {
+            let fixup_name = match cpp_m_name == "op_Implicit" || cpp_m_name == "op_Explicit" {
                 true => cpp_m_name + "_" + &config.generic_nested_name(&m_ret_cpp_type_name),
                 false => cpp_m_name,
+            };
+
+            match is_generic_inst {
+                true => {
+                    let literal_types = cpp_type.method_generic_instantiation_map.get(&method_index).cloned().expect("This is a generic instantiation of a generic method, but no generic instantiation args exist!");
+                    let resolved_types = literal_types
+                        .iter()
+                        .map(|t| &metadata.metadata_registration.types[*t as usize])
+                        .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false))
+                        .collect_vec();
+
+                    format!("{fixup_name}<{}>", resolved_types.join(", "))
+                }
+                false => fixup_name,
             }
         };
 
@@ -1449,7 +1463,7 @@ pub trait CSType: Sized {
         let method_calc = metadata.method_calculations.get(&method_index);
 
         // generic methods don't have definitions if not an instantiation
-        let stub = !is_generic_inst && template.is_some();
+        let method_stub = !is_generic_inst && template.is_some();
 
         let method_decl = CppMethodDecl {
             body: None,
@@ -1525,19 +1539,6 @@ pub trait CSType: Sized {
             ..method_decl.clone().into()
         };
 
-        // If a generic instantiation or not a template
-        if !stub {
-            cpp_type
-                .implementations
-                .push(CppMember::MethodImpl(method_impl).into());
-        }
-
-        // if not a generic instantiation
-        if !is_generic_inst {
-            cpp_type
-                .declarations
-                .push(CppMember::MethodDecl(method_decl).into());
-        }
 
         let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
             Some(cpp_type)
@@ -1545,15 +1546,15 @@ pub trait CSType: Sized {
             ctx_collection.get_cpp_type(tag)
         };
 
-        if let Some(method_calc) = method_calc && !stub {
+        if let Some(method_calc) = method_calc && !method_stub {
             cpp_type
                 .nonmember_implementations
                 .push(Rc::new(CppMethodSizeStruct {
-                    ret_ty: m_ret_cpp_type_name,
-                    cpp_method_name: config.name_cpp(m_name),
-                    complete_type_name: cpp_type.formatted_complete_cpp_name().clone(),
-                    instance: !method.is_static_method(),
-                    params: m_params_with_def,
+                    ret_ty: method_decl.return_type.clone(),
+                    cpp_method_name: method_decl.cpp_name.clone(),
+                    declaring_type_name: method_impl.declaring_cpp_full_name.clone(),
+                    instance: method_decl.instance,
+                    params: method_decl.parameters.clone(),
                     template,
                     method_data: CppMethodData {
                         addrs: method_calc.addrs,
@@ -1569,6 +1570,20 @@ pub trait CSType: Sized {
                         None
                     },
                 }));
+        }
+
+        // If a generic instantiation or not a template
+        if !method_stub {
+            cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(method_impl).into());
+        }
+
+        // if not a generic instantiation
+        if !is_generic_inst {
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(method_decl).into());
         }
     }
 
@@ -1831,7 +1846,7 @@ pub trait CSType: Sized {
     // Basically decides to use the template param name (if applicable)
     // instead of the generic instantiation of the type
     // TODO: Make this less confusing
-    fn il2cpp_mparam_template_name<'a>(
+    fn il2cpp_mvar_use_param_name<'a>(
         &mut self,
         metadata: &'a Metadata,
         method_index: MethodIndex,
@@ -2099,7 +2114,9 @@ pub trait CSType: Sized {
                         .unwrap();
 
                     let generic_type_def = &mr.types[generic_class.type_index];
-                    let TypeData::TypeDefinitionIndex(tdi) = generic_type_def.data else {panic!()};
+                    let TypeData::TypeDefinitionIndex(tdi) = generic_type_def.data else {
+                        panic!()
+                    };
 
                     let type_def_name = cpp_type.cppify_name_il2cpp(
                         ctx_collection,
@@ -2109,13 +2126,14 @@ pub trait CSType: Sized {
                     );
 
                     if add_include {
-                        cpp_type
-                            .requirements
-                            .add_dependency_tag(tdi.into());
+                        cpp_type.requirements.add_dependency_tag(tdi.into());
                         cpp_type
                             .requirements
                             .add_dependency_tag(CppTypeTag::GenericInstantiation(
-                                GenericInstantiation { tdi, inst: generic_class.context.class_inst_idx.unwrap() },
+                                GenericInstantiation {
+                                    tdi,
+                                    inst: generic_class.context.class_inst_idx.unwrap(),
+                                },
                             ));
                     }
 
