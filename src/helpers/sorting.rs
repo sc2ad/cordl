@@ -106,6 +106,66 @@ where
         result
     }
 
+    pub fn get_reverse_dependencies_sorted(&self) -> Vec<&'a A> {
+        // Identify leaf objects (objects with no outgoing dependencies)
+        let mut leaf_objects = HashSet::new();
+        let mut all_objects = HashSet::new();
+
+        // Collect all objects and their dependents
+        for (dependency, dependents) in &self.dependencies {
+            all_objects.insert(dependency);
+            for dependent in dependents {
+                all_objects.insert(dependent);
+            }
+        }
+
+        // Find leaf objects
+        for object in all_objects.iter() {
+            let has_outgoing_dependencies = self
+                .dependencies
+                .get(*object)
+                .map_or(false, |dependents| !dependents.is_empty());
+            if !has_outgoing_dependencies {
+                leaf_objects.insert(object);
+            }
+        }
+
+        // Perform reverse topological search
+        let mut visited = HashSet::new();
+        let mut result = Vec::new();
+
+        let mut sort_fn = self.sorting;
+
+        for leaf_object in leaf_objects.iter().sorted_by(|a, b| (sort_fn)(**a, **b)) {
+            self.reverse_topological_search(leaf_object, &mut visited, &mut result);
+        }
+
+        result
+    }
+
+    // Add a function for reverse topological search
+    pub fn reverse_topological_search(
+        &self,
+        object: &'a A,
+        visited: &mut HashSet<&'a A>,
+        result: &mut Vec<&'a A>,
+    ) {
+        visited.insert(object.clone());
+
+        if let Some(dependents) = self.dependencies.get(object) {
+            let sorted_dependents: Vec<_> =
+                dependents.iter().cloned().sorted_by(self.sorting).collect();
+
+            for dependent in sorted_dependents {
+                if !visited.contains(&dependent) {
+                    self.reverse_topological_search(dependent.clone(), visited, result);
+                }
+            }
+        }
+
+        result.push(object);
+    }
+
     // Add a function to generate a sorted graph representation
     pub fn generate_sorted_graph_representation(&self) -> Vec<String> {
         let mut sorted_representation = Vec::new();
