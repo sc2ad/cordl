@@ -1410,6 +1410,18 @@ pub trait CSType: Sized {
             None
         };
 
+        let literal_types = cpp_type
+            .method_generic_instantiation_map
+            .get(&method_index)
+            .cloned();
+        let resolved_generic_types = literal_types.map(|literal_types| {
+            literal_types
+                .iter()
+                .map(|t| &metadata.metadata_registration.types[*t as usize])
+                .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false))
+                .collect_vec()
+        });
+
         let make_ret_cpp_type_name = |cpp_type: &mut CppType| {
             let name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false);
             let byref = cpp_type.il2cpp_byref(name, m_ret_type);
@@ -1442,18 +1454,11 @@ pub trait CSType: Sized {
                 false => cpp_m_name,
             };
 
-            match is_generic_inst {
-                true => {
-                    let literal_types = cpp_type.method_generic_instantiation_map.get(&method_index).cloned().expect("This is a generic instantiation of a generic method, but no generic instantiation args exist!");
-                    let resolved_types = literal_types
-                        .iter()
-                        .map(|t| &metadata.metadata_registration.types[*t as usize])
-                        .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false))
-                        .collect_vec();
-
-                    format!("{fixup_name}<{}>", resolved_types.join(", "))
+            match &resolved_generic_types {
+                Some(resolved_generic_types) => {
+                    format!("{fixup_name}<{}>", resolved_generic_types.join(", "))
                 }
-                false => fixup_name,
+                None => fixup_name,
             }
         };
 
@@ -1539,7 +1544,6 @@ pub trait CSType: Sized {
             ..method_decl.clone().into()
         };
 
-
         let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
             Some(cpp_type)
         } else {
@@ -1552,10 +1556,12 @@ pub trait CSType: Sized {
                 .push(Rc::new(CppMethodSizeStruct {
                     ret_ty: method_decl.return_type.clone(),
                     cpp_method_name: method_decl.cpp_name.clone(),
+                    method_name: m_name.to_string(),
                     declaring_type_name: method_impl.declaring_cpp_full_name.clone(),
                     instance: method_decl.instance,
                     params: method_decl.parameters.clone(),
                     template,
+                    generic_literals: resolved_generic_types,
                     method_data: CppMethodData {
                         addrs: method_calc.addrs,
                         estimated_size: method_calc.estimated_size,

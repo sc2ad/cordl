@@ -240,6 +240,10 @@ impl CppType {
         writer: &mut super::writer::CppWriter,
         namespace: Option<&str>,
     ) -> color_eyre::Result<()> {
+        self.nonmember_implementations
+            .iter()
+            .try_for_each(|d| d.write(writer))?;
+
         // Write all declarations within the type here
         self.implementations
             .iter()
@@ -250,9 +254,6 @@ impl CppType {
             .iter()
             .try_for_each(|(_tag, n)| n.write_impl_internal(writer, None))?;
 
-        self.nonmember_implementations
-            .iter()
-            .try_for_each(|d| d.write(writer))?;
         Ok(())
     }
 
