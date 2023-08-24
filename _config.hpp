@@ -183,15 +183,8 @@ concept il2cpp_reference_type = requires(T const& t) {
 // TODO: Do this when Il2CppWrapperType has __CORDL_IS_VALUE_TYPE == false
 // static_assert(il2cpp_reference_type<::bs_hook::Il2CppWrapperType>);
 
-struct InterfaceW {
-  void* instance;
-
-  // pointer type
-  explicit constexpr InterfaceW(void* o) noexcept : instance(o) {}
-
-  constexpr void* convert() const {
-    return instance;
-  }
+struct InterfaceW : public ::bs_hook::Il2CppWrapperType {
+  explicit constexpr InterfaceW(void* o) noexcept : ::bs_hook::Il2CppWrapperType(o) {}
 
   constexpr static bool __CORDL_IS_VALUE_TYPE = false;
 };
