@@ -1454,12 +1454,7 @@ pub trait CSType: Sized {
                 false => cpp_m_name,
             };
 
-            match &resolved_generic_types {
-                Some(resolved_generic_types) => {
-                    format!("{fixup_name}<{}>", resolved_generic_types.join(", "))
-                }
-                None => fixup_name,
-            }
+            fixup_name
         };
 
         let declaring_type = method.declaring_type(metadata.metadata);
@@ -1579,7 +1574,7 @@ pub trait CSType: Sized {
         }
 
         // If a generic instantiation or not a template
-        if !method_stub {
+        if !method_stub && !is_generic_inst {
             cpp_type
                 .implementations
                 .push(CppMember::MethodImpl(method_impl).into());
