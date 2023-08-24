@@ -153,7 +153,6 @@ CORDL_HIDDEN void setValueTypeStatic(T&& t) {
   if (!val)
     throw FieldException(std::string("Could not set static field with name: ") +
                          name.data.data());
-  return *val;
 }
 
 template <typename T, typename U>
