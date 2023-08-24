@@ -174,9 +174,9 @@ concept il2cpp_reference_type = requires(T const& t) {
   requires std::is_constructible_v<T, std::nullptr_t>;
   // and ensure cordl value type is set to false
   {
-    std::bool_constant<T::__CORDL_IS_VALUE_TYPE == false>()
-  } -> std::same_as<std::true_type> ||
-  std::is_same_v<std::remove_const_t<T>, ::bs_hook::Il2CppWrapperType>;
+    std::bool_constant<T::__CORDL_IS_VALUE_TYPE == false>() ||
+    std::is_same_v<std::remove_const_t<T>, ::bs_hook::Il2CppWrapperType>
+  } -> std::same_as<std::true_type>;
 };
 
 // ensure bs-hook il2cpp wrapper type matches our expectations
