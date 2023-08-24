@@ -88,7 +88,7 @@ CORDL_HIDDEN inline T getReferenceTypeInstance(void* instance) {
 template <typename T, std::size_t offset>
 CORDL_HIDDEN void setReferenceTypeInstance(void* instance, T t) {
   ::il2cpp_functions::Init();
-  ::il2cpp_functions::gc_wbarrier_set_field(instance, getAtOffset<offset>(),
+  ::il2cpp_functions::gc_wbarrier_set_field(instance, getAtOffset<offset>(instance),
                                             t.convert());
 }
 
