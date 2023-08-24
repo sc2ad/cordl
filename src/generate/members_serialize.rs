@@ -290,9 +290,6 @@ impl Writable for CppMethodImpl {
         if self.is_virtual {
             prefix_modifiers.push("virtual");
         }
-        if self.is_operator {
-            prefix_modifiers.push("operator")
-        }
 
         if self.is_const && self.instance {
             suffix_modifiers.push("const");
@@ -310,7 +307,8 @@ impl Writable for CppMethodImpl {
 
         writeln!(
             writer,
-            "{prefixes} {ret} {declaring_type}::{name}({params}) {suffixes} {{",
+            "{prefixes} {ret} {declaring_type}::{}{name}({params}) {suffixes} {{",
+            if self.is_operator { "operator " } else { "" }
         )?;
 
         // Body
