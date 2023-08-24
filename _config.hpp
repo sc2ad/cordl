@@ -224,4 +224,8 @@ struct NullArg {
     return ListW<T, U>(nullptr);
   }
 };
+
+using intptr_t = int64_t*;
+using uintptr_t = uint64_t*;
+
 } // namespace cordl_internals

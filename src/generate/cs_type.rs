@@ -2167,13 +2167,13 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::I1 => "int8_t".to_string(),
             Il2CppTypeEnum::I2 => "int16_t".to_string(),
             Il2CppTypeEnum::I4 => "int32_t".to_string(),
-            // TODO: We assume 64 bit
-            Il2CppTypeEnum::I | Il2CppTypeEnum::I8 => "int64_t".to_string(),
+            Il2CppTypeEnum::I8 => "int64_t".to_string(),
+            Il2CppTypeEnum::I  => "::cordl_internals::intptr_t".to_string(),
             Il2CppTypeEnum::U1 => "uint8_t".to_string(),
             Il2CppTypeEnum::U2 => "uint16_t".to_string(),
             Il2CppTypeEnum::U4 => "uint32_t".to_string(),
-            // TODO: We assume 64 bit
-            Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => "uint64_t".to_string(),
+            Il2CppTypeEnum::U8 => "uint64_t".to_string(),
+            Il2CppTypeEnum::U  => "::cordl_internals::uintptr_t".to_string(),
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point
