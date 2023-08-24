@@ -226,6 +226,36 @@ struct InterfaceW : public ::bs_hook::Il2CppWrapperType {
   constexpr static bool __CORDL_IS_VALUE_TYPE = false;
 };
 
+template<typename T>
+CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T&&);
+
+template<typename T>
+CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T);
+
+template<typename T>
+CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T*);
+
+template<>
+CORDL_HIDDEN constexpr ::bs_hook::Il2CppWrapperType Box<::bs_hook::Il2CppWrapperType>(::bs_hook::Il2CppWrapperType t) { return t; }
+
+template<>
+CORDL_HIDDEN constexpr ::bs_hook::Il2CppWrapperType Box<::bs_hook::Il2CppWrapperType&&>(::bs_hook::Il2CppWrapperType&& t) { return t; }
+
+template<il2cpp_value_type T>
+CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T&& t) {
+    return ::bs_hook::Il2CppWrapperType(il2cpp_functions::value_box(classof(T), const_cast<void*>(static_cast<const void*>(t.__instance.data()))));
+}
+
+template<il2cpp_value_type T>
+CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T t) {
+    return ::bs_hook::Il2CppWrapperType(il2cpp_functions::value_box(classof(T), const_cast<void*>(static_cast<const void*>(t.__instance.data()))));
+}
+
+template<il2cpp_value_type T>
+CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T* t) {
+    return ::bs_hook::Il2CppWrapperType(il2cpp_functions::value_box(classof(T), const_cast<void*>(static_cast<const void*>(t->__instance.data()))));
+}
+
 // Type tag for passing null as a parameter without setting instance to null
 struct NullArg {
   template <il2cpp_reference_type T> constexpr operator T() const noexcept {
