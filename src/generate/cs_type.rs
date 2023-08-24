@@ -922,8 +922,8 @@ pub trait CSType: Sized {
                     cpp_name: config.name_cpp(p_name),
                     prop_ty: p_ty_cpp_name.clone(),
                     // methods generated in make_methods
-                    setter: p_getter.map(|m| config.name_cpp(m.name(metadata.metadata))),
-                    getter: p_setter.map(|m| config.name_cpp(m.name(metadata.metadata))),
+                    setter: p_setter.map(|m| config.name_cpp(m.name(metadata.metadata))),
+                    getter: p_getter.map(|m| config.name_cpp(m.name(metadata.metadata))),
                     brief_comment: None,
                     instance: !p_getter.or(p_setter).unwrap().is_static_method(),
                 })
