@@ -764,7 +764,7 @@ pub trait CSType: Sized {
             let convert_line = match t.is_value_type() || t.is_enum_type() {
                 true => {
                     // box
-                    format!("il2cpp_utils::ToIl2CppObject({VALUE_TYPE_WRAPPER_INSTANCE_NAME})")
+                    format!("il2cpp_utils::ToIl2CppObject({VALUE_TYPE_WRAPPER_INSTANCE_NAME}.data())")
                 }
                 false => REFERENCE_WRAPPER_INSTANCE_NAME.to_string(),
             };
