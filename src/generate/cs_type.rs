@@ -769,26 +769,35 @@ pub trait CSType: Sized {
                 false => REFERENCE_WRAPPER_INSTANCE_NAME.to_string(),
             };
 
+            let method_decl = CppMethodDecl {
+                body: Default::default(),
+                brief: Some(format!("Convert operator to {interface_cpp_name}")),
+                cpp_name: interface_cpp_name.clone(),
+                return_type: "".to_string(),
+                instance: true,
+                is_const: true,
+                is_constexpr: true,
+                is_no_except: !t.is_value_type() && !t.is_enum_type(),
+                is_operator: true,
+                is_virtual: false,
+                parameters: vec![],
+                template: None,
+                prefix_modifiers: vec![],
+                suffix_modifiers: vec![],
+            };
+            let method_impl = CppMethodImpl {
+                body: vec![Arc::new(CppLine::make(format!(
+                    "return {interface_cpp_name}({convert_line});"
+                )))],
+                declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                ..method_decl.clone().into()
+            };
             cpp_type.declarations.push(
-                CppMember::MethodDecl(CppMethodDecl {
-                    body: Some(vec![Arc::new(CppLine::make(format!(
-                        "return {interface_cpp_name}({convert_line});"
-                    )))]),
-                    brief: Some(format!("Convert operator to {interface_cpp_name}")),
-                    cpp_name: interface_cpp_name,
-                    return_type: "".to_string(),
-                    instance: true,
-                    is_const: true,
-                    is_constexpr: true,
-                    is_no_except: !t.is_value_type() && !t.is_enum_type(),
-                    is_operator: true,
-                    is_virtual: false,
-                    parameters: vec![],
-                    template: None,
-                    prefix_modifiers: vec![],
-                    suffix_modifiers: vec![],
-                })
-                .into(),
+                CppMember::MethodDecl(method_decl).into(),
+            );
+
+            cpp_type.implementations.push(
+                CppMember::MethodImpl(method_impl).into(),
             );
         }
     }
