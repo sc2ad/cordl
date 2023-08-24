@@ -568,7 +568,7 @@ pub trait CSType: Sized {
                     }
                 }
             } else {
-                let declaring_type_specifier = match t.is_value_type() || t.is_enum_type() {
+                let field_type_specifier = match f_type.valuetype {
                     true => "ValueType",
                     false => "ReferenceType",
                 };
@@ -582,12 +582,12 @@ pub trait CSType: Sized {
                 let getter_call = match f_type.is_static() {
                     true => {
                         format!(
-                        "return {CORDL_METHOD_HELPER_NAMESPACE}::get{declaring_type_specifier}Static<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>();"
+                        "return {CORDL_METHOD_HELPER_NAMESPACE}::get{field_type_specifier}Static<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>();"
                     )
                     }
                     false => {
                         format!(
-                            "return {CORDL_METHOD_HELPER_NAMESPACE}::get{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance});"
+                            "return {CORDL_METHOD_HELPER_NAMESPACE}::get{field_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance});"
                         )
                     }
                 };
@@ -596,12 +596,12 @@ pub trait CSType: Sized {
                 let setter_call = match f_type.is_static() {
                     true => {
                         format!(
-                        "{CORDL_METHOD_HELPER_NAMESPACE}::set{declaring_type_specifier}Static<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                        "{CORDL_METHOD_HELPER_NAMESPACE}::set{field_type_specifier}Static<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
                     )
                     }
                     false => {
                         format!(
-                            "{CORDL_METHOD_HELPER_NAMESPACE}::set{declaring_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance}, {setter_var_name});"
+                            "{CORDL_METHOD_HELPER_NAMESPACE}::set{field_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance}, {setter_var_name});"
                         )
                     }
                 };
