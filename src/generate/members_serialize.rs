@@ -502,7 +502,7 @@ impl Writable for CppMethodSizeStruct {
         let generic_params_args = generic_literals
             .iter()
             .chain(template_params_args)
-            .map(|t| format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"))
+            .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"))
             .join(", ");
 
         let method_info_rhs = if let Some(slot) = self.slot && !self.is_final {
