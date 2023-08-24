@@ -86,13 +86,6 @@ CORDL_HIDDEN inline T getReferenceTypeInstance(void* instance) {
 }
 
 template <typename T, std::size_t offset>
-CORDL_HIDDEN void setReferenceTypeInstance(void* instance, T t) {
-  ::il2cpp_functions::Init();
-  ::il2cpp_functions::gc_wbarrier_set_field(static_cast<Il2CppObject*>(instance), getAtOffset<offset>(instance),
-                                            t.convert());
-}
-
-template <typename T, std::size_t offset>
 CORDL_HIDDEN void setReferenceTypeInstance(void* instance, T&& t) {
   ::il2cpp_functions::Init();
   ::il2cpp_functions::gc_wbarrier_set_field(instance, getAtOffset<offset>(instance),
@@ -111,12 +104,6 @@ CORDL_HIDDEN constexpr inline void setValueTypeInstance(void* instance, T&& t) {
   *reinterpret_cast<T*>(getAtOffset<offset>(instance)) = t;
 }
 
-template <typename T, std::size_t offset>
-CORDL_HIDDEN constexpr inline void setValueTypeInstance(void* instance, T t) {
-  // TODO: assign using union data
-  *reinterpret_cast<T*>(getAtOffset<offset>(instance)) = t;
-}
-
 template <typename T, internal::NTTPString name, auto klass_resolver>
 CORDL_HIDDEN T getReferenceTypeStatic() {
   auto klass = klass_resolver();
@@ -126,19 +113,6 @@ CORDL_HIDDEN T getReferenceTypeStatic() {
   auto val = ::il2cpp_utils::GetFieldValue<T>(klass, name.data.data());
   if (!val)
     throw FieldException(std::string("Could not get static field with name: ") +
-                         name.data.data());
-  return *val;
-}
-
-template <typename T, internal::NTTPString name, auto klass_resolver>
-CORDL_HIDDEN void setReferenceTypeStatic(T t) {
-  auto klass = klass_resolver();
-  if (!klass)
-    throw NullException(std::string("Class for static field with name: ") +
-                        name.data.data() + " is null!");
-  auto val = ::il2cpp_utils::SetFieldValue(klass, name.data.data(), t);
-  if (!val)
-    throw FieldException(std::string("Could not set static field with name: ") +
                          name.data.data());
   return *val;
 }
@@ -167,18 +141,6 @@ CORDL_HIDDEN T getValueTypeStatic() {
     throw FieldException(std::string("Could not get static field with name: ") +
                          name.data.data());
   return *val;
-}
-
-template <typename T, internal::NTTPString name, auto klass_resolver>
-CORDL_HIDDEN void setValueTypeStatic(T t) {
-  auto klass = klass_resolver();
-  if (!klass)
-    throw NullException(std::string("Class for static field with name: ") +
-                        name.data.data() + " is null!");
-  auto val = ::il2cpp_utils::SetFieldValue(klass, name.data.data(), t);
-  if (!val)
-    throw FieldException(std::string("Could not set static field with name: ") +
-                         name.data.data());
 }
 
 template <typename T, internal::NTTPString name, auto klass_resolver>
