@@ -76,8 +76,8 @@ template <std::size_t sz> struct NTTPString {
 
 /// @brief gets an offset from a given pointer
 template <std::size_t offset>
-constexpr inline uint8_t* getAtOffset(void* instance) {
-  return reinterpret_cast<uint8_t*>(instance) + offset;
+constexpr inline void** getAtOffset(void* instance) {
+  return reinterpret_cast<void**>(static_cast<uint8_t*>(instance) + offset);
 }
 
 template <typename T, std::size_t offset>
