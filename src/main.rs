@@ -63,7 +63,9 @@ pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| Generati
     source_path: PathBuf::from("./codegen/src"),
     src_internals_path: PathBuf::from("./cordl_internals"),
     dst_internals_path: PathBuf::from("./codegen/include/cordl_internals"),
-    dst_header_internals_file: PathBuf::from("./codegen/include/cordl_internals/cordl_internals.hpp"),
+    dst_header_internals_file: PathBuf::from(
+        "./codegen/include/cordl_internals/cordl_internals.hpp",
+    ),
 });
 
 fn main() -> color_eyre::Result<()> {
@@ -86,13 +88,14 @@ fn main() -> color_eyre::Result<()> {
     std::fs::create_dir_all(&STATIC_CONFIG.dst_internals_path)?;
 
     // copy contents of cordl_internals folder into destination
-    let mut options = fs_extra::dir::CopyOptions::new();
-    options.content_only = true;
+    let options = fs_extra::dir::CopyOptions::new()
+        .overwrite(true)
+        .content_only(true);
 
     fs_extra::dir::copy(
         &STATIC_CONFIG.src_internals_path,
         &STATIC_CONFIG.dst_internals_path,
-        &options
+        &options,
     )?;
 
     let global_metadata_data = fs::read(cli.metadata)?;
