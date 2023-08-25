@@ -290,9 +290,6 @@ impl Writable for CppMethodImpl {
         if self.is_virtual {
             prefix_modifiers.push("virtual");
         }
-        if self.is_operator {
-            prefix_modifiers.push("operator")
-        }
 
         if self.is_const && self.instance {
             suffix_modifiers.push("const");
@@ -310,7 +307,8 @@ impl Writable for CppMethodImpl {
 
         writeln!(
             writer,
-            "{prefixes} {ret} {declaring_type}::{name}({params}) {suffixes} {{",
+            "{prefixes} {ret} {declaring_type}::{}{name}({params}) {suffixes} {{",
+            if self.is_operator { "operator " } else { "" }
         )?;
 
         // Body
@@ -502,7 +500,7 @@ impl Writable for CppMethodSizeStruct {
         let generic_params_args = generic_literals
             .iter()
             .chain(template_params_args)
-            .map(|t| format!("&::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"))
+            .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"))
             .join(", ");
 
         let method_info_rhs = if let Some(slot) = self.slot && !self.is_final {

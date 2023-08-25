@@ -3,8 +3,9 @@ use std::path::PathBuf;
 pub struct GenerationConfig {
     pub source_path: PathBuf,
     pub header_path: PathBuf,
-    pub original_header_config_file: PathBuf,
-    pub dest_header_config_file: PathBuf,
+    pub src_internals_path: PathBuf,
+    pub dst_internals_path: PathBuf,
+    pub dst_header_internals_file: PathBuf,
 }
 
 impl GenerationConfig {
