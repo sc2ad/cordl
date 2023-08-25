@@ -15,19 +15,15 @@ namespace cordl_internals {
     };
 
     template<typename T, bool check>
-    struct value_marker_check {
-        static constexpr bool value = false;
-    };
+    constexpr bool value_marker_check_v = false;
 
     template<has_value_marker T, bool check>
-    struct value_marker_check<T, check> {
-        static constexpr bool value = T::__CORDL_IS_VALUE_TYPE == check;
-    };
+    constexpr bool value_marker_check_v<T, check> = T::__CORDL_IS_VALUE_TYPE == check;
 
     template <typename T>
     concept il2cpp_value_type = requires(T const& t) {
         { std::is_array_v<decltype(t.__instance)> };
-        (value_marker_check<T, true>::value || std::is_same_v<std::remove_const<T>, ::bs_hook::EnumTypeWrapper> || std::is_same_v<std::remove_const<T>, ::bs_hook::ValueTypeWrapper>) == true;
+        (value_marker_check_v<T, true> || std::is_same_v<std::remove_const<T>, ::bs_hook::EnumTypeWrapper> || std::is_same_v<std::remove_const<T>, ::bs_hook::ValueTypeWrapper>) == true;
     };
 
     template <typename T>
@@ -38,7 +34,7 @@ namespace cordl_internals {
         requires std::is_constructible_v<T, void*>;
         requires std::is_constructible_v<T, std::nullptr_t>;
         // is the value type marker set, and set to false, or is it an il2cppwrappertype
-        (value_marker_check<T, false>::value || std::is_same_v<std::remove_const_t<T>, ::bs_hook::Il2CppWrapperType>) == true;
+        (value_marker_check_v<T, false> || std::is_same_v<std::remove_const_t<T>, ::bs_hook::Il2CppWrapperType>) == true;
     };
 
   static_assert(il2cpp_reference_type<::bs_hook::Il2CppWrapperType>, "Il2CppWrapperType did not match the il2cpp_reference_type concept!"); // wrappertype should match reference type always
