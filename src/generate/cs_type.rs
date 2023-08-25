@@ -8,8 +8,8 @@ use std::{
 
 use brocolib::{
     global_metadata::{
-        FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex, TypeDefinitionIndex,
-        TypeIndex,
+        FieldIndex, Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, ParameterIndex,
+        TypeDefinitionIndex, TypeIndex,
     },
     runtime_metadata::{
         Il2CppMethodSpec, Il2CppType, Il2CppTypeDefinitionSizes, Il2CppTypeEnum, TypeData,
@@ -792,13 +792,13 @@ pub trait CSType: Sized {
                 declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
                 ..method_decl.clone().into()
             };
-            cpp_type.declarations.push(
-                CppMember::MethodDecl(method_decl).into(),
-            );
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(method_decl).into());
 
-            cpp_type.implementations.push(
-                CppMember::MethodImpl(method_impl).into(),
-            );
+            cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(method_impl).into());
         }
     }
 
@@ -1463,7 +1463,12 @@ pub trait CSType: Sized {
                 false => cpp_m_name,
             };
 
-            fixup_name
+            match &resolved_generic_types {
+                Some(resolved_generic_types) => {
+                    format!("{fixup_name}<{}>", resolved_generic_types.join(", "))
+                }
+                None => fixup_name,
+            }
         };
 
         let declaring_type = method.declaring_type(metadata.metadata);
@@ -1498,75 +1503,80 @@ pub trait CSType: Sized {
             is_operator: false,
         };
 
-        let complete_type_name = &cpp_type.cpp_full_name;
-        let f_ptr_prefix = if method.is_static_method() {
-            "".to_string()
-        } else {
-            format!("{complete_type_name}::")
-        };
-
         let instance_ptr = if method.is_static_method() {
             "nullptr"
+        } else if cpp_type.is_value_type {
+            "const_cast<void*>(reinterpret_cast<const void*>(__instance.data()))"
         } else {
-            if cpp_type.is_value_type {
-                "const_cast<void*>(reinterpret_cast<const void*>(__instance.data()))"
-            } else {
-                "const_cast<void*>(instance)"
+            "const_cast<void*>(instance)"
+        };
+
+        const METHOD_INFO_VAR_NAME: &str = "___internal_method";
+
+        let method_invoke_params = vec![instance_ptr, METHOD_INFO_VAR_NAME];
+        let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
+
+        let params_types_format: String = CppParam::params_types(&method_decl.parameters)
+            .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
+            .join(", ");
+
+        let method_info_lines = match &template {
+            Some(template) => {
+                // generic
+                let generics_classes_format = template
+                    .names
+                    .iter()
+                    .map(|(_, t)| {
+                        format!(
+                            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"
+                        )
+                    })
+                    .join(", ");
+
+                vec![
+                    format!("static auto* ___internal_method_base = THROW_UNLESS((::il2cpp_utils::FindMethod(
+                        {instance_ptr}, 
+                        \"{m_name}\",
+                        std::vector<Il2CppClass*>{{{generics_classes_format}}}, 
+                        ::std::vector<const Il2CppType*>{{{params_types_format}}}
+                    )));"),
+                    format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS(::il2cpp_utils::MakeGenericMethod(
+                        ___internal_method_base,
+                         std::vector<Il2CppClass*>{{{generics_classes_format}}}
+                        ));"),
+                ]
+            }
+            None => {
+                vec![
+                    format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::FindMethod(
+                            {instance_ptr},
+                            \"{m_name}\",
+                            std::vector<Il2CppClass*>{{}}, 
+                            ::std::vector<const Il2CppType*>{{{params_types_format}}}
+                        )));"),
+                ]
             }
         };
 
-        let mut method_invoke_params = vec![instance_ptr];
-
-        // let logger_line = format!("static auto ___internal__logger = ::Logger::get().WithContext(\"::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals\");")
-
-        let params_format = CppParam::params_types(&method_decl.parameters).join(", ");
-        let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
-
-        let mut method_body_lines = vec![];
-
-        if let Some(template) = &template { // generic
-            let generics_classes_format =
-                template.names
-                .iter()
-                .map(|(_, t)|
-                    format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()")
-                )
-                .join(", ");
-            let params_types_format =
-                CppParam::params_types(&method_decl.parameters)
-                .map(|t|
-                    format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()")
-                )
-                .join(", ");
-            method_body_lines.push(format!("static auto* ___internal_method = THROW_UNLESS((::il2cpp_utils::FindMethod({instance_ptr}, \"{m_name}\", std::vector<Il2CppClass*>{{{generics_classes_format}}}, ::std::vector<const Il2CppType*>{{{params_types_format}}})));"));
-            method_body_lines.push(format!("static auto* ___generic_method = THROW_UNLESS(::il2cpp_utils::MakeGenericMethod(___internal_method, std::vector<Il2CppClass*>{{{generics_classes_format}}}));"));
-            method_invoke_params.push("___generic_method");
-        } else { // non generic
-            method_body_lines.push(format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_m_name})>::methodInfo();"));
-            method_invoke_params.push("___internal_method");
-        }
-
-        // run line
-        method_body_lines.push(format!(
+        let method_body_lines = [format!(
             "return ::il2cpp_utils::RunMethodRethrow<{m_ret_cpp_type_name}, false>({});",
             method_invoke_params
                 .into_iter()
                 .chain(param_names)
                 .join(", ")
-        ));
+        )];
 
         //   static auto ___internal__logger = ::Logger::get().WithContext("::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals");
         //   auto* ___internal__method = THROW_UNLESS((::il2cpp_utils::FindMethod(this, "Equals", std::vector<Il2CppClass*>{}, ::std::vector<const Il2CppType*>{::il2cpp_utils::ExtractType(obj)})));
         //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
-        // FIXME: it won't allow to just .map() the lines into body, which would be preferable
-        let mut body: Vec<Arc<dyn Writable>> = vec![];
-        method_body_lines
-            .into_iter()
-            .for_each(|l| body.push(Arc::new(CppLine::make(l))));
-
         let method_impl = CppMethodImpl {
-            body: body,
+            body: method_info_lines
+                .iter()
+                .chain(method_body_lines.iter())
+                .cloned()
+                .map(|l| -> Arc<dyn Writable> { Arc::new(CppLine::make(l)) })
+                .collect_vec(),
             parameters: m_params_with_def.clone(),
             brief: None,
             declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
@@ -1594,6 +1604,8 @@ pub trait CSType: Sized {
                     cpp_method_name: method_decl.cpp_name.clone(),
                     method_name: m_name.to_string(),
                     declaring_type_name: method_impl.declaring_cpp_full_name.clone(),
+                    method_info_lines,
+                    method_info_var: METHOD_INFO_VAR_NAME.to_string(),
                     instance: method_decl.instance,
                     params: method_decl.parameters.clone(),
                     template,
@@ -1615,11 +1627,13 @@ pub trait CSType: Sized {
         }
 
         // If a generic instantiation or not a template
-        if !is_generic_inst {
+        if !method_stub {
             cpp_type
                 .implementations
                 .push(CppMember::MethodImpl(method_impl).into());
+        }
 
+        if !is_generic_inst {
             cpp_type
                 .declarations
                 .push(CppMember::MethodDecl(method_decl).into());
@@ -2201,12 +2215,12 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::I2 => "int16_t".to_string(),
             Il2CppTypeEnum::I4 => "int32_t".to_string(),
             Il2CppTypeEnum::I8 => "int64_t".to_string(),
-            Il2CppTypeEnum::I  => "::cordl_internals::intptr_t".to_string(),
+            Il2CppTypeEnum::I => "::cordl_internals::intptr_t".to_string(),
             Il2CppTypeEnum::U1 => "uint8_t".to_string(),
             Il2CppTypeEnum::U2 => "uint16_t".to_string(),
             Il2CppTypeEnum::U4 => "uint32_t".to_string(),
             Il2CppTypeEnum::U8 => "uint64_t".to_string(),
-            Il2CppTypeEnum::U  => "::cordl_internals::uintptr_t".to_string(),
+            Il2CppTypeEnum::U => "::cordl_internals::uintptr_t".to_string(),
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point

@@ -395,7 +395,8 @@ impl CppContext {
                 .as_ref()
                 .is_some_and(|t| !t.names.is_empty());
 
-        if !ty.is_value_type && !ty.is_stub && !template_container_type && !is_generic_instantiation {
+        if !ty.is_value_type && !ty.is_stub && !template_container_type && !is_generic_instantiation
+        {
             // reference types need no boxing
             writeln!(writer, "NEED_NO_BOX(::{});", ty.cpp_full_name)?;
         }

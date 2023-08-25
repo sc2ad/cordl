@@ -127,7 +127,7 @@ pub struct CppMethodData {
     pub addrs: u64,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug)]
 pub struct CppMethodSizeStruct {
     pub cpp_method_name: String,
     pub method_name: String,
@@ -136,6 +136,10 @@ pub struct CppMethodSizeStruct {
     pub instance: bool,
     pub params: Vec<CppParam>,
     pub method_data: CppMethodData,
+
+    // this is so bad
+    pub method_info_lines: Vec<String>,
+    pub method_info_var: String,
 
     pub template: Option<CppTemplate>,
     pub generic_literals: Option<Vec<String>>,

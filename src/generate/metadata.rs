@@ -164,11 +164,12 @@ impl<'a> Metadata<'a> {
                                 .cloned()
                                 .unwrap_or(0);
 
-                            let estimated_size = if method_pointer == 0x0 || next_method_pointer == 0x0 {
-                                usize::MAX
-                            } else {
-                                method_pointer.abs_diff(next_method_pointer) as usize
-                            };
+                            let estimated_size =
+                                if method_pointer == 0x0 || next_method_pointer == 0x0 {
+                                    usize::MAX
+                                } else {
+                                    method_pointer.abs_diff(next_method_pointer) as usize
+                                };
 
                             (
                                 method_index,
