@@ -1508,34 +1508,65 @@ pub trait CSType: Sized {
         let instance_ptr = if method.is_static_method() {
             "nullptr"
         } else {
-            "instance"
+            if cpp_type.is_value_type {
+                "const_cast<void*>(reinterpret_cast<const void*>(__instance.data()))"
+            } else {
+                "const_cast<void*>(instance)"
+            }
         };
 
-        let method_invoke_params = vec![instance_ptr, "___internal_method"];
+        let mut method_invoke_params = vec![instance_ptr];
 
         // let logger_line = format!("static auto ___internal__logger = ::Logger::get().WithContext(\"::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals\");")
 
         let params_format = CppParam::params_types(&method_decl.parameters).join(", ");
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
 
-        let method_line = format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_m_name})>::methodInfo();");
-        let run_line = format!(
+        let mut method_body_lines = vec![];
+
+        if let Some(template) = &template { // generic
+            let generics_classes_format =
+                template.names
+                .iter()
+                .map(|(_, t)|
+                    format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()")
+                )
+                .join(", ");
+            let params_types_format =
+                CppParam::params_types(&method_decl.parameters)
+                .map(|t|
+                    format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()")
+                )
+                .join(", ");
+            method_body_lines.push(format!("static auto* ___internal_method = THROW_UNLESS((::il2cpp_utils::FindMethod({instance_ptr}, \"{m_name}\", std::vector<Il2CppClass*>{{{generics_classes_format}}}, ::std::vector<const Il2CppType*>{{{params_types_format}}})));"));
+            method_body_lines.push(format!("static auto* ___generic_method = THROW_UNLESS(::il2cpp_utils::MakeGenericMethod(___internal_method, std::vector<Il2CppClass*>{{{generics_classes_format}}}));"));
+            method_invoke_params.push("___generic_method");
+        } else { // non generic
+            method_body_lines.push(format!("static auto ___internal_method = ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{m_ret_cpp_type_name} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_m_name})>::methodInfo();"));
+            method_invoke_params.push("___internal_method");
+        }
+
+        // run line
+        method_body_lines.push(format!(
             "return ::il2cpp_utils::RunMethodRethrow<{m_ret_cpp_type_name}, false>({});",
             method_invoke_params
                 .into_iter()
                 .chain(param_names)
                 .join(", ")
-        );
+        ));
 
         //   static auto ___internal__logger = ::Logger::get().WithContext("::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals");
         //   auto* ___internal__method = THROW_UNLESS((::il2cpp_utils::FindMethod(this, "Equals", std::vector<Il2CppClass*>{}, ::std::vector<const Il2CppType*>{::il2cpp_utils::ExtractType(obj)})));
         //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
+        // FIXME: it won't allow to just .map() the lines into body, which would be preferable
+        let mut body: Vec<Arc<dyn Writable>> = vec![];
+        method_body_lines
+            .into_iter()
+            .for_each(|l| body.push(Arc::new(CppLine::make(l))));
+
         let method_impl = CppMethodImpl {
-            body: vec![
-                Arc::new(CppLine::make(method_line)),
-                Arc::new(CppLine::make(run_line)),
-            ], //TODO:!
+            body: body,
             parameters: m_params_with_def.clone(),
             brief: None,
             declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
@@ -1554,7 +1585,8 @@ pub trait CSType: Sized {
             ctx_collection.get_cpp_type(tag)
         };
 
-        if let Some(method_calc) = method_calc && !method_stub {
+        // don't emit method size structs for generic methods
+        if let Some(method_calc) = method_calc && template.is_none() && !is_generic_inst {
             cpp_type
                 .nonmember_implementations
                 .push(Rc::new(CppMethodSizeStruct {
@@ -1583,14 +1615,11 @@ pub trait CSType: Sized {
         }
 
         // If a generic instantiation or not a template
-        if !method_stub && !is_generic_inst {
+        if !is_generic_inst {
             cpp_type
                 .implementations
                 .push(CppMember::MethodImpl(method_impl).into());
-        }
 
-        // if not a generic instantiation
-        if !is_generic_inst {
             cpp_type
                 .declarations
                 .push(CppMember::MethodDecl(method_decl).into());
