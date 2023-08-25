@@ -369,8 +369,8 @@ fn main() -> color_eyre::Result<()> {
             .iter()
             .filter(|(_, c)| {
                 c.get_types().iter().any(|(_, t)| {
-                    t.declarations.iter().any(|d| {
-                        if let CppMember::MethodDecl(m) = d.as_ref() {
+                    t.implementations.iter().any(|d| {
+                        if let CppMember::MethodImpl(m) = d.as_ref() {
                             m.parameters.iter().any(|p| p.def_value.is_some())
                         } else {
                             false
@@ -438,6 +438,18 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
+        println!("UnityEngine.GameObject");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace == "UnityEngine" && t.name == "GameObject")
+            })
+            .unwrap()
+            .1
+            .write(&STATIC_CONFIG)?;
         println!("MainFlowCoordinator");
         cpp_context_collection
             .get()
@@ -446,6 +458,18 @@ fn main() -> color_eyre::Result<()> {
                 c.get_types()
                     .iter()
                     .any(|(_, t)| t.namespace.is_empty() && t.name == "MainFlowCoordinator")
+            })
+            .unwrap()
+            .1
+            .write(&STATIC_CONFIG)?;
+        println!("OVRPlugin");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace.is_empty() && t.name == "OVRPlugin")
             })
             .unwrap()
             .1
@@ -474,6 +498,30 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
+        println!("System.ValueTuple_2");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace == "System" && t.name == "ValueTuple`2")
+            })
+            .unwrap()
+            .1
+            .write(&STATIC_CONFIG)?;
+        println!("System.Decimal");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace == "System" && t.name == "Decimal")
+            })
+            .unwrap()
+            .1
+            .write(&STATIC_CONFIG)?;
         println!("System.Enum");
         cpp_context_collection
             .get()
@@ -482,6 +530,42 @@ fn main() -> color_eyre::Result<()> {
                 c.get_types()
                     .iter()
                     .any(|(_, t)| t.namespace == "System" && t.name == "Enum")
+            })
+            .unwrap()
+            .1
+            .write(&STATIC_CONFIG)?;
+        println!("System.Multicast");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace == "System" && t.name == "MulticastDelegate")
+            })
+            .unwrap()
+            .1
+            .write(&STATIC_CONFIG)?;
+        println!("System.Delegate");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.namespace == "System" && t.name == "Delegate")
+            })
+            .unwrap()
+            .1
+            .write(&STATIC_CONFIG)?;
+        println!("BeatmapSaveDataVersion3.BeatmapSaveData.EventBoxGroup`1");
+        cpp_context_collection
+            .get()
+            .iter()
+            .find(|(_, c)| {
+                c.get_types()
+                    .iter()
+                    .any(|(_, t)| t.name.contains("EventBoxGroup`1"))
             })
             .unwrap()
             .1
