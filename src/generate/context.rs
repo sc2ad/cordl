@@ -205,7 +205,7 @@ impl CppContext {
         // this is so confusing but basically gets the relative folder
         // navigation for `_config.hpp`
         let dest_path = diff_paths(
-            &STATIC_CONFIG.dest_header_config_file,
+            &STATIC_CONFIG.dst_header_internals_file,
             self.typedef_path.parent().unwrap(),
         )
         .unwrap();
