@@ -582,12 +582,12 @@ pub trait CSType: Sized {
                 let getter_call = match f_type.is_static() {
                     true => {
                         format!(
-                        "return {CORDL_METHOD_HELPER_NAMESPACE}::get{field_type_specifier}Static<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>();"
+                        "return {CORDL_METHOD_HELPER_NAMESPACE}::getStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>();"
                     )
                     }
                     false => {
                         format!(
-                            "return {CORDL_METHOD_HELPER_NAMESPACE}::get{field_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance});"
+                            "return {CORDL_METHOD_HELPER_NAMESPACE}::getInstanceField<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance});"
                         )
                     }
                 };
@@ -596,12 +596,12 @@ pub trait CSType: Sized {
                 let setter_call = match f_type.is_static() {
                     true => {
                         format!(
-                        "{CORDL_METHOD_HELPER_NAMESPACE}::set{field_type_specifier}Static<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                        "{CORDL_METHOD_HELPER_NAMESPACE}::setStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
                     )
                     }
                     false => {
                         format!(
-                            "{CORDL_METHOD_HELPER_NAMESPACE}::set{field_type_specifier}Instance<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance}, {setter_var_name});"
+                            "{CORDL_METHOD_HELPER_NAMESPACE}::setInstanceField<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance}, std::forward<{field_ty_cpp_name}>({setter_var_name}));"
                         )
                     }
                 };
@@ -1077,11 +1077,11 @@ pub trait CSType: Sized {
                     constexpr {cpp_name}({cpp_name} const&) = default;
                     constexpr {cpp_name}({cpp_name}&&) = default;
                     constexpr {cpp_name}& operator=({cpp_name} const& o) {{
-                        ::cordl_internals::copyByByte(o.__instance, this->__instance); 
+                        ::cordl_internals::copyByByte(o.__instance, this->__instance);
                         return *this;
                     }};
                     constexpr {cpp_name}& operator=({cpp_name}&& o) noexcept {{
-                        ::cordl_internals::copyByByte(o.__instance, this->__instance); 
+                        ::cordl_internals::copyByByte(o.__instance, this->__instance);
                         return *this;
                     }};
                 "
@@ -1245,7 +1245,7 @@ pub trait CSType: Sized {
         cpp_type.declarations.push(
             CppMember::CppLine(CppLine {
                 line: format!(
-                    "        
+                    "
   constexpr {cpp_name}& operator=(std::nullptr_t) noexcept {{
     this->{REFERENCE_WRAPPER_INSTANCE_NAME} = nullptr;
     return *this;
