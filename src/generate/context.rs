@@ -384,7 +384,8 @@ impl CppContext {
         ty: &CppType,
         writer: &mut super::writer::CppWriter,
     ) -> color_eyre::Result<()> {
-        if ty.is_stub {
+        let is_generic_instantiation = ty.generic_instantiation_args.is_some();
+        if is_generic_instantiation {
             return Ok(());
         }
 
@@ -393,12 +394,6 @@ impl CppContext {
                 .cpp_template
                 .as_ref()
                 .is_some_and(|t| !t.names.is_empty());
-
-        let is_generic_instantiation = ty.generic_instantiation_args.is_some();
-
-        if (is_generic_instantiation) {
-            return Ok(());
-        }
 
         if !ty.is_value_type && !ty.is_stub && !template_container_type && !is_generic_instantiation {
             // reference types need no boxing
