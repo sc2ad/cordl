@@ -520,6 +520,8 @@ pub trait CSType: Sized {
             // TODO: Check a flag to look for default values to speed this up
             let def_value = Self::field_default_value(metadata, field_index);
 
+            assert!(def_value.is_none() || (def_value.is_some() && f_type.is_param_optional()));
+
             // TODO: Static fields
             if f_type.is_constant() {
                 let def_value = def_value.expect("Constant with no default value?");
