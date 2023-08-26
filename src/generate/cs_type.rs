@@ -1440,10 +1440,14 @@ pub trait CSType: Sized {
             None
         };
 
-        let literal_types = cpp_type
-            .method_generic_instantiation_map
-            .get(&method_index)
-            .cloned();
+        let literal_types = if is_generic_inst {
+            cpp_type.method_generic_instantiation_map
+                .get(&method_index)
+                .cloned()
+        } else {
+            None
+        };
+        
         let resolved_generic_types = literal_types.map(|literal_types| {
             literal_types
                 .iter()
@@ -2423,8 +2427,6 @@ pub trait CSType: Sized {
     fn get_value_size(klass: &Il2CppTypeDefinition, metadata: &Metadata, align: &mut u32) -> i32 {
     let mut size: i32;
 
-    klass.mi
-
     assert!(klass.byval_arg.valuetype);
 
     if !klass.size_inited {
@@ -2453,7 +2455,7 @@ pub trait CSType: Sized {
 
             *align = match by_val.valuetype {
                 true => 1,
-                false => ,
+                false => todo!(),
             };
         }
         *alignment = klass.minimum_alignment;
