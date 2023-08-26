@@ -483,6 +483,13 @@ pub trait CSType: Sized {
         // Then, for each field, write it out
         cpp_type.declarations.reserve(t.field_count as usize);
         cpp_type.implementations.reserve(t.field_count as usize);
+        
+        let field_offsets = metadata
+                .metadata_registration
+                .field_offsets
+                .as_ref()
+                .unwrap()[tdi.index() as usize];
+
         for (i, field) in t.fields(metadata.metadata).iter().enumerate() {
             let f_type = metadata
                 .metadata_registration
@@ -501,12 +508,20 @@ pub trait CSType: Sized {
 
             let field_index = FieldIndex::new(t.field_start.index() + i as u32);
             let f_name = field.name(metadata.metadata);
-            let f_offset = metadata
-                .metadata_registration
-                .field_offsets
-                .as_ref()
-                .unwrap()[tdi.index() as usize][i];
-            //- pos_field_offset_offset;
+            let f_offset = {
+                let offset = field_offsets[i];
+            
+                if f_type.is_static() {
+                    break;
+                }
+
+                if !t.is_value_type() && !f_type.is_static() && !f_type.is_constant(){
+                    offset
+                } else {
+                    // value type fixup
+                    offset - SIZEOF_IL2CPP_OBJECT
+                }
+            };
 
             if let TypeData::TypeDefinitionIndex(tdi) = f_type.data && metadata.blacklisted_types.contains(&tdi) {
                 if !cpp_type.is_value_type && !cpp_type.is_enum_type {
