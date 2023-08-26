@@ -3,13 +3,13 @@ use std::{
     collections::HashMap,
     io::{Cursor, Read},
     rc::Rc,
-    sync::Arc,
+    sync::Arc, mem,
 };
 
 use brocolib::{
     global_metadata::{
         FieldIndex, Il2CppMethodDefinition, Il2CppTypeDefinition, MethodIndex, ParameterIndex,
-        TypeDefinitionIndex, TypeIndex,
+        TypeDefinitionIndex, TypeIndex, Il2CppFieldDefinition,
     },
     runtime_metadata::{
         Il2CppMethodSpec, Il2CppType, Il2CppTypeDefinitionSizes, Il2CppTypeEnum, TypeData,
@@ -52,6 +52,10 @@ const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::ins
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
 pub const ENUM_WRAPPER_TYPE: &str = "::bs_hook::EnumTypeWrapper";
 pub const INTERFACE_WRAPPER_TYPE: &str = "::cordl_internals::InterfaceW";
+
+        const SIZEOF_IL2CPP_OBJECT: u32 = 0x10;
+        const IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS: u32 = 1;
+
 
 pub trait CSType: Sized {
     fn get_mut_cpp_type(&mut self) -> &mut CppType; // idk how else to do this
@@ -2264,8 +2268,6 @@ pub trait CSType: Sized {
         metadata: &'a Metadata,
     ) -> u32 {
         // TODO:
-        const SIZEOF_IL2CPP_OBJECT: u32 = 0x10;
-        const IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS: u32 = 1;
 
         let mut instance_size: u32 = if ty_def.parent_index == u32::MAX {
             SIZEOF_IL2CPP_OBJECT
@@ -2359,7 +2361,219 @@ pub trait CSType: Sized {
             None
         }
     }
+
+    fn layout_fields(td: &Il2CppTypeDefinition, metadata: &Metadata, filter: FieldInfoFilter, parent_size: usize, actual_parent_size: usize, parent_alignment: usize, packing: u8, data: &mut FieldLayoutData) {
+
+        data.class_size = parent_size;
+        data.actual_class_size = actual_parent_size;
+        data.minimum_alignment = parent_alignment as u8;
+        data.natural_alignment = 0;
+        for (i, field) in td.fields(metadata.metadata).iter().enumerate()
+        {
+            if !filter.matches(field) {
+                continue;
+            }
+
+            SizeAndAlignment sa = GetTypeSizeAndAlignment(klass->fields[i].type);
+
+            // For fields, we might not want to take the actual alignment of the type - that might account for
+            // packing. When a type is used as a field, we should not care about its alignment with packing,
+            // instead let's use its natural alignment, without regard for packing. So if it's alignment
+            // is less than the compiler's minimum alignment (4 bytes), lets use the natural alignment if we have it.
+            uint8_t alignment = sa.alignment;
+            if (alignment < 4 && sa.naturalAlignment != 0)
+                alignment = sa.naturalAlignment;
+            if (packing != 0)
+                alignment = std::min(sa.alignment, packing);
+            size_t offset = data.actual_class_size;
+
+            offset += alignment - 1;
+            offset &= ~(alignment - 1);
+
+            data.field_offsets.push_back(offset);
+            data.actual_class_size = offset + std::max(sa.size, (size_t)1);
+            data.minimum_alignment = std::max(data.minimum_alignment, alignment);
+            data.natural_alignment = std::max({data.natural_alignment, sa.alignment, sa.naturalAlignment});
+        }
+
+        data.class_size = AlignTo(data.actual_class_size, data.minimum_alignment);
+
+//         // C++ ABI difference between MS and Clang
+// #if IL2CPP_CXX_ABI_MSVC
+//         data.actualClassSize = data.classSize;
+// #endif
+    }
+
+
+    fn get_value_size(klass: &Il2CppTypeDefinition, metadata: &Metadata, align: &mut u32) -> i32 {
+    let mut size: i32;
+
+    klass.mi
+
+    assert!(klass.byval_arg.valuetype);
+
+    if !klass.size_inited {
+        // If the size of a value type is not initialized, we cannot continue.
+        // This might mean this is a recursively defined struct, where one value type
+        // has a field of another value type, which in turn has the first as a field.
+        // The runtime should throw a type load exception in this case.
+        let message = format!(
+            "Could not load type '{}:{}'",
+            klass.namespaze,
+            klass.name
+        );
+        klass.set_class_initialization_error(il2cpp::vm::Exception::get_type_load_exception(&message));
+
+        size = 1;
+    } else {
+        size = Class::get_instance_size(klass) - std::mem::size_of::<Il2CppObject>() as i32;
+    }
+
+    if let Some(alignment) = align {
+        if klass.parent_index == u32::MAX {
+            *align = mem::size_of::<*const u8>() as u32;
+        } else {
+            let by_val = &metadata.metadata_registration.types[klass.byval_type_index as usize];
+
+
+            *align = match by_val.valuetype {
+                true => 1,
+                false => ,
+            };
+        }
+        *alignment = klass.minimum_alignment;
+    }
+
+    size
 }
+    
+fn get_type_size_and_alignment(ty: &Il2CppType, metadata: &Metadata) -> SizeAndAlignment {
+    let mut sa = SizeAndAlignment{
+        alignment: 0,
+        natural_alignment: 0,
+        size: 0
+    };
+
+    if ty.byref {
+        sa.size = mem::size_of::<usize>();
+        sa.alignment = mem::align_of::<usize>() as u8;
+        return sa;
+    }
+
+    match ty.ty {
+        Il2CppTypeEnum::I1 | Il2CppTypeEnum::U1 | Il2CppTypeEnum::Boolean => {
+            sa.size = mem::size_of::<i8>();
+            sa.alignment = mem::align_of::<i8>() as u8;
+        }
+        Il2CppTypeEnum::I2 | Il2CppTypeEnum::U2 | Il2CppTypeEnum::Char => {
+            sa.size = mem::size_of::<i16>();
+            sa.alignment = mem::align_of::<i16>() as u8;
+        }
+        Il2CppTypeEnum::I4 | Il2CppTypeEnum::U4 => {
+            sa.size = mem::size_of::<i32>();
+            sa.alignment = mem::align_of::<i32>() as u8;
+        }
+        Il2CppTypeEnum::I8 | Il2CppTypeEnum::U8 => {
+            sa.size = mem::size_of::<i64>();
+            sa.alignment = mem::align_of::<i64>() as u8;
+        },
+        
+        Il2CppTypeEnum::Ptr
+        | Il2CppTypeEnum::Fnptr
+        | Il2CppTypeEnum::String
+        | Il2CppTypeEnum::Szarray
+        | Il2CppTypeEnum::Array
+        | Il2CppTypeEnum::Class
+        | Il2CppTypeEnum::Object
+        | Il2CppTypeEnum::Var
+        | Il2CppTypeEnum::Mvar => {
+            // voidptr_t
+            sa.size = mem::size_of::<usize>();
+            sa.alignment = mem::align_of::<usize>() as u8;
+        }
+        Il2CppTypeEnum::Valuetype => {
+            let TypeData::TypeDefinitionIndex(tdi) = ty.data else {panic!()};
+            let td = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+            if td.is_enum_type() {
+                let enum_base_type = metadata.metadata_registration.types[td.parent_index as usize];
+                return Self::get_type_size_and_alignment(&enum_base_type, metadata);
+            } else {
+                let klass = Type::get_class(ty);
+                let alignment = 0; // TODO: Get alignment
+                sa.size = Class::get_value_size(&klass, &alignment);
+                sa.alignment = alignment;
+                sa.natural_alignment = klass.natural_alignment;
+            }
+        }
+        Il2CppTypeEnum::Genericinst => {
+            let gclass = ty.data.generic_class.unwrap(); // Assuming it's not NULL
+            let container_class = GenericClass::get_type_definition(&gclass);
+
+            if let Some(container_class) = container_class {
+                if container_class.byval_arg.valuetype {
+                    if container_class.enumtype {
+                        let enum_base_type = Class::get_enum_base_type(container_class);
+                        return get_type_size_and_alignment(&enum_base_type);
+                    } else {
+                        let klass = Class::from_il2cpp_type(ty);
+                        let alignment = 0; // TODO: Get alignment
+                        sa.size = Class::get_value_size(&klass, &alignment);
+                        sa.alignment = alignment;
+                    }
+                } else {
+                    sa.size = mem::size_of::<usize>();
+                    sa.alignment = mem::align_of::<usize>();
+                }
+            } else {
+                sa.size = mem::size_of::<usize>();
+                sa.alignment = mem::align_of::<usize>();
+            }
+        }
+
+        // ... Implement other cases
+
+        _ => {
+            // TODO: Handle other cases
+            // IL2CPP_ASSERT(0);
+        }
+    }
+
+    sa
+}
+
+fn align_to(size: usize, alignment: usize) -> usize {
+    if size & (alignment - 1) != 0 {
+        (size + alignment - 1) & !(alignment - 1)
+    } else {
+        size
+    }
+}
+}
+
+pub enum FieldInfoFilter {
+
+}
+
+impl FieldInfoFilter {
+    pub fn matches(&self, field: &Il2CppFieldDefinition) -> bool {
+        todo!()
+    }
+}
+    struct SizeAndAlignment
+    {
+        size: usize,
+        alignment: u8,
+        natural_alignment: u8
+    }
+        struct FieldLayoutData
+        {
+            field_offsets: Vec<usize>,
+            class_size: usize,
+            actual_class_size: usize,
+            minimum_alignment: u8,
+            natural_alignment: u8
+        }
 
 impl CSType for CppType {
     #[inline(always)]
