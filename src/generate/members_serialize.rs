@@ -4,7 +4,7 @@ use super::{
 };
 
 use itertools::Itertools;
-use std::{io::Write, sync::Arc};
+use std::{io::Write};
 
 impl Writable for CppTemplate {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {

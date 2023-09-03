@@ -238,7 +238,7 @@ impl CppType {
     pub fn write_impl_internal(
         &self,
         writer: &mut super::writer::CppWriter,
-        namespace: Option<&str>,
+        _namespace: Option<&str>,
     ) -> color_eyre::Result<()> {
         self.nonmember_implementations
             .iter()
