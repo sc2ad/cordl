@@ -7,5 +7,6 @@ pub mod cs_type;
 pub mod members;
 pub mod members_serialize;
 pub mod metadata;
+pub mod offsets;
 pub mod type_extensions;
 pub mod writer;
