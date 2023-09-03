@@ -19,6 +19,7 @@ fs_extra = "*"
 # utils
 pathdiff = "0.2"
 walkdir = "2"
+log = "0.4.20"
 
 [profiles.release]
 opt-level = 3
