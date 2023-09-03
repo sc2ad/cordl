@@ -109,9 +109,13 @@ fn main() -> color_eyre::Result<()> {
         method_calculations: Default::default(),
         parent_to_child_map: Default::default(),
         child_to_parent_map: Default::default(),
+        // TODO: These should come from args to the program?
         custom_type_handler: Default::default(),
         name_to_tdi: Default::default(),
         blacklisted_types: Default::default(),
+        pointer_size: generate::metadata::PointerSize::Bytes8,
+        // For most il2cpp versions
+        packing_field_offset: 7,
     };
     let t = time::Instant::now();
     println!("Parsing metadata methods");

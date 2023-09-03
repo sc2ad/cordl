@@ -10,6 +10,13 @@ pub struct MethodCalculations {
     pub addrs: u64,
 }
 
+#[repr(u8)]
+#[derive(Clone, Copy)]
+pub enum PointerSize {
+    Bytes4 = 4,
+    Bytes8 = 8,
+}
+
 #[derive(Clone)]
 pub struct TypeDefinitionPair<'a> {
     pub ty: &'a Il2CppTypeDefinition,
@@ -43,9 +50,18 @@ pub struct Metadata<'a> {
     pub custom_type_handler: HashMap<TypeDefinitionIndex, TypeHandlerFn>,
     pub name_to_tdi: HashMap<Il2cppFullName<'a>, TypeDefinitionIndex>,
     pub blacklisted_types: HashSet<TypeDefinitionIndex>,
+
+    pub pointer_size: PointerSize,
+    pub packing_field_offset: u8,
 }
 
 impl<'a> Metadata<'a> {
+    /// Returns the size of the base object.
+    /// To be used for boxing/unboxing and various offset computations.
+    pub fn object_size(&self) -> u8 {
+        return (self.pointer_size as u8) * 2;
+    }
+
     pub fn parse(&mut self) {
         let gm = &self.metadata.global_metadata;
         self.parse_name_tdi(gm);
