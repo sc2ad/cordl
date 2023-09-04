@@ -3,6 +3,7 @@
 #include "config.hpp"
 #include <array>
 #include <cstddef>
+#include <cstring>
 
 namespace cordl_internals {
     namespace internal {
@@ -22,29 +23,21 @@ namespace cordl_internals {
 
     template <std::size_t sz>
     CORDL_HIDDEN constexpr void copyByByte(std::array<std::byte, sz> const& src, std::array<std::byte, sz>& dst) {
-        for (auto i = 0; i < sz; i++) {
-            dst[i] = src[i];
-        }
+        dst = src;
     }
 
     template <std::size_t sz>
     CORDL_HIDDEN constexpr void copyByByte(void* src, void* dst) {
-        for (auto i = 0; i < sz; i++) {
-            reinterpret_cast<uint8_t*>(dst)[i] = reinterpret_cast<uint8_t*>(src)[i];
-        }
+        std::memcpy(dst, src, sz);
     }
 
     template <std::size_t sz>
     CORDL_HIDDEN constexpr void moveByByte(std::array<std::byte, sz>&& src, std::array<std::byte, sz>& dst) {
-        for (auto i = 0; i < sz; i++) {
-            dst[i] = std::move(src[i]);
-        }
+        dst = std::move(src);
     }
 
     template <std::size_t sz>
     CORDL_HIDDEN constexpr void moveByByte(void* src, void* dst) {
-        for (auto i = 0; i < sz; i++) {
-            reinterpret_cast<uint8_t*>(dst)[i] = std::move(reinterpret_cast<uint8_t*>(src)[i]);
-        }
+        std::memmove(dst, src, sz);
     }
 }

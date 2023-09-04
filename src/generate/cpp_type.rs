@@ -109,6 +109,9 @@ impl CppTypeRequirements {
     pub fn needs_int_include(&mut self) {
         self.add_include(None, CppInclude::new_system("cstdint"));
     }
+    pub fn needs_byte_include(&mut self) {
+        self.add_include(None, CppInclude::new_system("cstddef"));
+    }
     pub fn needs_math_include(&mut self) {
         self.add_include(None, CppInclude::new_system("cmath"));
     }
