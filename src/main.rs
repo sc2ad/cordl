@@ -13,6 +13,7 @@ use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData}
 use color_eyre::Result;
 use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
+extern crate pretty_env_logger;
 use walkdir::DirEntry;
 
 use std::{
@@ -71,6 +72,7 @@ pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| Generati
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let cli: Cli = Cli::parse();
+    pretty_env_logger::init();
     if !cli.format {
         println!("Add --format/-f to format with clang-format at end")
     }
