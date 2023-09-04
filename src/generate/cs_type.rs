@@ -9,12 +9,10 @@ use std::{
 
 use brocolib::{
     global_metadata::{
-        FieldIndex, Il2CppTypeDefinition,
-        MethodIndex, ParameterIndex, TypeDefinitionIndex, TypeIndex,
+        FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex, TypeDefinitionIndex,
+        TypeIndex,
     },
-    runtime_metadata::{
-        Il2CppMethodSpec, Il2CppType, Il2CppTypeEnum, TypeData,
-    },
+    runtime_metadata::{Il2CppMethodSpec, Il2CppType, Il2CppTypeEnum, TypeData},
 };
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -48,6 +46,7 @@ type Endian = LittleEndian;
 const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
 const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "__instance";
+const VALUE_TYPE_WRAPPER_SIZE: &str = "__CORDL_VALUE_TYPE_SIZE";
 const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
 
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
@@ -187,7 +186,7 @@ pub trait CSType: Sized {
         let mut metadata_size = offsets::get_size_of_type_table(metadata, tdi)
             .unwrap()
             .instance_size;
-        if metadata_size == 0 {
+        if metadata_size == 0 && !t.is_interface() {
             debug!(
                 "Computing instance size by laying out type for tdi: {:?}",
                 tdi
@@ -196,6 +195,22 @@ pub trait CSType: Sized {
                 .size
                 .try_into()
                 .unwrap();
+            // Remove implicit size of object from total size of instance
+        }
+        if t.is_value_type() {
+            // For value types we need to ALWAYS subtract our object size
+            metadata_size = metadata_size
+                .checked_sub(metadata.object_size() as u32)
+                .unwrap();
+            debug!(
+                "Resulting computed instance size (post subtractiong) for type {:?} is: {}",
+                t.full_name(metadata.metadata, true),
+                metadata_size
+            );
+            // If we are still 0, todo!
+            if (metadata_size == 0) {
+                todo!("We do not yet support cases where the instance type would be a 0 AFTER we have done computation!");
+            }
         }
 
         // Modified later for nested types
@@ -990,15 +1005,28 @@ pub trait CSType: Sized {
     fn create_valuetype_field_wrapper(&mut self) {
         let cpp_type = self.get_mut_cpp_type();
         if cpp_type.calculated_size.is_none() {
-            return;
+            todo!("Why does this type not have a valid size??? {:?}", cpp_type);
         }
 
         let size = cpp_type.calculated_size.unwrap();
 
+        cpp_type.requirements.needs_byte_include();
+        cpp_type.declarations.push(
+            CppMember::FieldDecl(CppFieldDecl {
+                cpp_name: VALUE_TYPE_WRAPPER_SIZE.to_string(),
+                field_ty: "auto".to_string(),
+                instance: false,
+                readonly: false,
+                const_expr: true,
+                value: Some(format!("0x{size:x}")),
+                brief_comment: Some("The size of the true value type".to_string()),
+            })
+            .into(),
+        );
         cpp_type.declarations.push(
             CppMember::FieldDecl(CppFieldDecl {
                 cpp_name: VALUE_TYPE_WRAPPER_INSTANCE_NAME.to_string(),
-                field_ty: format!("std::array<std::byte, 0x{size:x}>"),
+                field_ty: format!("std::array<std::byte, {}>", VALUE_TYPE_WRAPPER_SIZE),
                 instance: true,
                 readonly: false,
                 const_expr: false,
