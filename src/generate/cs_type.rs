@@ -544,22 +544,22 @@ pub trait CSType: Sized {
             let f_name = field.name(metadata.metadata);
             let f_offset = {
                 if f_type.is_static() {
-                    break;
-                }
-
-                // If we have a hotfix offset, use that instead
-                // We can safely assume this always returns None even if we "next" past the end
-                let offset = if let Some(computed_offset) = offset_iter.next() {
-                    *computed_offset
+                    0
                 } else {
-                    field_offsets[i]
-                };
+                        // If we have a hotfix offset, use that instead
+                    // We can safely assume this always returns None even if we "next" past the end
+                    let offset = if let Some(computed_offset) = offset_iter.next() {
+                        *computed_offset
+                    } else {
+                        field_offsets[i]
+                    };
 
-                if !t.is_value_type() && !f_type.is_static() && !f_type.is_constant() {
-                    offset
-                } else {
-                    // value type fixup
-                    offset - metadata.object_size() as u32
+                    if !t.is_value_type() && !f_type.is_static() && !f_type.is_constant() {
+                        offset
+                    } else {
+                        // value type fixup
+                        offset - metadata.object_size() as u32
+                    }
                 }
             };
 
@@ -629,13 +629,9 @@ pub trait CSType: Sized {
                     }
                 }
             } else {
-                let _field_type_specifier = match f_type.valuetype {
-                    true => "ValueType",
-                    false => "ReferenceType",
-                };
                 let self_wrapper_instance = match t.is_value_type() || t.is_enum_type() {
-                    true => VALUE_TYPE_WRAPPER_INSTANCE_NAME,
-                    false => REFERENCE_WRAPPER_INSTANCE_NAME,
+                    true => format!("{VALUE_TYPE_WRAPPER_INSTANCE_NAME}.data()"),
+                    false => REFERENCE_WRAPPER_INSTANCE_NAME.to_string(),
                 };
 
                 let klass_resolver = cpp_type.classof_cpp_name();
@@ -1131,6 +1127,7 @@ pub trait CSType: Sized {
             let constructor_impl = CppConstructorImpl {
                 body,
                 parameters: instance_fields,
+                declaring_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
                 ..constructor_decl.clone().into()
             };
 
@@ -1379,7 +1376,7 @@ pub trait CSType: Sized {
 
         let cpp_constructor_impl = CppConstructorImpl {
             body: vec![], // TODO:!
-            declaring_full_name: cpp_type.cpp_full_name.clone(),
+            declaring_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
             parameters: m_params.to_vec(),
             base_ctor: Some((
                 cpp_type.inherit.get(0).expect("No base ctor?").clone(),
@@ -1436,7 +1433,6 @@ pub trait CSType: Sized {
 
             let def_value = Self::param_default_value(metadata, param_index);
             let must_include = false;
-
             let make_param_cpp_type_name = |cpp_type: &mut CppType| {
                 let name =
                     cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, must_include);
@@ -1594,6 +1590,8 @@ pub trait CSType: Sized {
 
         let method_invoke_params = vec![instance_ptr, METHOD_INFO_VAR_NAME];
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
+        let declaring_type_cpp_full_name = cpp_type.formatted_complete_cpp_name().to_string();
+        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{declaring_type_cpp_full_name}>::get()");
 
         let params_types_format: String = CppParam::params_types(&method_decl.parameters)
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
@@ -1614,9 +1612,9 @@ pub trait CSType: Sized {
 
                 vec![
                     format!("static auto* ___internal_method_base = THROW_UNLESS((::il2cpp_utils::FindMethod(
-                        {instance_ptr}, 
+                        {declaring_classof_call},
                         \"{m_name}\",
-                        std::vector<Il2CppClass*>{{{generics_classes_format}}}, 
+                        std::vector<Il2CppClass*>{{{generics_classes_format}}},
                         ::std::vector<const Il2CppType*>{{{params_types_format}}}
                     )));"),
                     format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS(::il2cpp_utils::MakeGenericMethod(
@@ -1628,9 +1626,9 @@ pub trait CSType: Sized {
             None => {
                 vec![
                     format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::FindMethod(
-                            {instance_ptr},
+                            {declaring_classof_call},
                             \"{m_name}\",
-                            std::vector<Il2CppClass*>{{}}, 
+                            std::vector<Il2CppClass*>{{}},
                             ::std::vector<const Il2CppType*>{{{params_types_format}}}
                         )));"),
                 ]
@@ -1638,7 +1636,7 @@ pub trait CSType: Sized {
         };
 
         let method_body_lines = [format!(
-            "return ::il2cpp_utils::RunMethodRethrow<{m_ret_cpp_type_name}, false>({});",
+            "return ::cordl_internals::RunMethodRethrow<{m_ret_cpp_type_name}, false>({});",
             method_invoke_params
                 .into_iter()
                 .chain(param_names)
@@ -1658,7 +1656,7 @@ pub trait CSType: Sized {
                 .collect_vec(),
             parameters: m_params_with_def.clone(),
             brief: None,
-            declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
+            declaring_cpp_full_name: declaring_type_cpp_full_name,
             instance: !method.is_static_method(),
             suffix_modifiers: Default::default(),
             prefix_modifiers: Default::default(),

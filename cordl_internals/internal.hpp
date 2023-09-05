@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
+#include <string_view>
 
 namespace cordl_internals {
     namespace internal {
@@ -12,6 +13,9 @@ namespace cordl_internals {
                 std::copy_n(n, sz, data.begin());
             }
             std::array<char, sz> data;
+            constexpr operator std::string_view() const {
+                return {data.data(), sz};
+            }
         };
     }
 

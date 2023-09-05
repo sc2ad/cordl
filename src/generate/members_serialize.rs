@@ -153,7 +153,7 @@ impl Writable for CppFieldImpl {
         let value = &self.value;
         writeln!(
             writer,
-            "static {prefixes} {ty} {suffixes} {declaring_ty}::{name}{{{value}}};"
+            "{prefixes} {ty} {suffixes} {declaring_ty}::{name}{{{value}}};"
         )?;
 
         Ok(())
@@ -203,13 +203,11 @@ impl Writable for CppMethodDecl {
             prefix_modifiers.push("static");
         }
 
-        if body.is_some() {
-            if self.is_constexpr {
-                prefix_modifiers.push("constexpr")
-            } else if self.body.is_some() {
-                //implicitly inline
-                prefix_modifiers.push("inline")
-            }
+        if self.is_constexpr {
+            prefix_modifiers.push("constexpr")
+        } else if self.body.is_some() {
+            //implicitly inline
+            prefix_modifiers.push("inline")
         }
 
         if self.is_virtual {
@@ -287,6 +285,10 @@ impl Writable for CppMethodImpl {
             .map(|s| s.as_str())
             .collect_vec();
 
+        if self.is_constexpr {
+            prefix_modifiers.push("constexpr");
+        }
+
         if self.is_virtual {
             prefix_modifiers.push("virtual");
         }
@@ -338,13 +340,11 @@ impl Writable for CppConstructorDecl {
         let mut prefix_modifiers = vec![];
         let mut suffix_modifiers = vec![];
 
-        if body.is_some() {
-            if self.is_constexpr {
-                prefix_modifiers.push("constexpr")
-            } else if self.body.is_some() {
-                //implicitly inline
-                prefix_modifiers.push("inline")
-            }
+        if self.is_constexpr {
+            prefix_modifiers.push("constexpr")
+        } else if self.body.is_some() {
+            //implicitly inline
+            prefix_modifiers.push("inline")
         }
 
         if self.is_explicit {
@@ -418,13 +418,26 @@ impl Writable for CppConstructorImpl {
             }
         };
 
+        let mut suffix_modifiers: Vec<&str> = vec![];
+        if self.is_no_except {
+            suffix_modifiers.push("noexcept")
+        }
+
+        let mut prefix_modifiers: Vec<&str> = vec![];
+        if self.is_constexpr {
+            prefix_modifiers.push("constexpr")
+        }
+
         let full_name = &self.declaring_full_name;
         let declaring_name = &self.declaring_name;
         let params = CppParam::params_as_args_no_default(&self.parameters).join(", ");
 
+        let prefixes = prefix_modifiers.join(" ");
+        let suffixes = suffix_modifiers.join(" ");
+
         write!(
             writer,
-            "{full_name}::{declaring_name}({params}) {initializers} {{",
+            "{prefixes} {full_name}::{declaring_name}({params}) {suffixes} {initializers} {{",
         )?;
 
         self.body.iter().try_for_each(|w| w.write(writer))?;
@@ -488,20 +501,21 @@ impl Writable for CppMethodSizeStruct {
 
         let params_format = CppParam::params_types(&self.params).join(", ");
 
+        let method_info_var = &self.method_info_var;
+
         let method_info_lines = if let Some(slot) = self.slot && !self.is_final {
             vec![
                 format!("
-                            THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(
+                            static auto* {method_info_var} = THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(
                                 classof({complete_type_name}),
                                  {interface_klass_of}(),
                                   {slot}
-                                ))")
+                                ));")
             ]
         } else {
             self.method_info_lines.clone()
         }.join("\n");
 
-        let method_info_var = &self.method_info_var;
 
         let f_ptr_prefix = if self.instance {
             format!("{}::", self.declaring_type_name)

@@ -9,9 +9,6 @@
 namespace cordl_internals {
 #pragma region boxing
     template<typename T>
-    CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T&&);
-
-    template<typename T>
     CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T);
 
     template<typename T>
@@ -19,14 +16,6 @@ namespace cordl_internals {
 
     template<>
     CORDL_HIDDEN constexpr ::bs_hook::Il2CppWrapperType Box<::bs_hook::Il2CppWrapperType>(::bs_hook::Il2CppWrapperType t) { return t; }
-
-    template<>
-    CORDL_HIDDEN constexpr ::bs_hook::Il2CppWrapperType Box<::bs_hook::Il2CppWrapperType&&>(::bs_hook::Il2CppWrapperType&& t) { return t; }
-
-    template<il2cpp_value_type T>
-    CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T&& t) {
-        return ::bs_hook::Il2CppWrapperType(il2cpp_functions::value_box(classof(T), const_cast<void*>(static_cast<const void*>(t.__instance.data()))));
-    }
 
     template<il2cpp_value_type T>
     CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T t) {
@@ -41,54 +30,22 @@ namespace cordl_internals {
 
 #pragma region unboxing
     template<typename T>
-    CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType);
-
-    template<typename T>
-    CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType&&);
+    CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) {
+        return *reinterpret_cast<T*>(il2cpp_functions::object_unbox(t));
+    }
 
     template<il2cpp_reference_type T>
     CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) { return T(t.convert()); }
 
     template<il2cpp_value_type T>
     CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) {
-        std::remove_const_t<T> v{};
-        copyByByte<sizeof(v.__instance)>(
+        std::array<uint8_t, sizeof(T)> v;
+        auto val = reinterpret_cast<T*>(v.data());
+        copyByByte<sizeof(T::__CORDL_VALUE_TYPE_SIZE)>(
             reinterpret_cast<void*>(il2cpp_functions::object_unbox(t)),
-            reinterpret_cast<void*>(v.__instance.data())
+            reinterpret_cast<void*>(val->__instance.data())
         );
-        return v;
-    }
-
-    template<il2cpp_value_type T>
-    CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType&& t) {
-        std::remove_const_t<T> v{};
-        copyByByte<sizeof(v.__instance)>(
-            reinterpret_cast<void*>(il2cpp_functions::object_unbox(t)),
-            reinterpret_cast<void*>(v.__instance.data())
-        );
-        return v;
-    }
-
-    template<typename T>
-    requires(!il2cpp_reference_type<T> && !il2cpp_value_type<T>)
-    CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) {
-        std::remove_const_t<T> v{};
-        copyByByte<sizeof(v.__instance)>(
-            reinterpret_cast<void*>(il2cpp_functions::object_unbox(t)),
-            reinterpret_cast<void*>(&v)
-        );
-        return v;
-    }
-
-    template<typename T>
-    requires(!il2cpp_reference_type<T> && !il2cpp_value_type<T>)
-    CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType&& t) {
-        std::remove_const_t<T> v{};
-        copyByByte<sizeof(v.__instance)>(
-            reinterpret_cast<void*>(il2cpp_functions::object_unbox(t)),
-            reinterpret_cast<void*>(&v)
-        );
-        return v;
+        return *val;
     }
 #pragma endregion // unboxing
 

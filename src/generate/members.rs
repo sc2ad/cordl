@@ -249,6 +249,7 @@ impl From<CppMethodDecl> for CppMethodImpl {
             is_no_except: value.is_no_except,
             is_operator: value.is_operator,
             is_virtual: value.is_virtual,
+            is_constexpr: value.is_constexpr,
             parameters: value.parameters,
             prefix_modifiers: value.prefix_modifiers,
             suffix_modifiers: value.suffix_modifiers,
@@ -271,6 +272,7 @@ pub struct CppMethodImpl {
     pub template: Option<CppTemplate>,
     pub is_const: bool,
     pub is_virtual: bool,
+    pub is_constexpr: bool,
     pub is_no_except: bool,
     pub is_operator: bool,
 

@@ -6,6 +6,18 @@
 #include "exceptions.hpp"
 
 namespace cordl_internals {
+  template<internal::NTTPString name, auto klass_resolver>
+  CORDL_HIDDEN FieldInfo* FindField() {
+    static auto* klass = klass_resolver();
+    if (!klass)
+      throw NullException(std::string("Class for static field with name: ") +
+                          name.data.data() + " is null!");
+    static auto* field = ::il2cpp_utils::FindField(klass, name);
+    if (!field)
+      throw FieldException(std::string("Could not set static field with name: ") +
+                          name.data.data());
+    return field;
+  }
 #pragma region field setters
   template<typename T, std::size_t offset>
   CORDL_HIDDEN constexpr void setInstanceField(void*, T&&);
@@ -34,38 +46,20 @@ namespace cordl_internals {
 
   template<il2cpp_reference_type T, internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN void setStaticField(T&& v) {
-    auto klass = klass_resolver();
-    if (!klass)
-      throw NullException(std::string("Class for static field with name: ") +
-                          name.data.data() + " is null!");
-    auto val = ::il2cpp_utils::SetFieldValue(klass, name.data.data(), v.convert());
-    if (!val)
-      throw FieldException(std::string("Could not set static field with name: ") +
-                          name.data.data());
+    static auto* field = FindField<name, klass_resolver>();
+    ::il2cpp_functions::field_static_set_value(field, static_cast<void*>(v.convert()));
   }
 
   template<il2cpp_value_type T, internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN void setStaticField(T&& v) {
-    auto klass = klass_resolver();
-    if (!klass)
-      throw NullException(std::string("Class for static field with name: ") +
-                          name.data.data() + " is null!");
-    auto val = ::il2cpp_utils::SetFieldValue(klass, name.data.data(), v.__instance);
-    if (!val)
-      throw FieldException(std::string("Could not set static field with name: ") +
-                          name.data.data());
+    static auto* field = FindField<name, klass_resolver>();
+    ::il2cpp_functions::field_static_set_value(field, static_cast<void*>(v.__instance.data()));
   }
 
   template<typename T, internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN void setStaticField(T&& v) {
-    auto klass = klass_resolver();
-    if (!klass)
-      throw NullException(std::string("Class for static field with name: ") +
-                          name.data.data() + " is null!");
-    auto val = ::il2cpp_utils::SetFieldValue(klass, name.data.data(), v);
-    if (!val)
-      throw FieldException(std::string("Could not set static field with name: ") +
-                          name.data.data());
+    static auto* field = FindField<name, klass_resolver>();
+    ::il2cpp_functions::field_static_set_value(field, static_cast<void*>(&v));
   }
 
 #pragma endregion // field setters
@@ -108,43 +102,29 @@ namespace cordl_internals {
   /// @brief gets a reference type static field with name from klass
   template <il2cpp_reference_type T, internal::NTTPString name, auto klass_resolver>
   [[nodiscard]] CORDL_HIDDEN T getStaticField() {
-    auto klass = klass_resolver();
-    if (!klass)
-      throw NullException(std::string("Class for static field with name: ") +
-                          name.data.data() + " is null!");
-    auto val = ::il2cpp_utils::GetFieldValue<Il2CppObject*>(klass, name.data.data());
-    if (!val)
-      throw FieldException(std::string("Could not get static field with name: ") +
-                          name.data.data());
-    return T(reinterpret_cast<void*>(*val));
+    static auto* field = FindField<name, klass_resolver>();
+    void* val{};
+    ::il2cpp_functions::field_static_get_value(field, &val);
+    return T(val);
   }
 
   /// @brief gets a reference type static field with name from klass
   template <il2cpp_value_type T, internal::NTTPString name, auto klass_resolver>
   [[nodiscard]] CORDL_HIDDEN T getStaticField() {
-    auto klass = klass_resolver();
-    if (!klass)
-      throw NullException(std::string("Class for static field with name: ") +
-                          name.data.data() + " is null!");
-    auto val = ::il2cpp_utils::GetFieldValue<T>(klass, name.data.data());
-    if (!val)
-      throw FieldException(std::string("Could not get static field with name: ") +
-                          name.data.data());
+    static auto* field = FindField<name, klass_resolver>();
+    std::array<uint8_t, sizeof(T)> v;
+    auto val = reinterpret_cast<T*>(v.data());
+    ::il2cpp_functions::field_static_get_value(field, static_cast<void*>(val->__instance.data()));
     return *val;
   }
 
   /// @brief gets a reference type static field with name from klass
   template <typename T, internal::NTTPString name, auto klass_resolver>
   [[nodiscard]] CORDL_HIDDEN T getStaticField() {
-    auto klass = klass_resolver();
-    if (!klass)
-      throw NullException(std::string("Class for static field with name: ") +
-                          name.data.data() + " is null!");
-    auto val = ::il2cpp_utils::GetFieldValue<T>(klass, name.data.data());
-    if (!val)
-      throw FieldException(std::string("Could not get static field with name: ") +
-                          name.data.data());
-    return *val;
+    static auto* field = FindField<name, klass_resolver>();
+    T val{};
+    ::il2cpp_functions::field_static_get_value(field, static_cast<void*>(&val));
+    return val;
   }
 #pragma endregion // field getters
 }
