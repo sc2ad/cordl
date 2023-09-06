@@ -60,7 +60,7 @@ namespace cordl_internals {
 
   template<typename T, std::size_t offset, std::size_t sz>
   CORDL_HIDDEN constexpr void setInstanceField(std::array<std::byte, sz>& instance, T&& v) {
-    static_assert(offset <= sz - sizeof(T), "offset is too large for the size of the instance to be assigned comfortably!", "offset is too large for the size of the instance to be assigned comfortably!");
+    static_assert(offset <= sz - sizeof(T), "offset is too large for the size of the instance to be assigned comfortably!");
     std::copy_n(std::bit_cast<std::array<std::byte, sizeof(T)>>(v).begin(), sizeof(T), std::next(instance.begin(), offset));
   }
 
