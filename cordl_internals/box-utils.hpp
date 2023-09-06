@@ -39,10 +39,9 @@ namespace cordl_internals {
 
     template<il2cpp_value_type T>
     CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) {
-        std::array<uint8_t, sizeof(T)> v; // shitty way of getting a 0 inited value type struct even if it doesn't have a default ctor
-        auto val = reinterpret_cast<T*>(v.data());
-        std::memcpy(val->__instance.data(), il2cpp_functions::object_unbox(t), T::__CORDL_VALUE_TYPE_SIZE);
-        return *val;
+        std::array<std::byte, T::__CORDL_VALUE_TYPE_SIZE> data;
+        std::memcpy(data.data(), il2cpp_functions::object_unbox(t), T::__CORDL_VALUE_TYPE_SIZE);
+        return T(data);
     }
 #pragma endregion // unboxing
 

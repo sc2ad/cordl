@@ -1044,7 +1044,7 @@ pub trait CSType: Sized {
         cpp_type.declarations.push(
             CppMember::FieldDecl(CppFieldDecl {
                 cpp_name: VALUE_TYPE_WRAPPER_INSTANCE_NAME.to_string(),
-                field_ty: format!("std::array<std::byte, {}>", VALUE_TYPE_WRAPPER_SIZE),
+                field_ty: format!("std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>"),
                 instance: true,
                 readonly: false,
                 const_expr: false,
@@ -1052,7 +1052,54 @@ pub trait CSType: Sized {
                 brief_comment: Some("Holds the value type data".to_string()),
             })
             .into(),
-        )
+        );
+
+        let mut field_initializer: HashMap<String, String> = HashMap::new();
+        field_initializer.insert("__instance".into(), "instance".into());
+
+        cpp_type.declarations.push(
+            CppMember::ConstructorDecl(CppConstructorDecl {
+                cpp_name: cpp_type.cpp_name.clone(),
+                parameters: vec![
+                    CppParam {
+                        name: "instance".to_string(),
+                        ty: format!("std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>"),
+                        modifiers: " const&".to_string(),
+                        def_value: None,
+                    }
+                ],
+                template: None,
+                is_constexpr: true,
+                is_explicit: true,
+                is_default: false,
+                is_no_except: true,
+                base_ctor: Some((cpp_type.inherit.get(0).unwrap().to_string(), "".to_string())),
+                initialized_values: field_initializer.clone(),
+                brief: Some("Constructor that lets you initialize the internal array explicitly".into()),
+                body: Some(vec![]),
+        }).into());
+
+        cpp_type.declarations.push(
+            CppMember::ConstructorDecl(CppConstructorDecl {
+                cpp_name: cpp_type.cpp_name.clone(),
+                parameters: vec![
+                    CppParam {
+                        name: "instance".to_string(),
+                        ty: format!("std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>"),
+                        modifiers: "&&".to_string(),
+                        def_value: None,
+                    }
+                ],
+                template: None,
+                is_constexpr: true,
+                is_explicit: true,
+                is_default: false,
+                is_no_except: true,
+                base_ctor: Some((cpp_type.inherit.get(0).unwrap().to_string(), "".to_string())),
+                initialized_values: field_initializer,
+                brief: Some("Constructor that lets you initialize the internal array explicitly".into()),
+                body: Some(vec![]),
+        }).into())
     }
 
     fn create_valuetype_constructor(

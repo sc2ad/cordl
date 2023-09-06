@@ -89,56 +89,50 @@ namespace cordl_internals {
 
 #pragma region field getters
   template<typename T, std::size_t offset>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(void* instance);
+  [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance);
 
   template<typename T, std::size_t offset, std::size_t sz>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(std::array<std::byte, sz>& instance);
+  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance);
 
   /// @brief gets a reference type field value @ offset
   template<il2cpp_reference_type T, std::size_t offset>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(void* instance) {
-    return T(*reinterpret_cast<void**>(getAtOffset<offset>(instance)));
+  [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance) {
+    return T(*const_cast<void**>(getAtOffset<offset>(instance)));
   }
 
   template<il2cpp_reference_type T, std::size_t offset, std::size_t sz>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(std::array<std::byte, sz>& instance) {
-    return T(*static_cast<void**>(&std::next(instance.begin() + offset)));
+  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance) {
+    return T(*const_cast<void**>(static_cast<const void**>(static_cast<const void*>(&std::next(instance.begin() + offset)))));
   }
 
   /// @brief gets a value type field value @ offset
   template<il2cpp_value_type T, std::size_t offset>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(void* instance) {
-    T v{};
-    copyByByte<sizeof(v.__instance)>(
-      reinterpret_cast<void*>(getAtOffset<offset>(instance)),
-      v.__instance.data()
-    );
-    return std::move(v);
+  [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance) {
+    std::array<std::byte, T::__CORDL_VALUE_TYPE_SIZE> data;
+    std::memcpy(data.data(), getAtOffset<offset>(instance), T::__CORDL_VALUE_TYPE_SIZE);
+    return T(data);
   }
 
   template<il2cpp_value_type T, std::size_t offset, std::size_t sz>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(std::array<std::byte, sz>& instance) {
-    std::array<std::byte, sizeof(T)> arr;
-    T* val = static_cast<T*>(arr.data());
-    std::copy_n(std::next(instance.begin(), offset), T::__CORDL_VALUE_TYPE_SIZE, val->__instance.begin());
-    return *val;
+  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance) {
+    static_assert(offset <= sz - T::__CORDL_VALUE_TYPE_SIZE, "offset is too large for the size of the instance to be assigned comfortably!");
+    std::array<std::byte, T::__CORDL_VALUE_TYPE_SIZE> data;
+    std::copy_n(std::next(instance.begin(), offset), T::__CORDL_VALUE_TYPE_SIZE, data.begin());
+    return T(data);
   }
 
   /// @brief gets an arbitrary field value @ offset
   template<typename T, std::size_t offset>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(void* instance) {
-    T v{};
-    copyByByte<sizeof(v)>(
-      reinterpret_cast<void*>(getAtOffset<offset>(instance)),
-      &v
-    );
-    return std::move(v);
+  [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance) {
+    std::array<std::byte, sizeof(T)> data;
+    std::memcpy(data.data(), getAtOffset<offset>(instance), sizeof(T));
+    return std::bit_cast<T>(data);
   }
 
   /// @brief gets an arbitrary field value @ offset
   template<typename T, std::size_t offset, std::size_t sz>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(std::array<std::byte, sz>& instance) {
-    static_assert(offset <= sz - sizeof(T));
+  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance) {
+    static_assert(offset <= sz - sizeof(T), "offset is too large for the size of the instance to be assigned comfortably!");
     std::array<std::byte, sizeof(T)> arr;
     std::copy_n(std::next(instance.begin(), offset), sizeof(T), arr.begin());
     return std::bit_cast<T>(arr);
@@ -160,10 +154,9 @@ namespace cordl_internals {
   template <il2cpp_value_type T, internal::NTTPString name, auto klass_resolver>
   [[nodiscard]] CORDL_HIDDEN T getStaticField() {
     static auto* field = FindField<name, klass_resolver>();
-    std::array<uint8_t, sizeof(T)> v;
-    auto val = reinterpret_cast<T*>(v.data());
-    ::il2cpp_functions::field_static_get_value(field, static_cast<void*>(val->__instance.data()));
-    return *val;
+    std::array<std::byte, T::__CORDL_VALUE_TYPE_SIZE> data;
+    ::il2cpp_functions::field_static_get_value(field, static_cast<void*>(data.data()));
+    return T(val);
   }
 
   /// @brief gets a reference type static field with name from klass
