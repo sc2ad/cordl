@@ -47,6 +47,7 @@ const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
 const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "__instance";
 const VALUE_TYPE_WRAPPER_SIZE: &str = "__CORDL_VALUE_TYPE_SIZE";
+const REFERENCE_TYPE_WRAPPER_SIZE: &str = "__CORDL_REFERENCE_TYPE_SIZE";
 const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
 
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
@@ -312,6 +313,7 @@ pub trait CSType: Sized {
         } else if t.is_interface() {
             self.make_interface_constructors();
         } else {
+            self.create_ref_size();
             self.create_ref_default_constructor();
             self.create_ref_default_operators();
         }
@@ -630,7 +632,7 @@ pub trait CSType: Sized {
                 }
             } else {
                 let self_wrapper_instance = match t.is_value_type() || t.is_enum_type() {
-                    true => format!("{VALUE_TYPE_WRAPPER_INSTANCE_NAME}.data()"),
+                    true => VALUE_TYPE_WRAPPER_INSTANCE_NAME.to_string(),
                     false => REFERENCE_WRAPPER_INSTANCE_NAME.to_string(),
                 };
 
@@ -672,7 +674,7 @@ pub trait CSType: Sized {
                     body: None, // TODO:
                     // Const if instance for now
                     is_const: false, // TODO: readonly fields?
-                    is_constexpr: true,
+                    is_constexpr: !f_type.is_static() || f_type.is_constant(),
                     is_virtual: false,
                     is_operator: false,
                     is_no_except: false, // TODO:
@@ -690,7 +692,7 @@ pub trait CSType: Sized {
                     brief: None,
                     body: None,      //TODO:
                     is_const: false, // TODO: readonly fields?
-                    is_constexpr: true,
+                    is_constexpr: !f_type.is_static() || f_type.is_constant(),
                     is_virtual: false,
                     is_operator: false,
                     is_no_except: false, // TODO:
@@ -995,6 +997,26 @@ pub trait CSType: Sized {
                 })
                 .into(),
             );
+        }
+    }
+
+    fn create_ref_size(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        if let Some(size) = cpp_type.calculated_size {
+            cpp_type.declarations.push(
+                CppMember::FieldDecl(CppFieldDecl {
+                    cpp_name: REFERENCE_TYPE_WRAPPER_SIZE.to_string(),
+                    field_ty: "auto".to_string(),
+                    instance: false,
+                    readonly: false,
+                    const_expr: true,
+                    value: Some(format!("0x{size:x}")),
+                    brief_comment: Some("The size of the true reference type".to_string()),
+                })
+                .into(),
+            );
+        } else {
+            todo!("Why does this type not have a valid size??? {:?}", cpp_type);
         }
     }
 

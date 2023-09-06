@@ -6,6 +6,7 @@
 #include "box-utils.hpp"
 #include <type_traits>
 #include <sstream>
+#include "beatsaber-hook/shared/utils/typedefs-string.hpp"
 
 namespace cordl_internals {
 #pragma region extract values
@@ -39,6 +40,10 @@ template<typename T>
             return nullptr;
         }
     }
+
+    template<>
+    CORDL_HIDDEN void* ExtractValue<::StringW>(::StringW& arg) { return arg.convert(); }
+
 
     template<il2cpp_reference_type T>
     CORDL_HIDDEN constexpr void* ExtractValue(T& arg) { return arg.convert(); }
@@ -106,6 +111,12 @@ template<typename T>
             return nullptr;
         }
     }
+
+    template<>
+    CORDL_HIDDEN void* ExtractTypeValue<::StringW>(::StringW& arg) { return arg.convert(); }
+
+    template<>
+    CORDL_HIDDEN void* ExtractTypeValue<::StringW>(::StringW&& arg) { return arg.convert(); }
 
     template<il2cpp_reference_type T>
     requires(!std::is_same_v<T, ::bs_hook::Il2CppWrapperType>)
