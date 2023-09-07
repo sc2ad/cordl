@@ -22,7 +22,13 @@ namespace cordl_internals {
     /// @brief gets an offset from a given pointer
     template <std::size_t offset>
     CORDL_HIDDEN constexpr inline void** getAtOffset(void* instance) {
-        return reinterpret_cast<void**>(static_cast<uint8_t*>(instance) + offset);
+        return static_cast<void**>(static_cast<void*>(static_cast<uint8_t*>(instance) + offset));
+    }
+
+    /// @brief gets an offset from a given pointer
+    template <std::size_t offset>
+    CORDL_HIDDEN constexpr inline const void* const* getAtOffset(const void* instance) {
+        return static_cast<const void* const*>(static_cast<const void*>(static_cast<const uint8_t*>(instance) + offset));
     }
 
     template <std::size_t sz>

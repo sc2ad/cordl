@@ -67,7 +67,7 @@ namespace cordl_internals {
   /// @brief set trivial value @ offset on instance
   template<typename T, std::size_t offset>
   CORDL_HIDDEN void setInstanceField(void* instance, T&& v) {
-    std::memcpy(getAtOffset<offset>(instance), &v, T::__CORDL_VALUE_TYPE_SIZE);
+    std::memcpy(getAtOffset<offset>(instance), &v, sizeof(T));
   }
 
   /// @brief set trivial value @ offset on instance of size sz
