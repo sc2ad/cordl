@@ -5,8 +5,12 @@
 #include "internal.hpp"
 #include "exceptions.hpp"
 #include <bit>
+#include <cstddef>
 
 namespace cordl_internals {
+  /// @brief method to find a field info in a klass
+  /// @tparam name field name
+  /// @tparam klass_resolver method to get the Il2CppClass* on which to get the klass
   template<internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN FieldInfo* FindField() {
     static auto* klass = klass_resolver();
@@ -20,18 +24,26 @@ namespace cordl_internals {
     return field;
   }
 #pragma region field setters
+  /// @brief template for field setter method on ref types
+  /// @tparam T field type
+  /// @tparam offset field offset
   template<typename T, std::size_t offset>
-  CORDL_HIDDEN constexpr void setInstanceField(void*, T&&);
+  CORDL_HIDDEN void setInstanceField(void*, T&&);
 
+  /// @brief template for field setter method on value types
+  /// @tparam T field type
+  /// @tparam offset field offset
   template<typename T, std::size_t offset, std::size_t sz>
   CORDL_HIDDEN constexpr void setInstanceField(std::array<std::byte, sz>&, T&&);
 
+  /// @brief set reference type value @ offset on instance
   template<il2cpp_reference_type T, std::size_t offset>
   CORDL_HIDDEN void setInstanceField(void* instance, T&& v) {
     ::il2cpp_functions::Init();
     ::il2cpp_functions::gc_wbarrier_set_field(reinterpret_cast<Il2CppObject*>(instance), getAtOffset<offset>(instance), v.convert());
   }
 
+  /// @brief set reference type value @ offset on instance of size sz
   template<il2cpp_reference_type T, std::size_t offset, std::size_t sz>
   CORDL_HIDDEN void setInstanceField(std::array<std::byte, sz>& instance, T&& v) {
     // TODO: should assigning a ref type field on a value type instance also require wbarrier?
@@ -39,46 +51,54 @@ namespace cordl_internals {
     std::copy_n(std::bit_cast<std::array<std::byte, sizeof(void*)>>(v.convert()), sizeof(void*), std::next(instance.begin(), offset));
   }
 
+  /// @brief set value type value @ offset on instance
   template<il2cpp_value_type T, std::size_t offset>
-  CORDL_HIDDEN constexpr void setInstanceField(void* instance, T&& v) {
-    copyByByte<sizeof(v.__instance)>(
-      const_cast<void*>(reinterpret_cast<const void*>(v.__instance.data())),
-      reinterpret_cast<void*>(getAtOffset<offset>(instance))
-    );
+  CORDL_HIDDEN void setInstanceField(void* instance, T&& v) {
+    std::memcpy(getAtOffset<offset>(instance), v.__instance.data(), T::__CORDL_VALUE_TYPE_SIZE);
   }
 
+  /// @brief set value type value @ offset on instance of size sz
   template<il2cpp_value_type T, std::size_t offset, std::size_t sz>
   CORDL_HIDDEN constexpr void setInstanceField(std::array<std::byte, sz>& instance, T&& v) {
     static_assert(offset <= sz - T::__CORDL_VALUE_TYPE_SIZE, "offset is too large for the size of the instance to be assigned comfortably!");
     std::copy_n(v.__instance.begin(), T::__CORDL_VALUE_TYPE_SIZE, std::next(instance, offset));
   }
 
+  /// @brief set trivial value @ offset on instance
   template<typename T, std::size_t offset>
-  CORDL_HIDDEN constexpr void setInstanceField(void* instance, T&& v) {
-    *reinterpret_cast<T*>(getAtOffset<offset>(instance)) = v;
+  CORDL_HIDDEN void setInstanceField(void* instance, T&& v) {
+    std::memcpy(getAtOffset<offset>(instance), &v, T::__CORDL_VALUE_TYPE_SIZE);
   }
 
+  /// @brief set trivial value @ offset on instance of size sz
   template<typename T, std::size_t offset, std::size_t sz>
   CORDL_HIDDEN constexpr void setInstanceField(std::array<std::byte, sz>& instance, T&& v) {
     static_assert(offset <= sz - sizeof(T), "offset is too large for the size of the instance to be assigned comfortably!");
     std::copy_n(std::bit_cast<std::array<std::byte, sizeof(T)>>(v).begin(), sizeof(T), std::next(instance.begin(), offset));
   }
 
+  /// @brief template for setting a static field on a class
+  /// @tparam T field type
+  /// @tparam name field name
+  /// @tparam klass_resolver method to get the Il2CppClass* on which the field resides
   template<typename T, internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN void setStaticField(T&& v);
 
+  /// @brief method to set a field that's a reference type
   template<il2cpp_reference_type T, internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN void setStaticField(T&& v) {
     static auto* field = FindField<name, klass_resolver>();
     ::il2cpp_functions::field_static_set_value(field, static_cast<void*>(v.convert()));
   }
 
+  /// @brief method to set a field that's a value type
   template<il2cpp_value_type T, internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN void setStaticField(T&& v) {
     static auto* field = FindField<name, klass_resolver>();
     ::il2cpp_functions::field_static_set_value(field, static_cast<void*>(v.__instance.data()));
   }
 
+  /// @brief method to set a field that's a trivial type
   template<typename T, internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN void setStaticField(T&& v) {
     static auto* field = FindField<name, klass_resolver>();
@@ -88,24 +108,32 @@ namespace cordl_internals {
 #pragma endregion // field setters
 
 #pragma region field getters
+  /// @brief template for field getter method on ref types
+  /// @tparam T field type
+  /// @tparam offset field offset
   template<typename T, std::size_t offset>
   [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance);
 
+  /// @brief template for field getter method on value types
+  /// @tparam T field type
+  /// @tparam offset field offset
+  /// @tparam sz wrapper array size
   template<typename T, std::size_t offset, std::size_t sz>
   [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance);
 
-  /// @brief gets a reference type field value @ offset
+  /// @brief get reference type value @ offset on instance
   template<il2cpp_reference_type T, std::size_t offset>
   [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance) {
     return T(*const_cast<void**>(getAtOffset<offset>(instance)));
   }
 
+  /// @brief get reference type value @ offset on instance of size sz
   template<il2cpp_reference_type T, std::size_t offset, std::size_t sz>
   [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance) {
     return T(*const_cast<void**>(static_cast<const void**>(static_cast<const void*>(&std::next(instance.begin() + offset)))));
   }
 
-  /// @brief gets a value type field value @ offset
+  /// @brief get value type value @ offset on instance
   template<il2cpp_value_type T, std::size_t offset>
   [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance) {
     std::array<std::byte, T::__CORDL_VALUE_TYPE_SIZE> data;
@@ -113,6 +141,7 @@ namespace cordl_internals {
     return T(data);
   }
 
+  /// @brief get value type value @ offset on instance of size sz
   template<il2cpp_value_type T, std::size_t offset, std::size_t sz>
   [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance) {
     static_assert(offset <= sz - T::__CORDL_VALUE_TYPE_SIZE, "offset is too large for the size of the instance to be assigned comfortably!");
@@ -121,7 +150,7 @@ namespace cordl_internals {
     return T(data);
   }
 
-  /// @brief gets an arbitrary field value @ offset
+  /// @brief get trivial type value @ offset on instance
   template<typename T, std::size_t offset>
   [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance) {
     std::array<std::byte, sizeof(T)> data;
@@ -129,7 +158,7 @@ namespace cordl_internals {
     return std::bit_cast<T>(data);
   }
 
-  /// @brief gets an arbitrary field value @ offset
+  /// @brief get trivial type value @ offset on instance of size sz
   template<typename T, std::size_t offset, std::size_t sz>
   [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance) {
     static_assert(offset <= sz - sizeof(T), "offset is too large for the size of the instance to be assigned comfortably!");
@@ -138,10 +167,14 @@ namespace cordl_internals {
     return std::bit_cast<T>(arr);
   }
 
+  /// @brief template for getting a static field on a class
+  /// @tparam T field type
+  /// @tparam name field name
+  /// @tparam klass_resolver method to get the Il2CppClass* on which the field resides
   template <typename T, internal::NTTPString name, auto klass_resolver>
   [[nodiscard]] CORDL_HIDDEN T getStaticField();
 
-  /// @brief gets a reference type static field with name from klass
+  /// @brief method to set a field that's a reference type
   template <il2cpp_reference_type T, internal::NTTPString name, auto klass_resolver>
   [[nodiscard]] CORDL_HIDDEN T getStaticField() {
     static auto* field = FindField<name, klass_resolver>();
@@ -150,7 +183,7 @@ namespace cordl_internals {
     return T(val);
   }
 
-  /// @brief gets a reference type static field with name from klass
+  /// @brief method to set a field that's a value type
   template <il2cpp_value_type T, internal::NTTPString name, auto klass_resolver>
   [[nodiscard]] CORDL_HIDDEN T getStaticField() {
     static auto* field = FindField<name, klass_resolver>();
@@ -159,7 +192,7 @@ namespace cordl_internals {
     return T(val);
   }
 
-  /// @brief gets a reference type static field with name from klass
+  /// @brief method to set a field that's a trivial type
   template <typename T, internal::NTTPString name, auto klass_resolver>
   [[nodiscard]] CORDL_HIDDEN T getStaticField() {
     static auto* field = FindField<name, klass_resolver>();
