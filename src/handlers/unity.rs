@@ -40,13 +40,27 @@ fn unity_object_handler(cpp_type: &mut CppType) {
         .requirements
         .add_include(None, CppInclude::new_exact(path));
 
-    // Fixup ctor call
+    // Fixup ctor call declarations
     cpp_type
         .declarations
         .iter_mut()
         .filter(|t| matches!(t.as_ref(), CppMember::ConstructorDecl(_)))
         .for_each(|d| {
             let CppMember::ConstructorDecl(constructor) = Rc::get_mut(d).unwrap() else {
+                panic!()
+            };
+
+            if let Some(base_ctor) = &mut constructor.base_ctor {
+                base_ctor.0 = "UnityW".to_string();
+            }
+        });
+    // Fixup ctor call implementations
+    cpp_type
+        .implementations
+        .iter_mut()
+        .filter(|t| matches!(t.as_ref(), CppMember::ConstructorImpl(_)))
+        .for_each(|d| {
+            let CppMember::ConstructorImpl(constructor) = Rc::get_mut(d).unwrap() else {
                 panic!()
             };
 
