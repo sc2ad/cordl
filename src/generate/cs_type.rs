@@ -665,15 +665,16 @@ pub trait CSType: Sized {
                     }
                 };
 
+                let is_instance = !f_type.is_static() && !f_type.is_constant();
                 let getter_decl = CppMethodDecl {
                     cpp_name: format!("__get_{}", config.name_cpp(f_name)),
-                    instance: !f_type.is_static() && !f_type.is_constant(),
+                    instance: is_instance,
                     return_type: field_ty_cpp_name.clone(),
 
                     brief: None,
                     body: None, // TODO:
                     // Const if instance for now
-                    is_const: false, // TODO: readonly fields?
+                    is_const: is_instance,
                     is_constexpr: !f_type.is_static() || f_type.is_constant(),
                     is_virtual: false,
                     is_operator: false,
