@@ -307,9 +307,15 @@ pub trait CSType: Sized {
 
         // we depend on parents and generic args here
         // default ctor
-        if t.is_value_type() || t.is_enum_type() {
+        if t.is_value_type() && !t.is_enum_type(){
             self.create_valuetype_constructor(metadata, ctx_collection, config, tdi);
             self.create_valuetype_field_wrapper();
+            self.create_valuetype_convert();
+        } else if t.is_value_type() && t.is_enum_type() {
+            self.create_enum_constructor(metadata, ctx_collection, config, tdi);
+            self.create_enum_field_wrapper();
+            self.create_enum_convert();
+            self.create_enum_int_operator();
         } else if t.is_interface() {
             self.make_interface_constructors();
         } else {
@@ -1020,6 +1026,116 @@ pub trait CSType: Sized {
             todo!("Why does this type not have a valid size??? {:?}", cpp_type);
         }
     }
+    fn create_enum_constructor(
+        &mut self,
+        metadata: &Metadata,
+        ctx_collection: &CppContextCollection,
+        config: &GenerationConfig,
+        tdi: TypeDefinitionIndex,
+    ) {
+        // TODO: can we take a shortcut here since we know it's an enum? we can basically just emit a ctor that just sets the instance value
+        self.create_valuetype_constructor(metadata, ctx_collection, config, tdi)
+    }
+
+    fn create_enum_field_wrapper(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        if cpp_type.calculated_size.is_none() {
+            todo!("Why does this type not have a valid size??? {:?}", cpp_type);
+        }
+
+        let size = cpp_type.calculated_size.unwrap();
+        let f_type = match size {
+            1 => "int8_t".to_string(),
+            2 => "int16_t".to_string(),
+            4 => "int32_t".to_string(),
+            8 => "int64_t".to_string(),
+            16 => "int128_t".to_string(),
+            _ => format!("/* unknown size ({size}) */ int32_t"),
+        };
+
+        cpp_type.requirements.needs_byte_include();
+        cpp_type.declarations.push(
+            CppMember::FieldDecl(CppFieldDecl {
+                cpp_name: VALUE_TYPE_WRAPPER_SIZE.to_string(),
+                field_ty: "auto".to_string(),
+                instance: false,
+                readonly: false,
+                const_expr: true,
+                value: Some(format!("0x{size:x}")),
+                brief_comment: Some("The size of the true value type".to_string()),
+            })
+            .into(),
+        );
+
+        cpp_type.declarations.push(
+            CppMember::FieldDecl(CppFieldDecl {
+                cpp_name: VALUE_TYPE_WRAPPER_INSTANCE_NAME.to_string(),
+                field_ty: f_type.clone(),
+                instance: true,
+                readonly: false,
+                const_expr: false,
+                value: None,
+                brief_comment: Some("Holds the value type data".to_string()),
+            })
+            .into(),
+        );
+    }
+
+    fn create_enum_convert(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        cpp_type.declarations.push(
+            CppMember::MethodDecl(CppMethodDecl {
+                body: Some(vec![Arc::new(CppLine::make(format!("return const_cast<void*>(static_cast<const void*>(&{VALUE_TYPE_WRAPPER_INSTANCE_NAME}));").into()))]),
+                cpp_name: "convert".to_string(),
+                return_type: "void*".to_string(),
+                parameters: vec![],
+                instance: true,
+                template: None,
+                suffix_modifiers: vec![],
+                prefix_modifiers: vec![],
+                is_virtual: false,
+                is_constexpr: true,
+                is_const: true,
+                is_no_except: true,
+                is_operator: false,
+                brief: Some("conversion method for value type".into()),
+            }).into())
+        }
+
+    fn create_enum_int_operator(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        if cpp_type.calculated_size.is_none() {
+            todo!("Why does this type not have a valid size??? {:?}", cpp_type);
+        }
+
+        let size = cpp_type.calculated_size.unwrap();
+        let f_type = match size {
+            1 => "int8_t".to_string(),
+            2 => "int16_t".to_string(),
+            4 => "int32_t".to_string(),
+            8 => "int64_t".to_string(),
+            16 => "int128_t".to_string(),
+            _ => format!("/* unknown size ({size}) */ int32_t"),
+        };
+
+        cpp_type.declarations.push(
+            CppMember::MethodDecl(CppMethodDecl {
+                body: Some(vec![Arc::new(CppLine::make("return __instance;".into()))]),
+                cpp_name: Default::default(),
+                return_type: f_type.clone(),
+                parameters: vec![],
+                instance: true,
+                template: None,
+                suffix_modifiers: vec![],
+                prefix_modifiers: vec![],
+                is_virtual: false,
+                is_constexpr: true,
+                is_const: true,
+                is_no_except: true,
+                is_operator: true,
+                brief: Some(format!("operator {f_type} for switch statements")),
+            }).into())
+    }
 
     fn create_valuetype_field_wrapper(&mut self) {
         let cpp_type = self.get_mut_cpp_type();
@@ -1079,6 +1195,27 @@ pub trait CSType: Sized {
                 brief: Some("Constructor that lets you initialize the internal array explicitly".into()),
                 body: Some(vec![]),
         }).into());
+    }
+
+    fn create_valuetype_convert(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        cpp_type.declarations.push(
+            CppMember::MethodDecl(CppMethodDecl {
+                body: Some(vec![Arc::new(CppLine::make(format!("return const_cast<void*>(static_cast<const void*>({VALUE_TYPE_WRAPPER_INSTANCE_NAME}.data()));").into()))]),
+                cpp_name: "convert".to_string(),
+                return_type: "void*".to_string(),
+                parameters: vec![],
+                instance: true,
+                template: None,
+                suffix_modifiers: vec![],
+                prefix_modifiers: vec![],
+                is_virtual: false,
+                is_constexpr: true,
+                is_const: true,
+                is_no_except: true,
+                is_operator: false,
+                brief: Some("conversion method for value type".into()),
+            }).into())
     }
 
     fn create_valuetype_constructor(
@@ -1196,11 +1333,11 @@ pub trait CSType: Sized {
                     constexpr {cpp_name}({cpp_name} const&) = default;
                     constexpr {cpp_name}({cpp_name}&&) = default;
                     constexpr {cpp_name}& operator=({cpp_name} const& o) {{
-                        ::cordl_internals::copyByByte(o.__instance, this->__instance);
+                        __instance = o.__instance;
                         return *this;
                     }};
                     constexpr {cpp_name}& operator=({cpp_name}&& o) noexcept {{
-                        ::cordl_internals::copyByByte(o.__instance, this->__instance);
+                        __instance = std::move(o.__instance);
                         return *this;
                     }};
                 "

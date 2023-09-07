@@ -41,15 +41,9 @@ template<typename T>
         }
     }
 
-    template<>
-    CORDL_HIDDEN void* ExtractValue<::StringW>(::StringW& arg) { return arg.convert(); }
-
-
-    template<il2cpp_reference_type T>
+    template<il2cpp_convertible T>
+    requires(!std::is_same_v<T, ::bs_hook::Il2CppWrapperType>)
     CORDL_HIDDEN constexpr void* ExtractValue(T& arg) { return arg.convert(); }
-
-    template<il2cpp_value_type T>
-    CORDL_HIDDEN constexpr void* ExtractValue(T& arg) { return arg.__instance.data(); }
 
     CORDL_HIDDEN inline auto ExtractValues() {
         return ::std::vector<void*>();
@@ -112,24 +106,14 @@ template<typename T>
         }
     }
 
-    template<>
-    CORDL_HIDDEN void* ExtractTypeValue<::StringW>(::StringW& arg) { return arg.convert(); }
-
-    template<>
-    CORDL_HIDDEN void* ExtractTypeValue<::StringW>(::StringW&& arg) { return arg.convert(); }
-
-    template<il2cpp_reference_type T>
+    template<il2cpp_convertible T>
     requires(!std::is_same_v<T, ::bs_hook::Il2CppWrapperType>)
     CORDL_HIDDEN constexpr void* ExtractTypeValue(T& arg) { return arg.convert(); }
 
-    template<il2cpp_reference_type T>
+    template<il2cpp_convertible T>
+    requires(!std::is_same_v<T, ::bs_hook::Il2CppWrapperType>)
     CORDL_HIDDEN constexpr void* ExtractTypeValue(T&& arg) { return arg.convert(); }
 
-    template<il2cpp_value_type T>
-    CORDL_HIDDEN constexpr void* ExtractTypeValue(T& arg) { return arg.__instance.data(); }
-
-    template<il2cpp_value_type T>
-    CORDL_HIDDEN constexpr void* ExtractTypeValue(T&& arg) { return arg.__instance.data(); }
 #pragma endregion // extract type values
 
 #pragma region extract type
