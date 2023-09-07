@@ -2050,7 +2050,11 @@ pub trait CSType: Sized {
                         .find(|&p| p.name_index == generic_param.name_index)
                         .unwrap();
 
-                    gen_param.name(metadata.metadata).to_string()
+                    if typ.is_byref() {
+                        format!("ByRef<{}>", gen_param.name(metadata.metadata)).to_string()
+                    } else {
+                        gen_param.name(metadata.metadata).to_string()
+                    }
                 }
                 _ => todo!(),
             },
