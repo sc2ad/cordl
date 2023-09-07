@@ -1055,7 +1055,7 @@ pub trait CSType: Sized {
         );
 
         let mut field_initializer: HashMap<String, String> = HashMap::new();
-        field_initializer.insert("__instance".into(), "instance".into());
+        field_initializer.insert("__instance".into(), "std::move(instance)".into());
 
         cpp_type.declarations.push(
             CppMember::ConstructorDecl(CppConstructorDecl {
@@ -1064,7 +1064,7 @@ pub trait CSType: Sized {
                     CppParam {
                         name: "instance".to_string(),
                         ty: format!("std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>"),
-                        modifiers: " const&".to_string(),
+                        modifiers: Default::default(),
                         def_value: None,
                     }
                 ],
