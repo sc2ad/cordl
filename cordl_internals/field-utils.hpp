@@ -130,7 +130,7 @@ namespace cordl_internals {
   /// @brief get reference type value @ offset on instance of size sz
   template<il2cpp_reference_type T, std::size_t offset, std::size_t sz>
   [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance) {
-    return T(*const_cast<void**>(static_cast<const void**>(static_cast<const void*>(&std::next(instance.begin() + offset)))));
+    return T(*const_cast<void**>(static_cast<const void* const*>(static_cast<const void*>(&std::next(instance.begin() + offset)))));
   }
 
   /// @brief get value type value @ offset on instance
@@ -189,7 +189,7 @@ namespace cordl_internals {
     static auto* field = FindField<name, klass_resolver>();
     std::array<std::byte, T::__CORDL_VALUE_TYPE_SIZE> data;
     ::il2cpp_functions::field_static_get_value(field, static_cast<void*>(data.data()));
-    return T(val);
+    return T(data);
   }
 
   /// @brief method to set a field that's a trivial type
