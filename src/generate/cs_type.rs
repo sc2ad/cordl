@@ -1078,28 +1078,6 @@ pub trait CSType: Sized {
                 brief: Some("Constructor that lets you initialize the internal array explicitly".into()),
                 body: Some(vec![]),
         }).into());
-
-        cpp_type.declarations.push(
-            CppMember::ConstructorDecl(CppConstructorDecl {
-                cpp_name: cpp_type.cpp_name.clone(),
-                parameters: vec![
-                    CppParam {
-                        name: "instance".to_string(),
-                        ty: format!("std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>"),
-                        modifiers: "&&".to_string(),
-                        def_value: None,
-                    }
-                ],
-                template: None,
-                is_constexpr: true,
-                is_explicit: true,
-                is_default: false,
-                is_no_except: true,
-                base_ctor: Some((cpp_type.inherit.get(0).unwrap().to_string(), "".to_string())),
-                initialized_values: field_initializer,
-                brief: Some("Constructor that lets you initialize the internal array explicitly".into()),
-                body: Some(vec![]),
-        }).into())
     }
 
     fn create_valuetype_constructor(
