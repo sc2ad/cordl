@@ -311,6 +311,9 @@ pub trait CSType: Sized {
             self.create_valuetype_constructor(metadata, ctx_collection, config, tdi);
             self.create_valuetype_field_wrapper();
             self.create_valuetype_convert();
+            if t.is_enum_type() {
+                self.create_enum_wrapper(metadata, ctx_collection, config, tdi);
+            }
         } else if t.is_interface() {
             self.make_interface_constructors();
         } else {
@@ -1020,6 +1023,84 @@ pub trait CSType: Sized {
         } else {
             todo!("Why does this type not have a valid size??? {:?}", cpp_type);
         }
+    }
+
+    fn create_enum_wrapper(
+        &mut self,
+        metadata: &Metadata,
+        ctx_collection: &CppContextCollection,
+        config: &GenerationConfig,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = Self::get_type_definition(metadata, tdi);
+        let mut wrapper_declaration = vec![];
+        let unwrapped_name = format!("__{}_Unwrapped", cpp_type.cpp_name());
+        let backing_field =
+            t.fields(metadata.metadata)
+            .iter()
+            .map(|field| {
+                let f_type = metadata
+                .metadata_registration
+                .types
+                .get(field.type_index as usize)
+                .unwrap();
+                match f_type.is_static() {
+                    true => None,
+                    false => Some(f_type)
+                }
+            })
+            .find(|f| f.is_some())
+            .unwrap().unwrap();
+
+        let enum_base = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field, false);
+
+        wrapper_declaration.push(format!("enum class {unwrapped_name} : {enum_base} {{"));
+
+        for (i, field) in t.fields(metadata.metadata).iter().enumerate() {
+            let f_type = metadata
+                .metadata_registration
+                .types
+                .get(field.type_index as usize)
+                .unwrap();
+
+            if f_type.is_static() { // enums static fields are always the enum values
+                let field_index = FieldIndex::new(t.field_start.index() + i as u32);
+                let f_name = field.name(metadata.metadata);
+                let value = Self::field_default_value(metadata, field_index).expect("Enum without value!");
+
+                wrapper_declaration.push(format!("__{f_name} = {value},"));
+            }
+        }
+
+        wrapper_declaration.push("};".into());
+
+        cpp_type.declarations.push(
+            CppMember::CppLine(CppLine::make(
+                wrapper_declaration.join("\n")
+            )).into()
+        );
+
+        let operator_body = format!("return std::bit_cast<{unwrapped_name}>({VALUE_TYPE_WRAPPER_INSTANCE_NAME});");
+        let operator_decl = CppMethodDecl {
+            cpp_name: Default::default(),
+            instance: true,
+            return_type: unwrapped_name,
+
+            brief: Some("Conversion into unwrapped enum value".to_string()),
+            body: Some(vec![Arc::new(CppLine::make(operator_body))]), // TODO:
+            is_const: true,
+            is_constexpr: true,
+            is_virtual: false,
+            is_operator: true,
+            is_no_except: true, // TODO:
+            parameters: vec![],
+            prefix_modifiers: vec![],
+            suffix_modifiers: vec![],
+            template: None,
+        };
+        cpp_type.declarations.push(CppMember::MethodDecl(operator_decl).into());
+
     }
 
     fn create_valuetype_field_wrapper(&mut self) {
