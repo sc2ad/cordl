@@ -17,14 +17,10 @@ namespace cordl_internals {
     template<>
     CORDL_HIDDEN constexpr ::bs_hook::Il2CppWrapperType Box<::bs_hook::Il2CppWrapperType>(::bs_hook::Il2CppWrapperType t) { return t; }
 
-    template<il2cpp_value_type T>
+    template<il2cpp_convertible T>
+    requires(!std::is_base_of_v<::bs_hook::Il2CppWrapperType, T>)
     CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T t) {
-        return ::bs_hook::Il2CppWrapperType(il2cpp_functions::value_box(classof(T), const_cast<void*>(static_cast<const void*>(t.__instance.data()))));
-    }
-
-    template<il2cpp_value_type T>
-    CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T* t) {
-        return ::bs_hook::Il2CppWrapperType(il2cpp_functions::value_box(classof(T), const_cast<void*>(static_cast<const void*>(t->__instance.data()))));
+        return ::bs_hook::Il2CppWrapperType(il2cpp_functions::value_box(classof(T), t.convert()));
     }
 #pragma endregion // boxing
 
