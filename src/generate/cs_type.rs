@@ -307,7 +307,7 @@ pub trait CSType: Sized {
 
         // we depend on parents and generic args here
         // default ctor
-        if t.is_value_type() || t.is_enum_type(){
+        if t.is_value_type() || t.is_enum_type() {
             self.create_valuetype_constructor(metadata, ctx_collection, config, tdi);
             self.create_valuetype_field_wrapper();
             self.create_valuetype_convert();
@@ -552,7 +552,7 @@ pub trait CSType: Sized {
                 if f_type.is_static() {
                     0
                 } else {
-                        // If we have a hotfix offset, use that instead
+                    // If we have a hotfix offset, use that instead
                     // We can safely assume this always returns None even if we "next" past the end
                     let offset = if let Some(computed_offset) = offset_iter.next() {
                         *computed_offset
@@ -1036,22 +1036,23 @@ pub trait CSType: Sized {
         let t = Self::get_type_definition(metadata, tdi);
         let mut wrapper_declaration = vec![];
         let unwrapped_name = format!("__{}_Unwrapped", cpp_type.cpp_name());
-        let backing_field =
-            t.fields(metadata.metadata)
+        let backing_field = t
+            .fields(metadata.metadata)
             .iter()
             .map(|field| {
                 let f_type = metadata
-                .metadata_registration
-                .types
-                .get(field.type_index as usize)
-                .unwrap();
+                    .metadata_registration
+                    .types
+                    .get(field.type_index as usize)
+                    .unwrap();
                 match f_type.is_static() {
                     true => None,
-                    false => Some(f_type)
+                    false => Some(f_type),
                 }
             })
             .find(|f| f.is_some())
-            .unwrap().unwrap();
+            .unwrap()
+            .unwrap();
 
         let enum_base = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field, false);
 
@@ -1064,10 +1065,12 @@ pub trait CSType: Sized {
                 .get(field.type_index as usize)
                 .unwrap();
 
-            if f_type.is_static() { // enums static fields are always the enum values
+            if f_type.is_static() {
+                // enums static fields are always the enum values
                 let field_index = FieldIndex::new(t.field_start.index() + i as u32);
                 let f_name = field.name(metadata.metadata);
-                let value = Self::field_default_value(metadata, field_index).expect("Enum without value!");
+                let value =
+                    Self::field_default_value(metadata, field_index).expect("Enum without value!");
 
                 wrapper_declaration.push(format!("__{f_name} = {value},"));
             }
@@ -1075,13 +1078,12 @@ pub trait CSType: Sized {
 
         wrapper_declaration.push("};".into());
 
-        cpp_type.declarations.push(
-            CppMember::CppLine(CppLine::make(
-                wrapper_declaration.join("\n")
-            )).into()
-        );
+        cpp_type
+            .declarations
+            .push(CppMember::CppLine(CppLine::make(wrapper_declaration.join("\n"))).into());
 
-        let operator_body = format!("return std::bit_cast<{unwrapped_name}>({VALUE_TYPE_WRAPPER_INSTANCE_NAME});");
+        let operator_body =
+            format!("return std::bit_cast<{unwrapped_name}>({VALUE_TYPE_WRAPPER_INSTANCE_NAME});");
         let operator_decl = CppMethodDecl {
             cpp_name: Default::default(),
             instance: true,
@@ -1099,8 +1101,9 @@ pub trait CSType: Sized {
             suffix_modifiers: vec![],
             template: None,
         };
-        cpp_type.declarations.push(CppMember::MethodDecl(operator_decl).into());
-
+        cpp_type
+            .declarations
+            .push(CppMember::MethodDecl(operator_decl).into());
     }
 
     fn create_valuetype_field_wrapper(&mut self) {
@@ -1143,14 +1146,12 @@ pub trait CSType: Sized {
         cpp_type.declarations.push(
             CppMember::ConstructorDecl(CppConstructorDecl {
                 cpp_name: cpp_type.cpp_name.clone(),
-                parameters: vec![
-                    CppParam {
-                        name: "instance".to_string(),
-                        ty: format!("std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>"),
-                        modifiers: Default::default(),
-                        def_value: None,
-                    }
-                ],
+                parameters: vec![CppParam {
+                    name: "instance".to_string(),
+                    ty: format!("std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>"),
+                    modifiers: Default::default(),
+                    def_value: None,
+                }],
                 template: None,
                 is_constexpr: true,
                 is_explicit: true,
@@ -1158,9 +1159,13 @@ pub trait CSType: Sized {
                 is_no_except: true,
                 base_ctor: Some((cpp_type.inherit.get(0).unwrap().to_string(), "".to_string())),
                 initialized_values: field_initializer.clone(),
-                brief: Some("Constructor that lets you initialize the internal array explicitly".into()),
+                brief: Some(
+                    "Constructor that lets you initialize the internal array explicitly".into(),
+                ),
                 body: Some(vec![]),
-        }).into());
+            })
+            .into(),
+        );
     }
 
     fn create_valuetype_convert(&mut self) {
@@ -1585,21 +1590,22 @@ pub trait CSType: Sized {
             let def_value = Self::param_default_value(metadata, param_index);
             let must_include = false;
             let make_param_cpp_type_name = |cpp_type: &mut CppType| {
-                let name =
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, must_include);
-                let byref = cpp_type.il2cpp_byref(name, param_type);
-
-                byref
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, must_include)
             };
 
-            let param_cpp_name = match is_generic_inst {
-                false => cpp_type.il2cpp_mvar_use_param_name(
-                    metadata,
-                    method_index,
-                    make_param_cpp_type_name,
-                    param_type,
-                ),
-                true => make_param_cpp_type_name(cpp_type),
+            let param_cpp_name = {
+                let fixup_name = match is_generic_inst {
+                    false => cpp_type.il2cpp_mvar_use_param_name(
+                        metadata,
+                        method_index,
+                        make_param_cpp_type_name,
+                        param_type,
+                    ),
+                    true => make_param_cpp_type_name(cpp_type),
+                };
+
+                
+                cpp_type.il2cpp_byref(fixup_name, param_type)
             };
 
             m_params_with_def.push(CppParam {
@@ -1657,21 +1663,24 @@ pub trait CSType: Sized {
                 .collect_vec()
         });
 
+        // Lazy cppify
         let make_ret_cpp_type_name = |cpp_type: &mut CppType| {
-            let name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false);
-            let byref = cpp_type.il2cpp_byref(name, m_ret_type);
-
-            byref
+            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false)
         };
 
-        let m_ret_cpp_type_name = match is_generic_inst {
-            false => cpp_type.il2cpp_mvar_use_param_name(
-                metadata,
-                method_index,
-                make_ret_cpp_type_name,
-                m_ret_type,
-            ),
-            true => make_ret_cpp_type_name(cpp_type),
+        let m_ret_cpp_type_name = {
+            let fixup_name = match is_generic_inst {
+                false => cpp_type.il2cpp_mvar_use_param_name(
+                    metadata,
+                    method_index,
+                    make_ret_cpp_type_name,
+                    m_ret_type,
+                ),
+                true => make_ret_cpp_type_name(cpp_type),
+            };
+
+        
+            cpp_type.il2cpp_byref(fixup_name, m_ret_type)
         };
 
         // Reference type constructor
@@ -2131,6 +2140,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &'a Metadata,
         method_index: MethodIndex,
+        // use a lambda to do this lazily
         cpp_name: impl FnOnce(&mut CppType) -> String,
         typ: &'a Il2CppType,
     ) -> String {
@@ -2154,11 +2164,7 @@ pub trait CSType: Sized {
                         .find(|&p| p.name_index == generic_param.name_index)
                         .unwrap();
 
-                    if typ.is_byref() {
-                        format!("ByRef<{}>", gen_param.name(metadata.metadata)).to_string()
-                    } else {
-                        gen_param.name(metadata.metadata).to_string()
-                    }
+                    gen_param.name(metadata.metadata).to_string()
                 }
                 _ => todo!(),
             },
