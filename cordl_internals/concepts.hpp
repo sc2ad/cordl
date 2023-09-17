@@ -2,6 +2,7 @@
 
 #include <concepts>
 #include <type_traits>
+#include "beatsaber-hook/shared/utils/base-wrapper-type.hpp"
 #include "beatsaber-hook/shared/utils/value-wrapper-type.hpp"
 #include "beatsaber-hook/shared/utils/enum-wrapper-type.hpp"
 
