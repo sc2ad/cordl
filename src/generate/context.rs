@@ -310,6 +310,14 @@ impl CppContext {
             .sorted()
             .try_for_each(|i| i.write(&mut typedef_writer))?;
 
+        // Write includes for typeimpl
+        typedef_types
+            .iter()
+            .flat_map(|t| &t.requirements.required_impl_includes)
+            .unique()
+            .sorted()
+            .try_for_each(|i| i.write(&mut typeimpl_writer))?;
+
         // write forward declares
         // and includes for impl
         {

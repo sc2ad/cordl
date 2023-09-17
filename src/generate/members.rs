@@ -398,6 +398,12 @@ impl CppInclude {
             system: false,
         }
     }
+    pub fn new_context_typeimpl(context: &CppContext) -> Self {
+        Self {
+            include: diff_paths(&context.type_impl_path, &STATIC_CONFIG.header_path).unwrap(),
+            system: false,
+        }
+    }
     pub fn new_context_fundamental(context: &CppContext) -> Self {
         Self {
             include: diff_paths(&context.fundamental_path, &STATIC_CONFIG.header_path).unwrap(),

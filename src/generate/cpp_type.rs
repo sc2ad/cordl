@@ -27,6 +27,7 @@ pub struct CppTypeRequirements {
 
     // Only value types or classes
     pub required_includes: HashSet<CppInclude>,
+    pub required_impl_includes: HashSet<CppInclude>,
 
     // Lists both types we forward declare or include
     pub depending_types: HashSet<CppTypeTag>,
@@ -47,6 +48,12 @@ impl CppTypeRequirements {
             self.depending_types.insert(cpp_type.self_tag);
         }
         self.required_includes.insert(cpp_include);
+    }
+    pub fn add_impl_include(&mut self, cpp_type: Option<&CppType>, cpp_include: CppInclude) {
+        if let Some(cpp_type) = cpp_type {
+            self.depending_types.insert(cpp_type.self_tag);
+        }
+        self.required_impl_includes.insert(cpp_include);
     }
     pub fn add_dependency(&mut self, cpp_type: &CppType) {
         self.depending_types.insert(cpp_type.self_tag);

@@ -785,6 +785,9 @@ pub trait CSType: Sized {
             .types
             .get(t.parent_index as usize)
         {
+            let parent_ty: CppTypeTag =
+                CppTypeTag::from_type_data(parent_type.data, metadata.metadata);
+
             // We have a parent, lets do something with it
             let inherit_type =
                 cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, true);
@@ -814,6 +817,26 @@ pub trait CSType: Sized {
             }
 
             cpp_type.inherit.push(inherit_type);
+
+            if matches!(
+                parent_type.ty,
+                Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
+            ) {
+                // TODO: Figure out why generic tags don't work here
+                let parent_tdi: TypeDefinitionIndex = parent_ty.into();
+
+                let base_type_context = ctx_collection
+                    .get_context(parent_tdi.into())
+                    .expect("No CppContext for base type");
+                let base_type_cpp_type = ctx_collection
+                    .get_cpp_type(parent_tdi.into())
+                    .expect("No CppType for base type");
+
+                cpp_type.requirements.add_impl_include(
+                    Some(base_type_cpp_type),
+                    CppInclude::new_context_typeimpl(base_type_context),
+                )
+            }
         } else {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
         }
@@ -828,7 +851,7 @@ pub trait CSType: Sized {
             let convert_line = match t.is_value_type() || t.is_enum_type() {
                 true => {
                     // box
-                    format!("::cordl_internals::Box(this).convert()")
+                    "::cordl_internals::Box(this).convert()".to_string()
                 }
                 false => REFERENCE_WRAPPER_INSTANCE_NAME.to_string(),
             };
