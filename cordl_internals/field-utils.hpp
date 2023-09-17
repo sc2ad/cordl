@@ -4,6 +4,7 @@
 #include "concepts.hpp"
 #include "internal.hpp"
 #include "exceptions.hpp"
+#include "beatsaber-hook/shared/utils/il2cpp-utils-fields.hpp"
 #include <bit>
 #include <cstddef>
 
@@ -111,39 +112,43 @@ namespace cordl_internals {
   /// @brief template for field getter method on ref types
   /// @tparam T field type
   /// @tparam offset field offset
-  template<typename T, std::size_t offset>
-  [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance);
+  template <typename T, std::size_t offset>
+  [[nodiscard]] CORDL_HIDDEN T getInstanceField(void const* instance);
 
   /// @brief template for field getter method on value types
   /// @tparam T field type
   /// @tparam offset field offset
   /// @tparam sz wrapper array size
-  template<typename T, std::size_t offset, std::size_t sz>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance);
+  template <typename T, std::size_t offset, std::size_t sz>
+  [[nodiscard]] CORDL_HIDDEN constexpr T
+  getInstanceField(std::array<std::byte, sz> const& instance);
 
   /// @brief get reference type value @ offset on instance
-  template<il2cpp_reference_type T, std::size_t offset>
-  [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance) {
+  template <il2cpp_reference_type T, std::size_t offset>
+  [[nodiscard]] CORDL_HIDDEN T getInstanceField(void const* instance) {
     return T(*const_cast<void**>(getAtOffset<offset>(instance)));
   }
 
   /// @brief get reference type value @ offset on instance of size sz
-  template<il2cpp_reference_type T, std::size_t offset, std::size_t sz>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance) {
-    return T(*const_cast<void**>(static_cast<const void* const*>(static_cast<const void*>(&std::next(instance.begin() + offset)))));
+  template <il2cpp_reference_type T, std::size_t offset, std::size_t sz>
+  [[nodiscard]] CORDL_HIDDEN constexpr T
+  getInstanceField(std::array<std::byte, sz> const& instance) {
+    return T(*const_cast<void**>(static_cast<void const* const*>(
+        static_cast<void const*>(&std::next(instance.begin() + offset)))));
   }
 
   /// @brief get value type value @ offset on instance
-  template<il2cpp_value_type T, std::size_t offset>
-  [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance) {
+  template <il2cpp_value_type T, std::size_t offset>
+  [[nodiscard]] CORDL_HIDDEN T getInstanceField(void const* instance) {
     std::array<std::byte, T::__CORDL_VALUE_TYPE_SIZE> data;
     std::memcpy(data.data(), getAtOffset<offset>(instance), T::__CORDL_VALUE_TYPE_SIZE);
     return T(data);
   }
 
   /// @brief get value type value @ offset on instance of size sz
-  template<il2cpp_value_type T, std::size_t offset, std::size_t sz>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance) {
+  template <il2cpp_value_type T, std::size_t offset, std::size_t sz>
+  [[nodiscard]] CORDL_HIDDEN constexpr T
+  getInstanceField(std::array<std::byte, sz> const& instance) {
     static_assert(offset <= sz - T::__CORDL_VALUE_TYPE_SIZE, "offset is too large for the size of the instance to be assigned comfortably!");
     std::array<std::byte, T::__CORDL_VALUE_TYPE_SIZE> data;
     std::copy_n(std::next(instance.begin(), offset), T::__CORDL_VALUE_TYPE_SIZE, data.begin());
@@ -151,16 +156,17 @@ namespace cordl_internals {
   }
 
   /// @brief get trivial type value @ offset on instance
-  template<typename T, std::size_t offset>
-  [[nodiscard]] CORDL_HIDDEN T getInstanceField(const void* instance) {
+  template <typename T, std::size_t offset>
+  [[nodiscard]] CORDL_HIDDEN T getInstanceField(void const* instance) {
     std::array<std::byte, sizeof(T)> data;
     std::memcpy(data.data(), getAtOffset<offset>(instance), sizeof(T));
     return std::bit_cast<T>(data);
   }
 
   /// @brief get trivial type value @ offset on instance of size sz
-  template<typename T, std::size_t offset, std::size_t sz>
-  [[nodiscard]] CORDL_HIDDEN constexpr T getInstanceField(const std::array<std::byte, sz>& instance) {
+  template <typename T, std::size_t offset, std::size_t sz>
+  [[nodiscard]] CORDL_HIDDEN constexpr T
+  getInstanceField(std::array<std::byte, sz> const& instance) {
     static_assert(offset <= sz - sizeof(T), "offset is too large for the size of the instance to be assigned comfortably!");
     std::array<std::byte, sizeof(T)> arr;
     std::copy_n(std::next(instance.begin(), offset), sizeof(T), arr.begin());

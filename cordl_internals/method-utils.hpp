@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <sstream>
 #include "beatsaber-hook/shared/utils/typedefs-string.hpp"
+#include "beatsaber-hook/shared/utils/il2cpp-utils-methods.hpp"
 
 namespace cordl_internals {
 #pragma region extract values
@@ -62,12 +63,12 @@ template<typename T>
 #pragma region extract type values
     template<typename T>
     CORDL_HIDDEN void* ExtractTypeValue(T& arg) {
-        return const_cast<void*>(static_cast<const void*>(&arg));
+        return const_cast<void*>(static_cast<void const*>(&arg));
     }
 
     template<typename T>
     CORDL_HIDDEN void* ExtractTypeValue(T&& arg) {
-        return const_cast<void*>(static_cast<const void*>(&arg));
+        return const_cast<void*>(static_cast<void const*>(&arg));
     }
 
     template<>
@@ -117,16 +118,23 @@ template<typename T>
 #pragma endregion // extract type values
 
 #pragma region extract type
-    template<typename T>
-    CORDL_HIDDEN const Il2CppType* ExtractType() { return ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<T>::get().value_or(nullptr); }
+    template <typename T> CORDL_HIDDEN Il2CppType const* ExtractType() {
+        return ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<T>::get()
+            .value_or(nullptr);
+    }
 
-    template<typename T>
-    CORDL_HIDDEN const Il2CppType* ExtractType(T&& arg) { return ::il2cpp_utils::il2cpp_type_check::il2cpp_arg_type<T>::get(arg).value_or(nullptr); }
+    template <typename T> CORDL_HIDDEN Il2CppType const* ExtractType(T&& arg) {
+        return ::il2cpp_utils::il2cpp_type_check::il2cpp_arg_type<T>::get(arg)
+            .value_or(nullptr);
+    }
 
-    CORDL_HIDDEN auto ExtractTypes() { return std::vector<const Il2CppType*>(); }
+    CORDL_HIDDEN auto ExtractTypes() {
+        return std::vector<Il2CppType const*>();
+    }
 
-    template<typename T, typename... TArgs>
-    CORDL_HIDDEN std::vector<const Il2CppType*> ExtractTypes(T&& arg, TArgs&&... args) {
+    template <typename T, typename... TArgs>
+    CORDL_HIDDEN std::vector<Il2CppType const*> ExtractTypes(T&& arg,
+                                                             TArgs&&... args) {
         auto tFirst = ExtractType(arg);
         auto tOthers = ExtractTypes(args...);
         if (tFirst) tOthers.insert(tOthers.begin(), tFirst);
@@ -134,8 +142,10 @@ template<typename T>
     }
 
 #pragma endregion // extract type
-    template<typename TOut = void, bool checkTypes = true, typename T, typename... TArgs>
-    CORDL_HIDDEN TOut RunMethodRethrow(T&& instance, const MethodInfo* method, TArgs&&... params) {
+    template <typename TOut = void, bool checkTypes = true, typename T,
+              typename... TArgs>
+    CORDL_HIDDEN TOut RunMethodRethrow(T&& instance, MethodInfo const* method,
+                                       TArgs&&... params) {
         CRASH_UNLESS(method);
 
         if constexpr (il2cpp_reference_type<T>) {
@@ -151,7 +161,8 @@ template<typename T>
         }
 
         if constexpr (checkTypes && sizeof...(TArgs) > 0) { // param type check
-            std::array<const Il2CppType*, sizeof...(TArgs)> types{ExtractType(params)...};
+            std::array<Il2CppType const*, sizeof...(TArgs)> types{ ExtractType(
+                params)... };
             // TODO: check types array against types in methodinfo
 
             auto outType = ExtractType<TOut>();
