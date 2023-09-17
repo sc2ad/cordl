@@ -379,14 +379,14 @@ impl CppContext {
             t.write_impl(&mut typeimpl_writer)?;
         }
 
+        // end anonymous namespace
+        writeln!(typedef_writer, "}} // end anonymous namespace")?;
+        writeln!(typeimpl_writer, "}} // end anonymous namespace")?;
+
         // write macros
         typedef_types
             .iter()
             .try_for_each(|t| Self::write_il2cpp_arg_macros(t, &mut typedef_writer))?;
-
-        // end anonymous namespace
-        writeln!(typedef_writer, "}} // end anonymous namespace")?;
-        writeln!(typeimpl_writer, "}} // end anonymous namespace")?;
 
         // Fundamental
         {
