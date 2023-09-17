@@ -846,7 +846,7 @@ pub trait CSType: Sized {
 
             // We have an interface, lets do something with it
             let interface_cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, true);
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, false);
 
             let convert_line = match t.is_value_type() || t.is_enum_type() {
                 true => {
