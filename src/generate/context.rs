@@ -179,6 +179,8 @@ impl CppContext {
             )?;
         }
 
+        let base_path = &config.header_path;
+
         println!("Writing {:?}", self.typedef_path.as_path());
         let mut typedef_writer = CppWriter {
             stream: File::create(self.typedef_path.as_path())?,
@@ -199,7 +201,6 @@ impl CppContext {
         writeln!(typedef_writer, "#pragma once")?;
         writeln!(typeimpl_writer, "#pragma once")?;
         writeln!(fundamental_writer, "#pragma once")?;
-        let base_path = &config.header_path;
 
         // Include cordl config
         // this is so confusing but basically gets the relative folder
@@ -347,6 +348,10 @@ impl CppContext {
             //     .try_for_each(|i| i.write(&mut typeimpl_writer))?;
         }
 
+        // anonymous namespace
+        writeln!(typedef_writer, "namespace {{")?;
+        writeln!(typeimpl_writer, "namespace {{")?;
+
         for t in &typedef_root_types_sorted {
             if t.nested {
                 panic!(
@@ -371,10 +376,17 @@ impl CppContext {
             .iter()
             .try_for_each(|t| Self::write_il2cpp_arg_macros(t, &mut typedef_writer))?;
 
-        CppInclude::new_exact(diff_paths(&self.typedef_path, base_path).unwrap())
-            .write(&mut fundamental_writer)?;
-        CppInclude::new_exact(diff_paths(&self.type_impl_path, base_path).unwrap())
-            .write(&mut fundamental_writer)?;
+        // end anonymous namespace
+        writeln!(typedef_writer, "}} // end anonymous namespace")?;
+        writeln!(typeimpl_writer, "}} // end anonymous namespace")?;
+
+        // Fundamental
+        {
+            CppInclude::new_exact(diff_paths(&self.typedef_path, base_path).unwrap())
+                .write(&mut fundamental_writer)?;
+            CppInclude::new_exact(diff_paths(&self.type_impl_path, base_path).unwrap())
+                .write(&mut fundamental_writer)?;
+        }
 
         // TODO: Write type impl and fundamental files here
         Ok(())
