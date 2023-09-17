@@ -48,9 +48,13 @@ struct Cli {
     /// The libil2cpp.so file to use
     #[clap(short, long, value_parser, value_name = "FILE")]
     libil2cpp: PathBuf,
-    /// The libil2cpp.so file to use
+    /// Whether to format with clang-format
     #[clap(short, long)]
     format: bool,
+
+    /// Whether to generate generic method specializations
+    #[clap(short, long)]
+    gen_generic_methods_specializations: bool,
 
     #[clap(subcommand)]
     command: Option<Commands>,
@@ -226,7 +230,8 @@ fn main() -> color_eyre::Result<()> {
             );
         }
     }
-    {
+
+    if cli.gen_generic_methods_specializations {
         let total = metadata.metadata_registration.generic_method_table.len() as f64;
         println!("Filling generic methods!");
         for (i, generic_class) in metadata

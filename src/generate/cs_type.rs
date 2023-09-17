@@ -1604,7 +1604,6 @@ pub trait CSType: Sized {
                     true => make_param_cpp_type_name(cpp_type),
                 };
 
-                
                 cpp_type.il2cpp_byref(fixup_name, param_type)
             };
 
@@ -1679,7 +1678,6 @@ pub trait CSType: Sized {
                 true => make_ret_cpp_type_name(cpp_type),
             };
 
-        
             cpp_type.il2cpp_byref(fixup_name, m_ret_type)
         };
 
@@ -1863,8 +1861,10 @@ pub trait CSType: Sized {
                 }));
         }
 
+        // TODO: Revise this
+        const allow_generic_method_stubs_impl: bool = true;
         // If a generic instantiation or not a template
-        if !method_stub {
+        if !method_stub || allow_generic_method_stubs_impl {
             cpp_type
                 .implementations
                 .push(CppMember::MethodImpl(method_impl).into());
