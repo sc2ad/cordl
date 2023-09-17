@@ -267,7 +267,7 @@ pub trait CSType: Sized {
             cpptype.cpp_name = config.generic_nested_name(&cpptype.cpp_full_name);
 
             // full name will have literals in `fill_generic_class_inst`
-            cpptype.cpp_full_name = format!("{}::{}", cpptype.cpp_namespace, cpptype.cpp_name);
+            cpptype.cpp_full_name = format!("::{}::{}", cpptype.cpp_namespace, cpptype.cpp_name);
         }
 
         if t.parent_index == u32::MAX {

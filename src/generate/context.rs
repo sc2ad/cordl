@@ -418,7 +418,7 @@ impl CppContext {
         if !ty.is_value_type && !ty.is_stub && !template_container_type && !is_generic_instantiation
         {
             // reference types need no boxing
-            writeln!(writer, "NEED_NO_BOX(::{});", ty.cpp_full_name)?;
+            writeln!(writer, "NEED_NO_BOX({});", ty.cpp_full_name)?;
         }
 
         if ty.nested {
@@ -462,7 +462,7 @@ impl CppContext {
 
         writeln!(
             writer,
-            "{macro_arg_define}(::{}, \"{namespace}\", \"{name}\");",
+            "{macro_arg_define}({}, \"{namespace}\", \"{name}\");",
             ty.cpp_full_name,
         )?;
 
