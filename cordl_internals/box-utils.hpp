@@ -37,7 +37,7 @@ namespace cordl_internals {
     CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) {
         std::array<std::byte, T::__CORDL_VALUE_TYPE_SIZE> data;
         std::memcpy(data.data(), il2cpp_functions::object_unbox(t), T::__CORDL_VALUE_TYPE_SIZE);
-        return T(data);
+        return T(std::move(data));
     }
 #pragma endregion // unboxing
 
