@@ -318,6 +318,10 @@ impl CppContext {
             .sorted()
             .try_for_each(|i| i.write(&mut typeimpl_writer))?;
 
+        // anonymous namespace
+        writeln!(typedef_writer, "namespace {{")?;
+        writeln!(typeimpl_writer, "namespace {{")?;
+
         // write forward declares
         // and includes for impl
         {
@@ -355,10 +359,6 @@ impl CppContext {
             //     // TODO: Check forward declare is not of own type
             //     .try_for_each(|i| i.write(&mut typeimpl_writer))?;
         }
-
-        // anonymous namespace
-        writeln!(typedef_writer, "namespace {{")?;
-        writeln!(typeimpl_writer, "namespace {{")?;
 
         for t in &typedef_root_types_sorted {
             if t.nested {
