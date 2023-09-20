@@ -15,6 +15,7 @@ bytes = "*"
 byteorder = "1"
 topological-sort = "0.2"
 fs_extra = "*"
+include_dir= "*"
 
 # utils
 pathdiff = "0.2"

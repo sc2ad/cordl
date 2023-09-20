@@ -15,6 +15,7 @@ use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
 extern crate pretty_env_logger;
 use walkdir::DirEntry;
+use include_dir::{Dir, include_dir};
 
 use std::{
     fs,
@@ -66,12 +67,13 @@ enum Commands {}
 pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| GenerationConfig {
     header_path: PathBuf::from("./codegen/include"),
     source_path: PathBuf::from("./codegen/src"),
-    src_internals_path: PathBuf::from("./cordl_internals"),
     dst_internals_path: PathBuf::from("./codegen/include/cordl_internals"),
     dst_header_internals_file: PathBuf::from(
         "./codegen/include/cordl_internals/cordl_internals.hpp",
     ),
 });
+
+static INTERNALS_DIR: Dir<'_> = include_dir!("cordl_internals");
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
@@ -93,16 +95,8 @@ fn main() -> color_eyre::Result<()> {
 
     std::fs::create_dir_all(&STATIC_CONFIG.dst_internals_path)?;
 
-    // copy contents of cordl_internals folder into destination
-    let options = fs_extra::dir::CopyOptions::new()
-        .overwrite(true)
-        .content_only(true);
-
-    fs_extra::dir::copy(
-        &STATIC_CONFIG.src_internals_path,
-        &STATIC_CONFIG.dst_internals_path,
-        &options,
-    )?;
+    // extract contents of the cordl internals folder into destination
+    INTERNALS_DIR.extract(&STATIC_CONFIG.dst_internals_path);
 
     let global_metadata_data = fs::read(cli.metadata)?;
     let elf_data = fs::read(cli.libil2cpp)?;
