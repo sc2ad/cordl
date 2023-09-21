@@ -73,7 +73,7 @@ pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| Generati
     ),
 });
 
-static INTERNALS_DIR: Dir<'_> = include_dir!("cordl_internals");
+static INTERNALS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/cordl_internals");
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
