@@ -14,9 +14,9 @@ use color_eyre::Result;
 use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
 extern crate pretty_env_logger;
-use log::{trace, info};
+use include_dir::{include_dir, Dir};
+use log::{info, trace};
 use walkdir::DirEntry;
-use include_dir::{Dir, include_dir};
 
 use std::{
     fs,
@@ -79,7 +79,10 @@ static INTERNALS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/cordl_internal
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let cli: Cli = Cli::parse();
-    pretty_env_logger::init();
+    pretty_env_logger::formatted_builder()
+        .filter_level(log::LevelFilter::Trace)
+        .parse_default_env()
+        .init();
     if !cli.format {
         info!("Add --format/-f to format with clang-format at end")
     }

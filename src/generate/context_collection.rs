@@ -10,6 +10,7 @@ use brocolib::{
     runtime_metadata::{Il2CppMethodSpec, TypeData},
 };
 use itertools::Itertools;
+use log::trace;
 use pathdiff::diff_paths;
 
 use crate::{
@@ -654,7 +655,7 @@ impl CppContextCollection {
             .iter()
             .enumerate()
             .try_for_each(|(i, (_, c))| {
-                println!(
+                trace!(
                     "Writing {:.4}% ({}/{}) {}",
                     (i as f64 / amount * 100.0),
                     i,

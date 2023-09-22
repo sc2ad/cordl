@@ -11,6 +11,7 @@ use brocolib::global_metadata::TypeDefinitionIndex;
 use color_eyre::eyre::ContextCompat;
 
 use itertools::Itertools;
+use log::trace;
 use pathdiff::diff_paths;
 
 use crate::generate::members::CppForwardDeclare;
@@ -181,7 +182,7 @@ impl CppContext {
 
         let base_path = &config.header_path;
 
-        println!("Writing {:?}", self.typedef_path.as_path());
+        trace!("Writing {:?}", self.typedef_path.as_path());
         let mut typedef_writer = CppWriter {
             stream: File::create(self.typedef_path.as_path())?,
             indent: 0,
