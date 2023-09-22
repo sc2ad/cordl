@@ -150,7 +150,7 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
         let namespace = config.namespace_cpp(self.namespace(metadata));
         let name = config.name_cpp(self.name(metadata));
 
-        let mut full_name = String::from("::");
+        let mut full_name = String::new();
 
         if self.declaring_type_index != u32::MAX {
             let declaring_ty = metadata.runtime_metadata.metadata_registration.types

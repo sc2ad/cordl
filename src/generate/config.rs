@@ -10,23 +10,20 @@ pub struct GenerationConfig {
 
 impl GenerationConfig {
     pub fn namespace_cpp(&self, string: &str) -> String {
-        if string.is_empty() {
+
+
+        let final_ns = if string.is_empty() {
             "GlobalNamespace".to_owned()
         } else {
             string.replace(['<', '>', '`', '/'], "_").replace('.', "::")
-        }
-    }
-    pub fn full_name_cpp(&self, ns: &str, string: &str, nested: bool) -> String {
-        let formatted_string = self.namespace_cpp(string);
+        };
 
-        if ns.is_empty() && !nested {
-            // essentially get GlobalNamespace
-            let ns = self.namespace_cpp(ns);
-            format!("{ns}::{formatted_string}")
-        } else {
-            formatted_string
+        match self.use_anonymous_namespace {
+            true => format!("::{final_ns}"),
+            false => final_ns,
         }
     }
+
     pub fn name_cpp(&self, string: &str) -> String {
         // Coincidentally the same as path_name
         string.replace(['<', '`', '>', '/', '.', '|'], "_")
