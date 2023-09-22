@@ -72,6 +72,7 @@ pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| Generati
     dst_header_internals_file: PathBuf::from(
         "./codegen/include/cordl_internals/cordl_internals.hpp",
     ),
+    use_anonymous_namespace: false,
 });
 
 static INTERNALS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/cordl_internals");

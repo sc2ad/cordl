@@ -320,8 +320,10 @@ impl CppContext {
             .try_for_each(|i| i.write(&mut typeimpl_writer))?;
 
         // anonymous namespace
-        writeln!(typedef_writer, "namespace {{")?;
-        writeln!(typeimpl_writer, "namespace {{")?;
+        if STATIC_CONFIG.use_anonymous_namespace {
+            writeln!(typedef_writer, "namespace {{")?;
+            writeln!(typeimpl_writer, "namespace {{")?;
+        }
 
         // write forward declares
         // and includes for impl
@@ -381,8 +383,10 @@ impl CppContext {
         }
 
         // end anonymous namespace
-        writeln!(typedef_writer, "}} // end anonymous namespace")?;
-        writeln!(typeimpl_writer, "}} // end anonymous namespace")?;
+        if STATIC_CONFIG.use_anonymous_namespace {
+            writeln!(typedef_writer, "}} // end anonymous namespace")?;
+            writeln!(typeimpl_writer, "}} // end anonymous namespace")?;
+        }
 
         // write macros
         typedef_types
