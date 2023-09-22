@@ -6,6 +6,7 @@
 #include "beatsaber-hook/shared/utils/base-wrapper-type.hpp"
 #include "beatsaber-hook/shared/utils/il2cpp-utils.hpp"
 
+namespace {
 namespace cordl_internals {
 #pragma region boxing
     template<typename T>
@@ -42,3 +43,4 @@ namespace cordl_internals {
 #pragma endregion // unboxing
 
 }
+} // end anonymous namespace
