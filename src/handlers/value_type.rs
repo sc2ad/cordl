@@ -58,6 +58,18 @@ fn unified_type_handler(cpp_type: &mut CppType, base_ctor: &str) {
             constructor.body = Some(vec![]);
             constructor.is_constexpr = true;
         });
+
+    // remove all method decl/impl
+    cpp_type
+        .declarations
+        .retain(|t| !matches!(t.as_ref(), CppMember::MethodDecl(_)));
+    // remove all method decl/impl
+    cpp_type
+        .implementations
+        .retain(|t| !matches!(t.as_ref(), CppMember::MethodImpl(_)));
+
+    // Remove method size structs
+    cpp_type.nonmember_implementations.clear();
 }
 fn value_type_handler(cpp_type: &mut CppType) {
     println!("Found System.ValueType, removing inheritance!");
