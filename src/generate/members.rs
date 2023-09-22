@@ -23,20 +23,20 @@ pub struct CppTemplate {
 
 impl CppTemplate {
     pub fn make_typenames(names: Vec<String>) -> Self {
-        return CppTemplate {
+        CppTemplate {
             names: names
                 .into_iter()
                 .map(|s| ("typename".to_string(), s))
                 .collect(),
-        };
+        }
     }
     pub fn make_ref_types(names: Vec<String>) -> Self {
-        return CppTemplate {
+        CppTemplate {
             names: names
                 .into_iter()
                 .map(|s| (CORDL_REFERENCE_TYPE_CONSTRAINT.to_string(), s))
                 .collect(),
-        };
+        }
     }
 }
 

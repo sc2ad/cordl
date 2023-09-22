@@ -72,7 +72,6 @@ pub trait CSType: Sized {
 
     fn parent_joined_cpp_name(
         metadata: &Metadata,
-        config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
     ) -> String {
         let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
@@ -84,7 +83,7 @@ pub trait CSType: Sized {
                 metadata.metadata_registration.types[ty_def.declaring_type_index as usize];
 
             if let TypeData::TypeDefinitionIndex(declaring_tdi) = declaring_ty.data {
-                return Self::parent_joined_cpp_name(metadata, config, declaring_tdi) + "/" + name;
+                return Self::parent_joined_cpp_name(metadata, declaring_tdi) + "/" + name;
             } else {
                 return declaring_ty.full_name(metadata.metadata) + "/" + name;
             }
@@ -209,7 +208,7 @@ pub trait CSType: Sized {
                 metadata_size
             );
             // If we are still 0, todo!
-            if (metadata_size == 0) {
+            if metadata_size == 0 {
                 todo!("We do not yet support cases where the instance type would be a 0 AFTER we have done computation!");
             }
         }
@@ -534,7 +533,7 @@ pub trait CSType: Sized {
                     tdi
                 );
                 let _resulting_size =
-                    offsets::layout_fields_for_type(t, tdi, &metadata, Some(&mut offsets));
+                    offsets::layout_fields_for_type(t, tdi, metadata, Some(&mut offsets));
             }
         }
         let mut offset_iter = offsets.iter();
@@ -1195,7 +1194,7 @@ pub trait CSType: Sized {
         let cpp_type = self.get_mut_cpp_type();
         cpp_type.declarations.push(
             CppMember::MethodDecl(CppMethodDecl {
-                body: Some(vec![Arc::new(CppLine::make(format!("return const_cast<void*>(static_cast<const void*>({VALUE_TYPE_WRAPPER_INSTANCE_NAME}.data()));").into()))]),
+                body: Some(vec![Arc::new(CppLine::make(format!("return const_cast<void*>(static_cast<const void*>({VALUE_TYPE_WRAPPER_INSTANCE_NAME}.data()));")))]),
                 cpp_name: "convert".to_string(),
                 return_type: "void*".to_string(),
                 parameters: vec![],

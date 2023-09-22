@@ -59,7 +59,7 @@ impl<'a> Metadata<'a> {
     /// Returns the size of the base object.
     /// To be used for boxing/unboxing and various offset computations.
     pub fn object_size(&self) -> u8 {
-        return (self.pointer_size as u8) * 2;
+        (self.pointer_size as u8) * 2
     }
 
     pub fn parse(&mut self) {

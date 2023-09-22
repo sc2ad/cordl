@@ -196,7 +196,7 @@ enum OffsetType {
 /// This is done through inspecting alignments through il2cpp directly in clang.
 /// Done via: offsetof({uint8_t pad, T t}, t);
 fn get_alignment_of_type(ty: OffsetType, pointer_size: PointerSize) -> u8 {
-    return match ty {
+    match ty {
         OffsetType::Pointer => pointer_size as u8,
         OffsetType::Int8 => 1,
         OffsetType::Int16 => 2,
@@ -205,7 +205,7 @@ fn get_alignment_of_type(ty: OffsetType, pointer_size: PointerSize) -> u8 {
         OffsetType::IntPtr => pointer_size as u8,
         OffsetType::Float => 4,
         OffsetType::Double => 8,
-    };
+    }
 }
 
 fn get_type_size_and_alignment(ty: &Il2CppType, metadata: &Metadata) -> SizeAndAlignment {
