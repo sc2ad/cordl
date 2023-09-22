@@ -14,6 +14,7 @@ use color_eyre::Result;
 use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
 extern crate pretty_env_logger;
+use log::{trace, info};
 use walkdir::DirEntry;
 use include_dir::{Dir, include_dir};
 
@@ -80,7 +81,7 @@ fn main() -> color_eyre::Result<()> {
     let cli: Cli = Cli::parse();
     pretty_env_logger::init();
     if !cli.format {
-        println!("Add --format/-f to format with clang-format at end")
+        info!("Add --format/-f to format with clang-format at end")
     }
     // let cli = Cli {
     //     metadata: PathBuf::from("global-metadata.dat"),
@@ -88,7 +89,7 @@ fn main() -> color_eyre::Result<()> {
     //     command: None,
     // };
 
-    println!(
+    info!(
         "Copying config to codegen folder {:?}",
         STATIC_CONFIG.dst_internals_path
     );
@@ -96,7 +97,7 @@ fn main() -> color_eyre::Result<()> {
     std::fs::create_dir_all(&STATIC_CONFIG.dst_internals_path)?;
 
     // extract contents of the cordl internals folder into destination
-    INTERNALS_DIR.extract(&STATIC_CONFIG.dst_internals_path);
+    INTERNALS_DIR.extract(&STATIC_CONFIG.dst_internals_path)?;
 
     let global_metadata_data = fs::read(cli.metadata)?;
     let elf_data = fs::read(cli.libil2cpp)?;
@@ -125,7 +126,7 @@ fn main() -> color_eyre::Result<()> {
 
     {
         // First, make all the contexts
-        println!("Making types");
+        info!("Making types");
         let type_defs = metadata.metadata.global_metadata.type_definitions.as_vec();
         let total = type_defs.len();
         for tdi_u64 in 0..total {
@@ -137,7 +138,7 @@ fn main() -> color_eyre::Result<()> {
                 continue;
             }
 
-            println!(
+            trace!(
                 "Making types {:.4}% ({tdi_u64}/{total})",
                 (tdi_u64 as f64 / total as f64 * 100.0)
             );
@@ -156,7 +157,7 @@ fn main() -> color_eyre::Result<()> {
     }
     {
         // First, make all the contexts
-        println!("Making nested types");
+        info!("Making nested types");
         let type_defs = metadata.metadata.global_metadata.type_definitions.as_vec();
         let total = type_defs.len();
         for tdi_u64 in 0..total {
@@ -168,7 +169,7 @@ fn main() -> color_eyre::Result<()> {
                 continue;
             }
 
-            println!(
+            trace!(
                 "Making nested types {:.4}% ({tdi_u64}/{total})",
                 (tdi_u64 as f64 / total as f64 * 100.0)
             );
@@ -178,14 +179,14 @@ fn main() -> color_eyre::Result<()> {
 
     {
         let total = metadata.metadata_registration.generic_method_table.len() as f64;
-        println!("Making generic type instantiations");
+        info!("Making generic type instantiations");
         for (i, generic_class) in metadata
             .metadata_registration
             .generic_method_table
             .iter()
             .enumerate()
         {
-            println!(
+            trace!(
                 "Making generic type instantiations {:.4}% ({i}/{total})",
                 (i as f64 / total * 100.0)
             );
@@ -200,14 +201,14 @@ fn main() -> color_eyre::Result<()> {
     }
     {
         let total = metadata.metadata_registration.generic_method_table.len() as f64;
-        println!("Filling generic types!");
+        info!("Filling generic types!");
         for (i, generic_class) in metadata
             .metadata_registration
             .generic_method_table
             .iter()
             .enumerate()
         {
-            println!(
+            trace!(
                 "Filling generic type instantiations {:.4}% ({i}/{total})",
                 (i as f64 / total * 100.0)
             );
@@ -227,14 +228,14 @@ fn main() -> color_eyre::Result<()> {
 
     if cli.gen_generic_methods_specializations {
         let total = metadata.metadata_registration.generic_method_table.len() as f64;
-        println!("Filling generic methods!");
+        info!("Filling generic methods!");
         for (i, generic_class) in metadata
             .metadata_registration
             .generic_method_table
             .iter()
             .enumerate()
         {
-            println!(
+            trace!(
                 "Filling generic method instantiations {:.4}% ({i}/{total})",
                 (i as f64 / total * 100.0)
             );
@@ -252,20 +253,20 @@ fn main() -> color_eyre::Result<()> {
         }
     }
 
-    println!("Registering handlers!");
+    info!("Registering handlers!");
     unity::register_unity(&mut metadata)?;
     value_type::register_value_type(&mut metadata)?;
-    println!("Handlers registered!");
+    info!("Handlers registered!");
 
     {
         // Fill them now
-        println!("Filling types");
+        info!("Filling types");
         let type_defs = metadata.metadata.global_metadata.type_definitions.as_vec();
         let total = type_defs.len();
         for tdi_u64 in 0..total {
             let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
 
-            println!(
+            trace!(
                 "Filling type {:.4} ({tdi_u64}/{total})",
                 (tdi_u64 as f64 / total as f64 * 100.0)
             );
