@@ -1,6 +1,8 @@
+use core::panic;
+
 use brocolib::{
     global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition},
-    runtime_metadata::{Il2CppType, Il2CppTypeEnum},
+    runtime_metadata::{Il2CppType, Il2CppTypeEnum, TypeData},
     Metadata,
 };
 
@@ -109,10 +111,20 @@ impl TypeExtentions for Il2CppType {
     }
 }
 
+pub struct NameComponents {
+    pub namespace: String,
+    pub declaring_types: Vec<String>,
+    pub name: String,
+    pub generics: Option<String>,
+}
+
 pub trait TypeDefinitionExtensions {
     fn is_value_type(&self) -> bool;
     fn is_enum_type(&self) -> bool;
     fn is_interface(&self) -> bool;
+    fn is_assignable_to(&self, other_td: &Il2CppTypeDefinition, metadata: &Metadata) -> bool;
+
+    fn get_name_components(&self, metadata: &Metadata) -> NameComponents;
 
     fn full_name_cpp(
         &self,
@@ -141,6 +153,104 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
         self.flags & TYPE_ATTRIBUTE_INTERFACE != 0
     }
 
+    fn is_assignable_to(&self, other_td: &Il2CppTypeDefinition, metadata: &Metadata) -> bool {
+        // same type
+        if self.byval_type_index == other_td.byval_type_index {
+            return true;
+        }
+
+        // does not inherit anything
+        if self.parent_index == u32::MAX {
+            return false;
+        }
+
+        let parent_ty =
+            &metadata.runtime_metadata.metadata_registration.types[self.parent_index as usize];
+
+        // direct inheritance
+        if other_td.byval_type_index == self.parent_index {
+            return true;
+        }
+
+        // if object, clearly this does not inherit `other_td`
+        if parent_ty.ty == Il2CppTypeEnum::Object {
+            return false;
+        }
+
+        let parent_tdi = match parent_ty.data {
+            TypeData::TypeDefinitionIndex(tdi) => tdi,
+            TypeData::GenericClassIndex(gen_idx) => {
+                let gen_inst = &metadata
+                    .runtime_metadata
+                    .metadata_registration
+                    .generic_classes[gen_idx];
+
+                let gen_ty =
+                    &metadata.runtime_metadata.metadata_registration.types[gen_inst.type_index];
+
+                let TypeData::TypeDefinitionIndex(gen_tdi) = gen_ty.data else {
+                    todo!()
+                };
+
+                gen_tdi
+            }
+            _ => panic!(
+                "Unsupported type: {:?} {}",
+                parent_ty,
+                parent_ty.full_name(metadata)
+            ),
+        };
+
+        // check if parent is descendant of `other_td`
+        let parent_td = &metadata.global_metadata.type_definitions[parent_tdi];
+        parent_td.is_assignable_to(other_td, metadata)
+    }
+
+    fn get_name_components(&self, metadata: &Metadata) -> NameComponents {
+        let namespace = self.namespace(metadata);
+        let name = self.name(metadata);
+
+        let generics = match self.generic_container_index.is_valid() {
+            true => {
+                let gc = self.generic_container(metadata);
+                Some(gc.to_string(metadata))
+            }
+            false => None,
+        };
+
+        match self.declaring_type_index != u32::MAX {
+            true => {
+                let declaring_ty = metadata.runtime_metadata.metadata_registration.types
+                    [self.declaring_type_index as usize];
+
+                let declaring_ty_names = match declaring_ty.data {
+                    brocolib::runtime_metadata::TypeData::TypeDefinitionIndex(tdi) => {
+                        let declaring_td = &metadata.global_metadata.type_definitions[tdi];
+                        declaring_td.get_name_components(metadata)
+                    }
+                    _ => todo!(),
+                };
+
+                let mut declaring_types = declaring_ty_names.declaring_types;
+                declaring_types.push(declaring_ty_names.name);
+
+                NameComponents {
+                    namespace: declaring_ty_names.namespace,
+                    name: name.to_string(),
+                    declaring_types,
+                    generics,
+                }
+            }
+            false => NameComponents {
+                namespace: namespace.to_string(),
+                name: name.to_string(),
+                declaring_types: vec![],
+                generics,
+            },
+        }
+    }
+
+    // TODO: Use name components
     fn full_name_cpp(
         &self,
         metadata: &Metadata,
@@ -180,6 +290,8 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
         full_name
     }
 
+    // separates nested types with /
+    // TODO: Use name components
     fn full_name_nested(
         &self,
         metadata: &Metadata,

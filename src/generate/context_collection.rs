@@ -10,7 +10,7 @@ use brocolib::{
     runtime_metadata::{Il2CppMethodSpec, TypeData},
 };
 use itertools::Itertools;
-use log::trace;
+use log::{trace, warn};
 use pathdiff::diff_paths;
 
 use crate::{
@@ -19,8 +19,8 @@ use crate::{
 };
 
 use super::{
-    config::GenerationConfig, context::CppContext, metadata::Metadata,
-    type_extensions::TypeDefinitionExtensions,
+    config::GenerationConfig, context::CppContext, cs_context_collection::CsContextCollection,
+    metadata::Metadata, type_extensions::TypeDefinitionExtensions,
 };
 
 // TODO:
@@ -182,7 +182,7 @@ impl CppContextCollection {
             //     "Aliasing {:?} to {:?}",
             //     nested_type.self_tag, owner.self_tag
             // );
-            self.alias_type_to_context(*tag, root_tag, context_check);
+            self.alias_type_to_context(*tag, root_tag, context_check, false);
             self.alias_type_to_parent(*tag, owner.self_tag, context_check);
 
             self.alias_nested_types(nested_type, root_tag, context_check);
@@ -194,9 +194,10 @@ impl CppContextCollection {
         src: CppTypeTag,
         dest: CppTypeTag,
         context_check: bool,
+        overrid: bool,
     ) {
-        if self.alias_context.contains_key(&dest) {
-            panic!("Aliasing an aliased type!");
+        if self.alias_context.contains_key(&dest) && !overrid {
+            panic!("Aliasing an aliased type! {src:?} to {dest:?}");
         }
         if context_check && !self.all_contexts.contains_key(&dest) {
             panic!("Aliased context {src:?} to {dest:?} doesn't have a context");
@@ -278,7 +279,7 @@ impl CppContextCollection {
         tdi: TypeDefinitionIndex,
     ) -> Option<&mut CppContext> {
         let ty_data = CppTypeTag::TypeDefinitionIndex(tdi);
-        let _ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
+        let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
         let context_root_tag = self.get_context_root_tag(ty_data);
 
         if self.filling_types.contains(&context_root_tag) {
@@ -295,16 +296,45 @@ impl CppContextCollection {
             return self.get_context_mut(ty_data);
         }
 
-        let new_cpp_type = CppType::make_cpp_type(metadata, config, ty_data, tdi)
-            .expect("Failed to make nested type");
-        // self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
+        let context_tag = self.get_context_root_tag(ty_data);
+        let context_type_data: TypeDefinitionIndex = context_tag.into();
+        let context_td = &metadata.metadata.global_metadata.type_definitions[context_type_data];
 
-        let context = self.get_context_mut(ty_data).unwrap();
+        let nested_inherits_declaring = ty_def.is_assignable_to(context_td, metadata.metadata);
+        if nested_inherits_declaring {
+            warn!(
+                "Nested type \"{}\" inherits declaring type \"{}\"",
+                ty_def.full_name(metadata.metadata, true),
+                context_td.full_name(metadata.metadata, true)
+            );
+        }
 
-        // context.insert_cpp_type(stub);
-        context.insert_cpp_type(new_cpp_type);
+        match nested_inherits_declaring {
+            true => {
+                // If a nested type inherits its declaring type, move it to its own CppContext
 
-        Some(context)
+                let context = CppContext::make(metadata, config, tdi, ty_data);
+
+                // Unnest type does not alias to another context or type
+                self.alias_context.remove(&ty_data);
+                self.alias_nested_type_to_parent.remove(&ty_data);
+
+                self.all_contexts.insert(ty_data, context);
+                self.all_contexts.get_mut(&ty_data)
+            }
+            false => {
+                let new_cpp_type = CppType::make_cpp_type(metadata, config, tdi, ty_data)
+                    .expect("Failed to make nested type");
+
+                let context = self.get_context_mut(ty_data).unwrap();
+                // self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
+
+                // context.insert_cpp_type(stub);
+                context.insert_cpp_type(new_cpp_type);
+
+                Some(context)
+            }
+        }
     }
 
     /// Make a generic type
@@ -368,10 +398,10 @@ impl CppContextCollection {
             cpptype
         });
 
-        let mut new_cpp_type = CppType::make_cpp_type(metadata, config, generic_class_ty_data, tdi)
+        let mut new_cpp_type = CppType::make_cpp_type(metadata, config, tdi, generic_class_ty_data)
             .expect("Failed to make generic type");
         new_cpp_type.self_tag = generic_class_ty_data;
-        self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
+        self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true, false);
 
         // TODO: Not needed since making a cpp type will already be a stub in other passes?
         // this is the generic stub

@@ -142,8 +142,8 @@ pub trait CSType: Sized {
     fn make_cpp_type(
         metadata: &Metadata,
         config: &GenerationConfig,
-        tag: CppTypeTag,
         tdi: TypeDefinitionIndex,
+        tag: CppTypeTag,
     ) -> Option<CppType> {
         // let iface = metadata.interfaces.get(t.interfaces_start);
         // Then, handle interfaces

@@ -42,7 +42,7 @@ impl CsContextCollection for CppContextCollection {
 
             let nested_tag = CppTypeTag::TypeDefinitionIndex(*nested_type_tdi);
 
-            self.alias_type_to_context(nested_tag, root_tag, true);
+            self.alias_type_to_context(nested_tag, root_tag, true, false);
             if nested {
                 self.alias_type_to_parent(nested_tag, owner_tag, true);
             }

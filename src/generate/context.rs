@@ -8,6 +8,7 @@ use std::{
 
 use brocolib::global_metadata::TypeDefinitionIndex;
 
+use brocolib::runtime_metadata::TypeData;
 use color_eyre::eyre::ContextCompat;
 
 use itertools::Itertools;
@@ -92,11 +93,14 @@ impl CppContext {
         tag: CppTypeTag,
     ) -> CppContext {
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
-        let ns = t.namespace(metadata.metadata);
-        let name = t.name(metadata.metadata);
+
+        let components = t.get_name_components(metadata.metadata);
+
+        let ns = &components.namespace;
+        let name = &components.name;
 
         let cpp_namespace = config.namespace_cpp(ns);
-        let _cpp_name = config.namespace_cpp(name);
+        let cpp_name = config.namespace_cpp(name);
 
         let ns_path = config.namespace_path(ns);
         let path = if ns_path.is_empty() {
@@ -104,22 +108,24 @@ impl CppContext {
         } else {
             ns_path + "/"
         };
+        let path_name = match t.declaring_type_index != u32::MAX {
+            true => {
+                let name = config.path_name(name);
+                let base_name = components.declaring_types.join("_");
+
+                format!("{base_name}_{name}")
+            }
+            false => config.path_name(name),
+        };
+
         let mut x = CppContext {
-            typedef_path: config.header_path.join(format!(
-                "{}zzzz__{}_def.hpp",
-                path,
-                &config.path_name(name)
-            )),
-            type_impl_path: config.header_path.join(format!(
-                "{}zzzz__{}_impl.hpp",
-                path,
-                &config.path_name(name)
-            )),
-            fundamental_path: config.header_path.join(format!(
-                "{}{}.hpp",
-                path,
-                &config.path_name(name)
-            )),
+            typedef_path: config
+                .header_path
+                .join(format!("{path}zzzz__{path_name}_def.hpp")),
+            type_impl_path: config
+                .header_path
+                .join(format!("{path}zzzz__{path_name}_impl.hpp")),
+            fundamental_path: config.header_path.join(format!("{path}{path_name}.hpp")),
             typedef_types: Default::default(),
             typealias_types: Default::default(),
         };
@@ -130,7 +136,7 @@ impl CppContext {
                 x.typealias_types.insert((
                     cpp_namespace,
                     CppUsingAlias {
-                        alias: name.to_string(),
+                        alias: cpp_name.to_string(),
                         result: OBJECT_WRAPPER_TYPE.to_string(),
                         template: Default::default(),
                     },
@@ -140,12 +146,15 @@ impl CppContext {
             return x;
         }
 
-        match CppType::make_cpp_type(metadata, config, tag, tdi) {
+        match CppType::make_cpp_type(metadata, config, tdi, tag) {
             Some(cpptype) => {
                 x.insert_cpp_type(cpptype);
             }
             None => {
-                println!("Unable to create valid CppContext for type: {ns}::{name}!");
+                println!(
+                    "Unable to create valid CppContext for type: {}!",
+                    t.full_name(metadata.metadata, true)
+                );
             }
         }
 
