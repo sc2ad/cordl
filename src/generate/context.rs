@@ -454,6 +454,7 @@ impl CppContext {
         };
 
         // Essentially splits namespace.foo/nested_foo into (namespace, foo/nested_foo)
+        // TODO: Use name components
         let (namespace, name) = match ty.full_name.rsplit_once("::") {
             Some((declaring, name)) => {
                 // (namespace, declaring/foo)
