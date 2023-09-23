@@ -1537,43 +1537,51 @@ pub trait CSType: Sized {
             })
             .collect_vec();
 
-        let decl: CppConstructorDecl = CppConstructorDecl {
-            cpp_name: cpp_type.cpp_name.clone(),
+        let ty_full_cpp_name = cpp_type.formatted_complete_cpp_name();
+
+        let decl: CppMethodDecl = CppMethodDecl {
+            cpp_name: "New_ctor".into(),
+            return_type: ty_full_cpp_name.clone(),
             parameters: params_no_default,
             template: template.clone(),
             body: None, // TODO:
             brief: None,
-            base_ctor: Default::default(),
-            initialized_values: Default::default(), // TODO:!
             is_no_except: false,
             is_constexpr: false,
-            is_explicit: true,
-            is_default: false,
+            instance: false,
+            is_const: false,
+            is_operator: false,
+            is_virtual: false,
+            prefix_modifiers: vec![],
+            suffix_modifiers: vec![],
         };
-
-        let ty_cpp_name = &cpp_type.cpp_name;
 
         // To avoid trailing ({},)
         let base_ctor_params = CppParam::params_names(&decl.parameters).join(", ");
 
-        let cpp_constructor_impl = CppConstructorImpl {
-            body: vec![], // TODO:!
-            declaring_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
+        let allocate_call =
+            format!("THROW_UNLESS(::il2cpp_utils::New<{ty_full_cpp_name}>({base_ctor_params}))");
+
+        let cpp_constructor_impl = CppMethodImpl {
+            body: vec![
+                Arc::new(CppLine::make(format!(
+                    "{ty_full_cpp_name} o{{{allocate_call}}};"
+                ))),
+                Arc::new(CppLine::make("return o;".into())),
+            ],
+
+            declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
             parameters: m_params.to_vec(),
-            base_ctor: Some((
-                cpp_type.inherit.get(0).expect("No base ctor?").clone(),
-                format!("THROW_UNLESS(::il2cpp_utils::New<{ty_cpp_name}>({base_ctor_params}))"),
-            )),
             ..decl.clone().into()
         };
 
         cpp_type
             .implementations
-            .push(CppMember::ConstructorImpl(cpp_constructor_impl).into());
+            .push(CppMember::MethodImpl(cpp_constructor_impl).into());
 
         cpp_type
             .declarations
-            .push(CppMember::ConstructorDecl(decl).into());
+            .push(CppMember::MethodDecl(decl).into());
     }
 
     fn create_method(
