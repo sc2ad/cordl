@@ -340,16 +340,22 @@ impl CppContext {
             CppInclude::new_exact(diff_paths(&self.typedef_path, base_path).unwrap())
                 .write(&mut typeimpl_writer)?;
 
-            typedef_types
-                .iter()
-                .flat_map(|t| &t.requirements.forward_declares)
+            let forward_declare_and_includes = || {
+                typedef_types
+                    .iter()
+                    .flat_map(|t| &t.requirements.forward_declares)
+            };
+
+            forward_declare_and_includes()
+                .map(|(_fd, inc)| inc)
                 .unique()
                 // TODO: Check forward declare is not of own type
-                .try_for_each(|(fd, i)| {
-                    // Forward declare and include
-                    i.write(&mut typeimpl_writer)?;
-                    fd.write(&mut typedef_writer)
-                })?;
+                .try_for_each(|i| i.write(&mut typeimpl_writer))?;
+
+            forward_declare_and_includes()
+                .map(|(fd, _inc)| fd)
+                .unique()
+                .try_for_each(|fd| fd.write(&mut typedef_writer))?;
 
             writeln!(typedef_writer, "// Forward declare root types")?;
             //Forward declare all types
