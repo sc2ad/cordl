@@ -36,7 +36,6 @@ pub struct CppTypeRequirements {
 impl CppTypeRequirements {
     pub fn add_forward_declare(
         &mut self,
-        _cpp_type: &CppType,
         cpp_data: (CppForwardDeclare, CppInclude),
     ) {
         // self.depending_types.insert(cpp_type.self_tag);

@@ -70,10 +70,7 @@ pub trait CSType: Sized {
         tag.into()
     }
 
-    fn parent_joined_cpp_name(
-        metadata: &Metadata,
-        tdi: TypeDefinitionIndex,
-    ) -> String {
+    fn parent_joined_cpp_name(metadata: &Metadata, tdi: TypeDefinitionIndex) -> String {
         let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
 
         let name = ty_def.name(metadata.metadata);
@@ -903,35 +900,44 @@ pub trait CSType: Sized {
             return;
         }
 
-        let generic_instantiation_args = cpp_type
-            .generic_instantiation_args
-            .clone()
-            .unwrap_or_default();
+        let generic_instantiation_args = cpp_type.generic_instantiation_args.clone();
 
         let aliases = t
             .nested_types(metadata.metadata)
             .iter()
             .map(|nested_tdi| {
+                let nested_tag = CppTypeTag::TypeDefinitionIndex(*nested_tdi);
+
+                let nested_context = ctx_collection
+                    .get_context(nested_tag)
+                    .expect("Unable to find CppContext");
                 let nested = ctx_collection
-                    .get_cpp_type(CppTypeTag::TypeDefinitionIndex(*nested_tdi))
+                    .get_cpp_type(nested_tag)
                     .expect("Unable to find nested CppType");
 
-                CppUsingAlias::from_cpp_type(
+                let alias = CppUsingAlias::from_cpp_type(
                     config.name_cpp(&nested.name),
                     nested,
-                    Some(generic_instantiation_args.clone()),
+                    generic_instantiation_args.clone(),
                     // if no generic args are made, we can do the generic fixup
                     // ORDER OF PASSES MATTERS
                     nested.generic_instantiation_args.is_none(),
-                )
+                );
+                let fd = CppForwardDeclare::from_cpp_type(nested);
+                let inc = CppInclude::new_context_typedef(nested_context);
+
+                (alias, fd, inc)
             })
             .collect_vec();
 
-        for a in aliases {
+        for (alias, fd, inc) in aliases {
             cpp_type
                 .declarations
-                .insert(0, CppMember::CppUsingAlias(a).into())
+                .insert(0, CppMember::CppUsingAlias(alias).into());
+            cpp_type.requirements.add_forward_declare((fd, inc));
         }
+
+        // forward
 
         // old way of making nested types
 
@@ -2298,10 +2304,10 @@ pub trait CSType: Sized {
                         eprintln!("Can't forward declare nested type! Including!");
                         requirements.add_include(Some(to_incl_cpp_ty), inc);
                     } else {
-                        requirements.add_forward_declare(
-                            to_incl_cpp_ty,
-                            (CppForwardDeclare::from_cpp_type(to_incl_cpp_ty), inc),
-                        );
+                        requirements.add_forward_declare((
+                            CppForwardDeclare::from_cpp_type(to_incl_cpp_ty),
+                            inc,
+                        ));
                     }
                 }
 
