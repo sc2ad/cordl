@@ -1625,7 +1625,7 @@ pub trait CSType: Sized {
         metadata: &Metadata,
         ctx_collection: &CppContextCollection,
         config: &GenerationConfig,
-        is_generic_inst: bool,
+        is_generic_method_inst: bool,
     ) {
         let method = &metadata.metadata.global_metadata.methods[method_index];
         let cpp_type = self.get_mut_cpp_type();
@@ -1661,7 +1661,7 @@ pub trait CSType: Sized {
             };
 
             let param_cpp_name = {
-                let fixup_name = match is_generic_inst {
+                let fixup_name = match is_generic_method_inst {
                     false => cpp_type.il2cpp_mvar_use_param_name(
                         metadata,
                         method_index,
@@ -1694,7 +1694,7 @@ pub trait CSType: Sized {
         // TODO: Add template<typename ...> if a generic inst e.g
         // T UnityEngine.Component::GetComponent<T>() -> bs_hook::Il2CppWrapperType UnityEngine.Component::GetComponent()
         let template = if method.generic_container_index.is_valid() {
-            match is_generic_inst {
+            match is_generic_method_inst {
                 true => Some(CppTemplate { names: vec![] }),
                 false => {
                     let generics = method
@@ -1712,7 +1712,7 @@ pub trait CSType: Sized {
             None
         };
 
-        let literal_types = if is_generic_inst {
+        let literal_types = if is_generic_method_inst {
             cpp_type
                 .method_generic_instantiation_map
                 .get(&method_index)
@@ -1735,7 +1735,7 @@ pub trait CSType: Sized {
         };
 
         let m_ret_cpp_type_name = {
-            let fixup_name = match is_generic_inst {
+            let fixup_name = match is_generic_method_inst {
                 false => cpp_type.il2cpp_mvar_use_param_name(
                     metadata,
                     method_index,
@@ -1777,7 +1777,7 @@ pub trait CSType: Sized {
         let method_calc = metadata.method_calculations.get(&method_index);
 
         // generic methods don't have definitions if not an instantiation
-        let method_stub = !is_generic_inst && template.is_some();
+        let method_stub = !is_generic_method_inst && template.is_some();
 
         let method_decl = CppMethodDecl {
             body: None,
@@ -1898,7 +1898,12 @@ pub trait CSType: Sized {
         };
 
         // don't emit method size structs for generic methods
-        if let Some(method_calc) = method_calc && template.is_none() && !is_generic_inst {
+
+
+        // if type is a generic 
+        let has_template_args = cpp_type.cpp_template.as_ref().is_some_and(|t| !t.names.is_empty());
+
+        if let Some(method_calc) = method_calc && template.is_none() && !has_template_args && !is_generic_method_inst {
             cpp_type
                 .nonmember_implementations
                 .push(Rc::new(CppMethodSizeStruct {
@@ -1937,7 +1942,7 @@ pub trait CSType: Sized {
                 .push(CppMember::MethodImpl(method_impl).into());
         }
 
-        if !is_generic_inst {
+        if !is_generic_method_inst {
             cpp_type
                 .declarations
                 .push(CppMember::MethodDecl(method_decl).into());
