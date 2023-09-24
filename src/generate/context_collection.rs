@@ -24,13 +24,15 @@ use super::{
 };
 
 // TODO:
-type GenericClassInstIndex = usize;
+/// Indices into the [`Il2CppMetadataRegistration::generic_insts`] field
+type GenericInstIndex = usize;
 
 // TDI -> Generic inst
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GenericInstantiation {
     pub tdi: TypeDefinitionIndex,
-    pub inst: GenericClassInstIndex,
+    /// Indices into the [`Il2CppMetadataRegistration::generic_insts`] field
+    pub inst: GenericInstIndex,
 }
 
 // Unique identifier for a CppType
@@ -76,30 +78,34 @@ impl From<CppTypeTag> for TypeDefinitionIndex {
 
 impl CppTypeTag {
     pub fn from_generic_class_index(
-        generic_inst_idx: GenericClassInstIndex,
+        generic_class_idx: usize,
         metadata: &brocolib::Metadata,
     ) -> Self {
-        let generic_inst = &metadata
+        let generic_class = &metadata
             .runtime_metadata
             .metadata_registration
-            .generic_classes[generic_inst_idx];
+            .generic_classes[generic_class_idx];
 
         let ty: brocolib::runtime_metadata::Il2CppType =
-            metadata.runtime_metadata.metadata_registration.types[generic_inst.type_index];
-        if let TypeData::TypeDefinitionIndex(tdi) = ty.data {
-            return Self::GenericInstantiation(GenericInstantiation {
-                tdi,
-                inst: generic_inst_idx,
-            });
+            metadata.runtime_metadata.metadata_registration.types[generic_class.type_index];
+        match ty.data {
+            TypeData::TypeDefinitionIndex(tdi) => {
+                Self::GenericInstantiation(GenericInstantiation {
+                    tdi,
+                    inst: generic_class
+                        .context
+                        .class_inst_idx
+                        .expect("Not a generic class inst idx"),
+                })
+            }
+            _ => panic!("No TDI for generic inst!"),
         }
-
-        panic!("No TDI for generic inst!")
     }
     pub fn from_type_data(type_data: TypeData, metadata: &brocolib::Metadata) -> Self {
         match type_data {
             TypeData::TypeDefinitionIndex(tdi) => tdi.into(),
-            TypeData::GenericClassIndex(generic_inst_idx) => {
-                Self::from_generic_class_index(generic_inst_idx, metadata)
+            TypeData::GenericClassIndex(generic_class_idx) => {
+                Self::from_generic_class_index(generic_class_idx, metadata)
             }
             _ => todo!(),
         }
@@ -380,6 +386,10 @@ impl CppContextCollection {
             tdi,
             inst: method_spec.class_inst_index as usize,
         });
+
+        if tdi.index() == 11026 || method_spec.class_inst_index == 2701 {
+            println!()
+        }
 
         // Why is the borrow checker so dumb?
         // Using entries causes borrow checker to die :(
