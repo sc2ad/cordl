@@ -726,7 +726,7 @@ pub trait CSType: Sized {
                     parameters: vec![],
                     prefix_modifiers: vec![],
                     suffix_modifiers: vec![],
-                    template: useful_template.clone(),
+                    template: None,
                 };
 
                 let setter_decl = CppMethodDecl {
