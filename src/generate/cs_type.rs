@@ -701,6 +701,14 @@ pub trait CSType: Sized {
                     }
                 };
 
+                // don't get a template that has no names
+                let useful_template = cpp_type.cpp_template.clone().and_then(|t| {
+                    match t.names.is_empty() {
+                        true => None,
+                        false => Some(t),
+                    }
+                });
+
                 let is_instance = !f_type.is_static() && !f_type.is_constant();
                 let getter_decl = CppMethodDecl {
                     cpp_name: format!("__get_{}", config.name_cpp(f_name)),
@@ -718,7 +726,7 @@ pub trait CSType: Sized {
                     parameters: vec![],
                     prefix_modifiers: vec![],
                     suffix_modifiers: vec![],
-                    template: None,
+                    template: useful_template.clone(),
                 };
 
                 let setter_decl = CppMethodDecl {
@@ -741,7 +749,7 @@ pub trait CSType: Sized {
                     }],
                     prefix_modifiers: vec![],
                     suffix_modifiers: vec![],
-                    template: None,
+                    template: useful_template.clone(),
                 };
 
                 let getter_impl = CppMethodImpl {
