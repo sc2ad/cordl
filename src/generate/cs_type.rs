@@ -423,9 +423,19 @@ pub trait CSType: Sized {
                     let inner_type =
                         cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false);
 
-                    // if int, float etc.
+                    // if int, int64, etc.
                     // this allows for enums to be supported
-                    if t.ty == Il2CppTypeEnum::Enum || t.ty.is_primitive_builtin() {
+                    if matches!(
+                        t.ty,
+                        Il2CppTypeEnum::I1
+                            | Il2CppTypeEnum::I2
+                            | Il2CppTypeEnum::I4
+                            | Il2CppTypeEnum::I8
+                            | Il2CppTypeEnum::U1
+                            | Il2CppTypeEnum::U2
+                            | Il2CppTypeEnum::U4
+                            | Il2CppTypeEnum::U8
+                    ) {
                         return (
                             Some(format!("{CORDL_NUM_ENUM_TYPE_CONSTRAINT}<{inner_type}>",)),
                             gen_name,
