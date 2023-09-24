@@ -423,7 +423,7 @@ pub trait CSType: Sized {
                     let inner_type =
                         cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false);
 
-                    // if int, int64, etc.
+                    // if int, int64 etc.
                     // this allows for enums to be supported
                     if matches!(
                         t.ty,
@@ -824,44 +824,21 @@ pub trait CSType: Sized {
             let inherit_type =
                 cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, true);
 
-            if t.declaring_type_index != u32::MAX {
-                let declaring_ty = &metadata
-                    .metadata
-                    .runtime_metadata
-                    .metadata_registration
-                    .types[t.declaring_type_index as usize];
-
-                let _parent_type_tag =
-                    CppTypeTag::from_type_data(parent_type.data, metadata.metadata);
-                let _declaring_type_tag =
-                    CppTypeTag::from_type_data(declaring_ty.data, metadata.metadata);
-
-                if t.parent_index == t.declaring_type_index
-                // TODO: Check recursively for declaring type
-                // || ctx_collection.get_parent_or_self_tag(parent_type_tag)
-                //     == ctx_collection.get_parent_or_self_tag(declaring_type_tag)
-                {
-                    eprintln!(
-                        "Nested type {} inherits and is declared by {inherit_type}",
-                        cpp_type.cpp_full_name
-                    );
-                }
-            }
-
-            cpp_type.inherit.push(inherit_type);
-
             if matches!(
                 parent_type.ty,
                 Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
             ) {
-                // TODO: Figure out why generic tags don't work here
+                // TODO: Figure out why some generic insts don't work here
                 let parent_tdi: TypeDefinitionIndex = parent_ty.into();
 
                 let base_type_context = ctx_collection
-                    .get_context(parent_tdi.into())
+                    .get_context(parent_ty)
+                    .or_else(|| ctx_collection.get_context(parent_tdi.into()))
                     .expect("No CppContext for base type");
+
                 let base_type_cpp_type = ctx_collection
-                    .get_cpp_type(parent_tdi.into())
+                    .get_cpp_type(parent_ty)
+                    .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
                     .expect("No CppType for base type");
 
                 cpp_type.requirements.add_impl_include(
@@ -869,6 +846,8 @@ pub trait CSType: Sized {
                     CppInclude::new_context_typeimpl(base_type_context),
                 )
             }
+
+            cpp_type.inherit.push(inherit_type);
         } else {
             panic!("NO PARENT! But valid index found: {}", t.parent_index);
         }
@@ -2496,14 +2475,10 @@ pub trait CSType: Sized {
 
                     if add_include {
                         cpp_type.requirements.add_dependency_tag(tdi.into());
-                        cpp_type
-                            .requirements
-                            .add_dependency_tag(CppTypeTag::GenericInstantiation(
-                                GenericInstantiation {
-                                    tdi,
-                                    inst: generic_class.context.class_inst_idx.unwrap(),
-                                },
-                            ));
+
+                        let generic_tag = CppTypeTag::from_type_data(typ.data, metadata.metadata);
+
+                        cpp_type.requirements.add_dependency_tag(generic_tag);
                     }
 
                     let generic_types = generic_inst
