@@ -834,12 +834,18 @@ pub trait CSType: Sized {
                 let base_type_context = ctx_collection
                     .get_context(parent_ty)
                     .or_else(|| ctx_collection.get_context(parent_tdi.into()))
-                    .expect("No CppContext for base type");
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "No CppContext for base type {inherit_type}. Using tag {parent_ty:?}"
+                        )
+                    });
 
                 let base_type_cpp_type = ctx_collection
                     .get_cpp_type(parent_ty)
                     .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
-                    .expect("No CppType for base type");
+                    .unwrap_or_else(|| {
+                        panic!("No CppType for base type {inherit_type}. Using tag {parent_ty:?}")
+                    });
 
                 cpp_type.requirements.add_impl_include(
                     Some(base_type_cpp_type),

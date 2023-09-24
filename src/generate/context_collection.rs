@@ -7,7 +7,7 @@ use std::{
 
 use brocolib::{
     global_metadata::TypeDefinitionIndex,
-    runtime_metadata::{Il2CppMethodSpec, TypeData},
+    runtime_metadata::{Il2CppGenericClass, Il2CppMethodSpec, Il2CppTypeEnum, TypeData},
 };
 use itertools::Itertools;
 use log::{trace, warn};
@@ -88,18 +88,18 @@ impl CppTypeTag {
 
         let ty: brocolib::runtime_metadata::Il2CppType =
             metadata.runtime_metadata.metadata_registration.types[generic_class.type_index];
-        match ty.data {
-            TypeData::TypeDefinitionIndex(tdi) => {
-                Self::GenericInstantiation(GenericInstantiation {
-                    tdi,
-                    inst: generic_class
-                        .context
-                        .class_inst_idx
-                        .expect("Not a generic class inst idx"),
-                })
-            }
-            _ => panic!("No TDI for generic inst!"),
-        }
+        // Unwrap
+        let TypeData::TypeDefinitionIndex(tdi) = ty.data else {
+            panic!("No TDI for generic inst!")
+        };
+
+        Self::GenericInstantiation(GenericInstantiation {
+            tdi,
+            inst: generic_class
+                .context
+                .class_inst_idx
+                .expect("Not a generic class inst idx"),
+        })
     }
     pub fn from_type_data(type_data: TypeData, metadata: &brocolib::Metadata) -> Self {
         match type_data {
@@ -756,6 +756,92 @@ impl CppContextCollection {
                 Ok(())
             })?;
         Ok(())
+    }
+
+    pub fn alias_generic_types(&mut self, generic_class: &Il2CppGenericClass, metadata: &Metadata) {
+        let ty: brocolib::runtime_metadata::Il2CppType = metadata
+            .metadata
+            .runtime_metadata
+            .metadata_registration
+            .types[generic_class.type_index];
+        // Unwrap
+        let TypeData::TypeDefinitionIndex(tdi) = ty.data else {
+            panic!("No TDI for generic inst!")
+        };
+
+        let generic_inst_idx = generic_class
+            .context
+            .class_inst_idx
+            .expect("Not a generic class inst idx");
+        let generic_inst = &metadata
+            .metadata
+            .runtime_metadata
+            .metadata_registration
+            .generic_insts[generic_inst_idx];
+        let generic_inst_tag = CppTypeTag::GenericInstantiation(GenericInstantiation {
+            tdi,
+            inst: generic_inst_idx,
+        });
+
+        // get the types which are only primitives or value types, since generic instantiations are made for those
+        let obj_type = metadata
+            .metadata_registration
+            .types
+            .iter()
+            .enumerate()
+            .find(|(_, t)| t.ty == Il2CppTypeEnum::Object)
+            .expect("No object type found");
+
+        let primitive_types = generic_inst
+            .types
+            .iter()
+            .map(|t| (t, &metadata.metadata_registration.types[*t]))
+            .map(|(t_idx, t)| {
+                let def_return = (*t_idx, t);
+                match t.data {
+                    TypeData::TypeDefinitionIndex(tdi) => {
+                        let td = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+                        match t.ty {
+                            Il2CppTypeEnum::Byref => obj_type,
+                            Il2CppTypeEnum::Valuetype => def_return,
+                            Il2CppTypeEnum::Class => obj_type,
+
+                            Il2CppTypeEnum::Object => obj_type,
+                            Il2CppTypeEnum::Enum => (
+                                td.element_type_index as usize,
+                                &metadata.metadata_registration.types
+                                    [td.element_type_index as usize],
+                            ),
+                            _ => def_return,
+                        }
+                    }
+                    TypeData::TypeIndex(_) => todo!(),
+                    TypeData::GenericParameterIndex(_) => def_return,
+                    TypeData::GenericClassIndex(_) => obj_type,
+                    TypeData::ArrayType => obj_type,
+                }
+            })
+            .map(|(t_idx, t)| t_idx)
+            .collect_vec();
+
+        let (existing_generic_inst_idx, existing_generic_inst) = metadata
+            .metadata_registration
+            .generic_insts
+            .iter()
+            .enumerate()
+            .find(|(_, g)| g.types == primitive_types)
+            .expect("No existing generic inst found");
+        let existing_generic_inst_tag = CppTypeTag::GenericInstantiation(GenericInstantiation {
+            tdi,
+            inst: existing_generic_inst_idx,
+        });
+
+        if existing_generic_inst_tag == generic_inst_tag {
+            return;
+        }
+
+        self.alias_type_to_context(generic_inst_tag, existing_generic_inst_tag, false, false);
     }
 }
 

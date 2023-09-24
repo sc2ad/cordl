@@ -291,6 +291,21 @@ impl CppContext {
 
             for dep in cpp_type.requirements.depending_types.iter().sorted() {
                 ts.add_dependency(&cpp_type.self_tag, dep);
+
+                // add dependency for generic instantiations
+                // for all types with the same TDI
+                if let CppTypeTag::TypeDefinitionIndex(tdi) = dep {
+                    // find all generic tags that have the same TDI
+                    let generic_tags_in_context =
+                        typedef_root_types.iter().filter(|t| match t.self_tag {
+                            CppTypeTag::TypeDefinitionIndex(_) => false,
+                            CppTypeTag::GenericInstantiation(gen_inst) => gen_inst.tdi == *tdi,
+                        });
+
+                    generic_tags_in_context.for_each(|generic_dep| {
+                        ts.add_dependency(&cpp_type.self_tag, &generic_dep.self_tag);
+                    })
+                }
             }
         }
 
