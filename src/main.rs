@@ -203,24 +203,6 @@ fn main() -> color_eyre::Result<()> {
             cpp_context_collection.make_generic_from(method_spec, &mut metadata, &STATIC_CONFIG);
         }
     }
-    // {
-    //     let total = metadata.metadata_registration.generic_method_table.len() as f64;
-    //     info!("Aliasing ref generic type instantiations");
-    //     for (i, generic_class) in metadata
-    //         .metadata_registration
-    //         .generic_classes
-    //         .iter()
-    //         .enumerate()
-    //     {
-    //         trace!(
-    //             "Aliasing generic type instantiations {:.4}% ({i}/{total})",
-    //             (i as f64 / total * 100.0)
-    //         );
-
-
-    //         cpp_context_collection.alias_generic_types(generic_class, &metadata);
-    //     }
-    // }
     {
         let total = metadata.metadata_registration.generic_method_table.len() as f64;
         info!("Filling generic types!");
