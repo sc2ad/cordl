@@ -338,10 +338,11 @@ pub trait Il2CppTypeEnumExtensions {
 
 impl Il2CppTypeEnumExtensions for Il2CppTypeEnum {
     fn is_primitive_builtin(&self) -> bool {
+        // check if not a ref type
         !matches!(
             self,
             Il2CppTypeEnum::Byref
-                | Il2CppTypeEnum::Valuetype
+                | Il2CppTypeEnum::Valuetype // value type class
                 | Il2CppTypeEnum::Class
                 | Il2CppTypeEnum::Var
                 | Il2CppTypeEnum::Array

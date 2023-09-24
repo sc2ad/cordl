@@ -26,7 +26,10 @@ use crate::{
 use super::{
     config::GenerationConfig,
     context_collection::{CppContextCollection, CppTypeTag},
-    cpp_type::{CppType, CORDL_METHOD_HELPER_NAMESPACE},
+    cpp_type::{
+        CppType, CORDL_METHOD_HELPER_NAMESPACE, CORDL_NUM_ENUM_TYPE_CONSTRAINT,
+        CORDL_REFERENCE_TYPE_CONSTRAINT, __CORDL_BACKING_ENUM_TYPE,
+    },
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
@@ -308,7 +311,8 @@ pub trait CSType: Sized {
             self.create_valuetype_field_wrapper();
             self.create_valuetype_convert();
             if t.is_enum_type() {
-                self.create_enum_wrapper(metadata, ctx_collection, config, tdi);
+                self.create_enum_wrapper(metadata, ctx_collection, tdi);
+                self.create_enum_backing_type_constant(metadata, ctx_collection, tdi);
             }
         } else if t.is_interface() {
             self.make_interface_constructors();
@@ -391,21 +395,18 @@ pub trait CSType: Sized {
         let _ty = &metadata.metadata_registration.types[td.byval_type_index as usize];
         let generic_container = td.generic_container(metadata.metadata);
 
-        let mut reference_type_templates: Vec<String> = vec![];
-
-        let generic_instantiation_args: Vec<String> = generic_instantiations_args_types
-            .iter()
-            .map(|u| {
-                metadata
-                    .metadata_registration
-                    .types
-                    .get(*u as usize)
-                    .unwrap()
-            })
-            .enumerate()
-            .map(|(i, t)| {
-                // If reference type, we use a template and add a requirement
-                if !t.valuetype {
+        let generic_instantiation_args: Vec<(Option<String>, String)> =
+            generic_instantiations_args_types
+                .iter()
+                .map(|u| {
+                    metadata
+                        .metadata_registration
+                        .types
+                        .get(*u as usize)
+                        .unwrap()
+                })
+                .enumerate()
+                .map(|(i, t)| {
                     let gen_param = generic_container
                         .generic_parameters(metadata.metadata)
                         .iter()
@@ -414,26 +415,53 @@ pub trait CSType: Sized {
 
                     let gen_name = gen_param.name(metadata.metadata).to_string();
 
-                    reference_type_templates.push(gen_name.clone());
+                    // If reference type, we use a template and add a requirement
+                    if !t.valuetype {
+                        return (Some(CORDL_REFERENCE_TYPE_CONSTRAINT.to_string()), gen_name);
+                    }
 
-                    return gen_name;
-                }
+                    let inner_type =
+                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false);
 
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false)
-            })
-            .collect();
+                    // if int, float etc.
+                    // this allows for enums to be supported
+                    if t.ty == Il2CppTypeEnum::Enum || t.ty.is_primitive_builtin() {
+                        return (
+                            Some(format!("{CORDL_NUM_ENUM_TYPE_CONSTRAINT}<{inner_type}>",)),
+                            gen_name,
+                        );
+                    }
+
+                    (None, inner_type)
+                })
+                .collect();
 
         // Handle nested types
         // Assumes these nested types exist,
         // which are created in the make_generic type func
         // TODO: Base off a CppType the alias path
 
-        cpp_type.generic_instantiation_args = Some(generic_instantiation_args);
-
         // Add template constraint
-        if !reference_type_templates.is_empty() {
-            cpp_type.cpp_template = Some(CppTemplate::make_ref_types(reference_type_templates));
+        // get all args with constraints
+        let generic_constraint_args = generic_instantiation_args
+            .iter()
+            .filter_map(|(constraint, name)| {
+                constraint.as_ref().map(|s| (s.to_string(), name.clone()))
+            })
+            .collect_vec();
+
+        if !generic_constraint_args.is_empty() {
+            cpp_type.cpp_template = Some(CppTemplate {
+                names: generic_constraint_args,
+            });
         }
+
+        cpp_type.generic_instantiation_args = Some(
+            generic_instantiation_args
+                .into_iter()
+                .map(|(_constraint, gen_name)| gen_name)
+                .collect_vec(),
+        );
 
         // only set if there are no generic ref types
         cpp_type.cpp_full_name = format!(
@@ -1050,37 +1078,47 @@ pub trait CSType: Sized {
             todo!("Why does this type not have a valid size??? {:?}", cpp_type);
         }
     }
+    fn create_enum_backing_type_constant(
+        &mut self,
+        metadata: &Metadata,
+        ctx_collection: &CppContextCollection,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let cpp_type = self.get_mut_cpp_type();
+
+        let t = Self::get_type_definition(metadata, tdi);
+
+        let backing_field_idx = t.element_type_index as usize;
+        let backing_field_ty = &metadata.metadata_registration.types[backing_field_idx];
+
+        let enum_base =
+            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field_ty, false);
+
+        cpp_type.declarations.push(
+            CppMember::CppUsingAlias(CppUsingAlias {
+                alias: __CORDL_BACKING_ENUM_TYPE.to_string(),
+                result: enum_base,
+                template: None,
+            })
+            .into(),
+        );
+    }
 
     fn create_enum_wrapper(
         &mut self,
         metadata: &Metadata,
         ctx_collection: &CppContextCollection,
-        config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
         let t = Self::get_type_definition(metadata, tdi);
         let mut wrapper_declaration = vec![];
         let unwrapped_name = format!("__{}_Unwrapped", cpp_type.cpp_name());
-        let backing_field = t
-            .fields(metadata.metadata)
-            .iter()
-            .map(|field| {
-                let f_type = metadata
-                    .metadata_registration
-                    .types
-                    .get(field.type_index as usize)
-                    .unwrap();
-                match f_type.is_static() {
-                    true => None,
-                    false => Some(f_type),
-                }
-            })
-            .find(|f| f.is_some())
-            .unwrap()
-            .unwrap();
+        let backing_field_idx = t.element_type_index as usize;
+        let backing_field_ty = &metadata.metadata_registration.types[backing_field_idx];
 
-        let enum_base = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field, false);
+        let enum_base =
+            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field_ty, false);
 
         wrapper_declaration.push(format!("enum class {unwrapped_name} : {enum_base} {{"));
 
@@ -2183,22 +2221,18 @@ pub trait CSType: Sized {
             .method_generic_instantiation_map
             .remove(&method_index);
 
+        // fast path for generic param name
+        // otherwise cpp_name() will default to generic param anyways
         let ret = match typ.ty {
             Il2CppTypeEnum::Mvar => match typ.data {
                 TypeData::GenericParameterIndex(index) => {
-                    let generic_param: &brocolib::global_metadata::Il2CppGenericParameter =
+                    let generic_param =
                         &metadata.metadata.global_metadata.generic_parameters[index];
 
                     let owner = generic_param.owner(metadata.metadata);
                     assert!(owner.is_method != u32::MAX);
 
-                    let gen_param = owner
-                        .generic_parameters(metadata.metadata)
-                        .iter()
-                        .find(|&p| p.name_index == generic_param.name_index)
-                        .unwrap();
-
-                    gen_param.name(metadata.metadata).to_string()
+                    generic_param.name(metadata.metadata).to_string()
                 }
                 _ => todo!(),
             },
