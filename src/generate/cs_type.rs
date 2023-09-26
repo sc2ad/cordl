@@ -702,12 +702,14 @@ pub trait CSType: Sized {
                 };
 
                 // don't get a template that has no names
-                let useful_template = cpp_type.cpp_template.clone().and_then(|t| {
-                    match t.names.is_empty() {
-                        true => None,
-                        false => Some(t),
-                    }
-                });
+                let useful_template =
+                    cpp_type
+                        .cpp_template
+                        .clone()
+                        .and_then(|t| match t.names.is_empty() {
+                            true => None,
+                            false => Some(t),
+                        });
 
                 let is_instance = !f_type.is_static() && !f_type.is_constant();
                 let getter_decl = CppMethodDecl {
@@ -1720,6 +1722,22 @@ pub trait CSType: Sized {
             None
         };
 
+        let impl_template: Option<CppTemplate> = {
+            let declaring_type_template = cpp_type.cpp_template.clone();
+
+            if let Some(declaring_type_template) = &declaring_type_template && let Some(method_template) = &template {
+                let concat_template = CppTemplate{
+                    names: declaring_type_template.names.iter().chain(method_template.names.iter()).cloned().collect_vec()
+                };
+
+                Some(concat_template)
+            } else {
+
+                // if just one of the two templates is Some(), then we OR
+                declaring_type_template.or(template.clone())
+            }
+        };
+
         let literal_types = if is_generic_method_inst {
             cpp_type
                 .method_generic_instantiation_map
@@ -1830,10 +1848,10 @@ pub trait CSType: Sized {
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
             .join(", ");
 
-        let method_info_lines = match &template {
-            Some(template) => {
-                // generic
-                let generics_classes_format = template
+        let generics_classes_format = template
+            .as_ref()
+            .map(|template| {
+                template
                     .names
                     .iter()
                     .map(|(_, t)| {
@@ -1841,9 +1859,11 @@ pub trait CSType: Sized {
                             "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"
                         )
                     })
-                    .join(", ");
+                    .join(", ")
+            })
+            .unwrap_or_default();
 
-                vec![
+        let method_info_lines = vec![
                     format!("static auto* ___internal_method_base = THROW_UNLESS((::il2cpp_utils::FindMethod(
                         {declaring_classof_call},
                         \"{m_name}\",
@@ -1854,19 +1874,7 @@ pub trait CSType: Sized {
                         ___internal_method_base,
                          std::vector<Il2CppClass*>{{{generics_classes_format}}}
                         ));"),
-                ]
-            }
-            None => {
-                vec![
-                    format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::FindMethod(
-                            {declaring_classof_call},
-                            \"{m_name}\",
-                            std::vector<Il2CppClass*>{{}},
-                            ::std::vector<const Il2CppType*>{{{params_types_format}}}
-                        )));"),
-                ]
-            }
-        };
+                ];
 
         let method_body_lines = [format!(
             "return ::cordl_internals::RunMethodRethrow<{m_ret_cpp_type_name}, false>({});",
@@ -1893,7 +1901,7 @@ pub trait CSType: Sized {
             instance: !method.is_static_method(),
             suffix_modifiers: Default::default(),
             prefix_modifiers: Default::default(),
-            template: template.clone(),
+            template: impl_template,
 
             // defaults
             ..method_decl.clone().into()
@@ -1907,9 +1915,11 @@ pub trait CSType: Sized {
 
         // don't emit method size structs for generic methods
 
-
-        // if type is a generic 
-        let has_template_args = cpp_type.cpp_template.as_ref().is_some_and(|t| !t.names.is_empty());
+        // if type is a generic
+        let has_template_args = cpp_type
+            .cpp_template
+            .as_ref()
+            .is_some_and(|t| !t.names.is_empty());
 
         if let Some(method_calc) = method_calc && template.is_none() && !has_template_args && !is_generic_method_inst {
             cpp_type
