@@ -751,18 +751,22 @@ pub trait CSType: Sized {
                     }],
                     prefix_modifiers: vec![],
                     suffix_modifiers: vec![],
-                    template: useful_template.clone(),
+                    template: None
                 };
 
                 let getter_impl = CppMethodImpl {
                     body: vec![Arc::new(CppLine::make(getter_call))],
                     declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                    template: useful_template.clone(),
+
                     ..getter_decl.clone().into()
                 };
 
                 let setter_impl = CppMethodImpl {
                     body: vec![Arc::new(CppLine::make(setter_call))],
                     declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                    template: useful_template.clone(),
+
                     ..setter_decl.clone().into()
                 };
 
