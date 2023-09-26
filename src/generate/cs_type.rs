@@ -751,7 +751,7 @@ pub trait CSType: Sized {
                     }],
                     prefix_modifiers: vec![],
                     suffix_modifiers: vec![],
-                    template: None
+                    template: None,
                 };
 
                 let getter_impl = CppMethodImpl {
@@ -1852,10 +1852,10 @@ pub trait CSType: Sized {
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
             .join(", ");
 
-        let generics_classes_format = template
-            .as_ref()
-            .map(|template| {
-                template
+        let method_info_lines = match &template {
+            Some(template) => {
+                // generic
+                let generics_classes_format = template
                     .names
                     .iter()
                     .map(|(_, t)| {
@@ -1863,11 +1863,9 @@ pub trait CSType: Sized {
                             "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"
                         )
                     })
-                    .join(", ")
-            })
-            .unwrap_or_default();
+                    .join(", ");
 
-        let method_info_lines = vec![
+                vec![
                     format!("static auto* ___internal_method_base = THROW_UNLESS((::il2cpp_utils::FindMethod(
                         {declaring_classof_call},
                         \"{m_name}\",
@@ -1878,7 +1876,19 @@ pub trait CSType: Sized {
                         ___internal_method_base,
                          std::vector<Il2CppClass*>{{{generics_classes_format}}}
                         ));"),
-                ];
+                ]
+            }
+            None => {
+                vec![
+                    format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::FindMethod(
+                            {declaring_classof_call},
+                            \"{m_name}\",
+                            std::vector<Il2CppClass*>{{}},
+                            ::std::vector<const Il2CppType*>{{{params_types_format}}}
+                        )));"),
+                ]
+            }
+        };
 
         let method_body_lines = [format!(
             "return ::cordl_internals::RunMethodRethrow<{m_ret_cpp_type_name}, false>({});",
