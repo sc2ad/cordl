@@ -5,13 +5,11 @@ pub struct GenerationConfig {
     pub header_path: PathBuf,
     pub dst_internals_path: PathBuf,
     pub dst_header_internals_file: PathBuf,
-    pub use_anonymous_namespace: bool
+    pub use_anonymous_namespace: bool,
 }
 
 impl GenerationConfig {
     pub fn namespace_cpp(&self, string: &str) -> String {
-
-
         let final_ns = if string.is_empty() {
             "GlobalNamespace".to_owned()
         } else {

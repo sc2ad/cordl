@@ -4,7 +4,7 @@ use super::{
 };
 
 use itertools::Itertools;
-use std::{io::Write};
+use std::io::Write;
 
 impl Writable for CppTemplate {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
@@ -515,7 +515,6 @@ impl Writable for CppMethodSizeStruct {
         } else {
             self.method_info_lines.clone()
         }.join("\n");
-
 
         let f_ptr_prefix = if self.instance {
             format!("{}::", self.declaring_type_name)

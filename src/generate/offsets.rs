@@ -1,6 +1,5 @@
 use crate::TypeDefinitionIndex;
 
-
 use brocolib::global_metadata::Il2CppTypeDefinition;
 use brocolib::runtime_metadata::Il2CppTypeDefinitionSizes;
 use brocolib::runtime_metadata::TypeData;
@@ -44,7 +43,10 @@ pub fn layout_fields_for_type<'a>(
                     .generic_classes[generic_class];
                 let generic_ty = &metadata.metadata_registration.types[generic_class.type_index];
                 let TypeData::TypeDefinitionIndex(parent_tdi) = generic_ty.data else {
-                    panic!("Failed to find TypeDefinitionIndex for generic class: {:?}", generic_ty.data);
+                    panic!(
+                        "Failed to find TypeDefinitionIndex for generic class: {:?}",
+                        generic_ty.data
+                    );
                 };
 
                 parent_tdi
@@ -269,7 +271,12 @@ fn get_type_size_and_alignment(ty: &Il2CppType, metadata: &Metadata) -> SizeAndA
             sa.alignment = get_alignment_of_type(OffsetType::Pointer, metadata.pointer_size);
         }
         Il2CppTypeEnum::Valuetype => {
-            let TypeData::TypeDefinitionIndex(tdi) = ty.data else {panic!("Failed to find a valid TypeDefinitionIndex from type's data: {:?}", ty.data)};
+            let TypeData::TypeDefinitionIndex(tdi) = ty.data else {
+                panic!(
+                    "Failed to find a valid TypeDefinitionIndex from type's data: {:?}",
+                    ty.data
+                )
+            };
             let td = &metadata.metadata.global_metadata.type_definitions[tdi];
 
             if td.is_enum_type() {
@@ -289,13 +296,23 @@ fn get_type_size_and_alignment(ty: &Il2CppType, metadata: &Metadata) -> SizeAndA
             }
         }
         Il2CppTypeEnum::Genericinst => {
-            let TypeData::GenericClassIndex(gtype) = ty.data else {panic!("Failed to find a valid GenericClassIndex from type's data: {:?}", ty.data)};
+            let TypeData::GenericClassIndex(gtype) = ty.data else {
+                panic!(
+                    "Failed to find a valid GenericClassIndex from type's data: {:?}",
+                    ty.data
+                )
+            };
             let mr = &metadata.metadata_registration;
             let generic_class = mr.generic_classes.get(gtype).unwrap();
 
             let generic_type_def = &mr.types[generic_class.type_index];
 
-            let TypeData::TypeDefinitionIndex(tdi) = generic_type_def.data else {panic!("Failed to find a valid TypeDefinitionIndex from type's data: {:?}", generic_type_def.data)};
+            let TypeData::TypeDefinitionIndex(tdi) = generic_type_def.data else {
+                panic!(
+                    "Failed to find a valid TypeDefinitionIndex from type's data: {:?}",
+                    generic_type_def.data
+                )
+            };
             let td = &metadata.metadata.global_metadata.type_definitions[tdi];
 
             if td.is_value_type() {
