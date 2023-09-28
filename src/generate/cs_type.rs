@@ -1570,6 +1570,7 @@ pub trait CSType: Sized {
         declaring_type: &Il2CppTypeDefinition,
         m_params: &[CppParam],
         template: &Option<CppTemplate>,
+        impl_template: &Option<CppTemplate>,
     ) {
         if declaring_type.is_value_type() || declaring_type.is_enum_type() {
             return;
@@ -1619,6 +1620,7 @@ pub trait CSType: Sized {
 
             declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
             parameters: m_params.to_vec(),
+            template: impl_template.clone(),
             ..decl.clone().into()
         };
 
@@ -1780,7 +1782,13 @@ pub trait CSType: Sized {
 
         // Reference type constructor
         if m_name == ".ctor" {
-            Self::create_ref_constructor(cpp_type, declaring_type, &m_params_with_def, &template);
+            Self::create_ref_constructor(
+                cpp_type,
+                declaring_type,
+                &m_params_with_def,
+                &template,
+                &impl_template,
+            );
         }
         let cpp_m_name = {
             let cpp_m_name = config.name_cpp(m_name);
