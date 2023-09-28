@@ -1841,17 +1841,17 @@ pub trait CSType: Sized {
             is_operator: false,
         };
 
-        let instance_ptr = if method.is_static_method() {
-            "nullptr"
+        let instance_ptr: String = if method.is_static_method() {
+            "nullptr".into()
         } else if cpp_type.is_value_type {
-            "const_cast<void*>(reinterpret_cast<const void*>(__instance.data()))"
+            format!("const_cast<void*>(reinterpret_cast<const void*>({VALUE_TYPE_WRAPPER_INSTANCE_NAME}.data()))")
         } else {
-            "const_cast<void*>(instance)"
+            format!("const_cast<void*>(this->{REFERENCE_WRAPPER_INSTANCE_NAME})")
         };
 
         const METHOD_INFO_VAR_NAME: &str = "___internal_method";
 
-        let method_invoke_params = vec![instance_ptr, METHOD_INFO_VAR_NAME];
+        let method_invoke_params = vec![instance_ptr.as_str(), METHOD_INFO_VAR_NAME];
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
         let declaring_type_cpp_full_name = cpp_type.formatted_complete_cpp_name().to_string();
         let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{declaring_type_cpp_full_name}>::get()");
