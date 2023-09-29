@@ -2575,6 +2575,10 @@ pub trait CSType: Sized {
     }
 }
 
+/// 
+/// This makes generic args for types such as ValueTask<List<T>> work
+/// by recursively checking if any generic arg is a reference or numeric type (for enums)
+/// 
 fn parse_generic_arg(
     t: &Il2CppType,
     gen_name: String,
@@ -2641,7 +2645,7 @@ fn parse_generic_arg(
                     let t = metadata
                         .metadata_registration
                         .types
-                        .get(*u as usize)
+                        .get(*u)
                         .unwrap();
                     let gen_param = gen_container
                         .generic_parameters(metadata.metadata)
