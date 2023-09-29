@@ -7,7 +7,7 @@ use std::{
 
 use brocolib::{
     global_metadata::TypeDefinitionIndex,
-    runtime_metadata::{Il2CppGenericClass, Il2CppMethodSpec, Il2CppTypeEnum, TypeData},
+    runtime_metadata::{Il2CppMethodSpec, TypeData},
 };
 use itertools::Itertools;
 use log::{trace, warn};
@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    config::GenerationConfig, context::CppContext, cs_context_collection::CsContextCollection,
+    config::GenerationConfig, context::CppContext,
     metadata::Metadata, type_extensions::TypeDefinitionExtensions,
 };
 

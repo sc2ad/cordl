@@ -8,7 +8,7 @@ use std::{
 
 use brocolib::global_metadata::TypeDefinitionIndex;
 
-use brocolib::runtime_metadata::TypeData;
+
 use color_eyre::eyre::ContextCompat;
 
 use itertools::Itertools;

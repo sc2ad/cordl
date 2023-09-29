@@ -19,7 +19,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use itertools::Itertools;
 
 use crate::{
-    generate::{context_collection::GenericInstantiation, members::CppUsingAlias, offsets},
+    generate::{members::CppUsingAlias, offsets},
     helpers::cursor::ReadBytesExtensions,
 };
 
@@ -395,56 +395,39 @@ pub trait CSType: Sized {
         let _ty = &metadata.metadata_registration.types[td.byval_type_index as usize];
         let generic_container = td.generic_container(metadata.metadata);
 
-        let generic_instantiation_args: Vec<(Option<String>, String)> =
-            generic_instantiations_args_types
-                .iter()
-                .map(|u| {
-                    metadata
-                        .metadata_registration
-                        .types
-                        .get(*u as usize)
-                        .unwrap()
-                })
-                .enumerate()
-                .map(|(i, t)| {
-                    let gen_param = generic_container
-                        .generic_parameters(metadata.metadata)
-                        .iter()
-                        .find(|p| p.num as usize == i)
-                        .expect("No generic parameter found for this index!");
+        let mut template_args: Vec<(String, String)> = vec![];
 
-                    let gen_name = gen_param.name(metadata.metadata).to_string();
+        let generic_instantiation_args: Vec<String> = generic_instantiations_args_types
+            .iter()
+            .enumerate()
+            .map(|(gen_param_idx, u)| {
+                let t = metadata
+                    .metadata_registration
+                    .types
+                    .get(*u as usize)
+                    .unwrap();
 
-                    // If reference type, we use a template and add a requirement
-                    if !t.valuetype {
-                        return (Some(CORDL_REFERENCE_TYPE_CONSTRAINT.to_string()), gen_name);
-                    }
+                let gen_param = generic_container
+                    .generic_parameters(metadata.metadata)
+                    .iter()
+                    .find(|p| p.num as usize == gen_param_idx)
+                    .expect("No generic parameter found for this index!");
 
-                    let inner_type =
-                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false);
+                (t, gen_param)
+            })
+            .map(|(t, gen_param)| {
+                let gen_name = gen_param.name(metadata.metadata).to_string();
 
-                    // if int, int64 etc.
-                    // this allows for enums to be supported
-                    if matches!(
-                        t.ty,
-                        Il2CppTypeEnum::I1
-                            | Il2CppTypeEnum::I2
-                            | Il2CppTypeEnum::I4
-                            | Il2CppTypeEnum::I8
-                            | Il2CppTypeEnum::U1
-                            | Il2CppTypeEnum::U2
-                            | Il2CppTypeEnum::U4
-                            | Il2CppTypeEnum::U8
-                    ) {
-                        return (
-                            Some(format!("{CORDL_NUM_ENUM_TYPE_CONSTRAINT}<{inner_type}>",)),
-                            gen_name,
-                        );
-                    }
-
-                    (None, inner_type)
-                })
-                .collect();
+                parse_generic_arg(
+                    t,
+                    gen_name,
+                    cpp_type,
+                    ctx_collection,
+                    metadata,
+                    &mut template_args,
+                )
+            })
+            .collect();
 
         // Handle nested types
         // Assumes these nested types exist,
@@ -453,23 +436,16 @@ pub trait CSType: Sized {
 
         // Add template constraint
         // get all args with constraints
-        let generic_constraint_args = generic_instantiation_args
-            .iter()
-            .filter_map(|(constraint, name)| {
-                constraint.as_ref().map(|s| (s.to_string(), name.clone()))
-            })
-            .collect_vec();
-
-        if !generic_constraint_args.is_empty() {
+        if !template_args.is_empty() {
             cpp_type.cpp_template = Some(CppTemplate {
-                names: generic_constraint_args,
+                names: template_args,
             });
         }
 
         cpp_type.generic_instantiation_args = Some(
             generic_instantiation_args
                 .into_iter()
-                .map(|(_constraint, gen_name)| gen_name)
+                .map(|gen_name| gen_name)
                 .collect_vec(),
         );
 
@@ -2596,6 +2572,101 @@ pub trait CSType: Sized {
         tdi: TypeDefinitionIndex,
     ) -> &'a Il2CppTypeDefinition {
         &metadata.metadata.global_metadata.type_definitions[tdi]
+    }
+}
+
+fn parse_generic_arg(
+    t: &Il2CppType,
+    gen_name: String,
+    cpp_type: &mut CppType,
+    ctx_collection: &CppContextCollection,
+    metadata: &Metadata<'_>,
+    template_args: &mut Vec<(String, String)>,
+) -> String {
+    // If reference type, we use a template and add a requirement
+    if !t.valuetype {
+        template_args.push((
+            CORDL_REFERENCE_TYPE_CONSTRAINT.to_string(),
+            gen_name.clone(),
+        ));
+        return gen_name;
+    }
+
+    let inner_type = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false);
+
+    // if int, int64 etc.
+    // this allows for enums to be supported
+    if matches!(
+        t.ty,
+        Il2CppTypeEnum::I1
+            | Il2CppTypeEnum::I2
+            | Il2CppTypeEnum::I4
+            | Il2CppTypeEnum::I8
+            | Il2CppTypeEnum::U1
+            | Il2CppTypeEnum::U2
+            | Il2CppTypeEnum::U4
+            | Il2CppTypeEnum::U8
+    ) {
+        template_args.push((
+            format!("{CORDL_NUM_ENUM_TYPE_CONSTRAINT}<{inner_type}>",),
+            gen_name.clone(),
+        ));
+
+        return gen_name;
+    }
+
+    match t.data {
+        TypeData::GenericClassIndex(gen_class_idx) => {
+            let gen_class = &metadata.metadata_registration.generic_classes[gen_class_idx];
+            let gen_class_ty = &metadata.metadata_registration.types[gen_class.type_index];
+            let TypeData::TypeDefinitionIndex(gen_class_tdi) = gen_class_ty.data else {
+                todo!()
+            };
+            let gen_class_td = &metadata.metadata.global_metadata.type_definitions[gen_class_tdi];
+
+            let gen_container = gen_class_td.generic_container(metadata.metadata);
+
+            let gen_class_inst = &metadata.metadata_registration.generic_insts
+                [gen_class.context.class_inst_idx.unwrap()];
+
+            // this relies on the fact TDIs do not include their generic params
+            let non_generic_inner_type =
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, gen_class_ty, false);
+
+            let inner_generic_params = gen_class_inst
+                .types
+                .iter()
+                .enumerate()
+                .map(|(param_idx, u)| {
+                    let t = metadata
+                        .metadata_registration
+                        .types
+                        .get(*u as usize)
+                        .unwrap();
+                    let gen_param = gen_container
+                        .generic_parameters(metadata.metadata)
+                        .iter()
+                        .find(|p| p.num as usize == param_idx)
+                        .expect("No generic param at this num");
+
+                    (t, gen_param)
+                })
+                .map(|(t, gen_param)| {
+                    let inner_gen_name = gen_param.name(metadata.metadata).to_owned();
+                    parse_generic_arg(
+                        t,
+                        inner_gen_name,
+                        cpp_type,
+                        ctx_collection,
+                        metadata,
+                        template_args,
+                    )
+                })
+                .join(", ");
+
+            format!("{non_generic_inner_type}<{inner_generic_params}>")
+        }
+        _ => inner_type,
     }
 }
 
