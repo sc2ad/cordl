@@ -2653,9 +2653,10 @@ fn parse_generic_arg(
                 })
                 .map(|(t, gen_param)| {
                     let inner_gen_name = gen_param.name(metadata.metadata).to_owned();
+                    let mangled_gen_name = format!("{inner_gen_name}_cordlgen_{}", template_args.len());
                     parse_generic_arg(
                         t,
-                        inner_gen_name,
+                        mangled_gen_name,
                         cpp_type,
                         ctx_collection,
                         metadata,
