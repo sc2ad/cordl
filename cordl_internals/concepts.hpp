@@ -5,6 +5,7 @@
 #include "beatsaber-hook/shared/utils/base-wrapper-type.hpp"
 #include "beatsaber-hook/shared/utils/value-wrapper-type.hpp"
 #include "beatsaber-hook/shared/utils/enum-wrapper-type.hpp"
+#include "beatsaber-hook/shared/utils/typedefs-string.hpp"
 
 namespace {
 namespace cordl_internals {
@@ -40,6 +41,7 @@ namespace cordl_internals {
     };
 
   static_assert(il2cpp_reference_type<::bs_hook::Il2CppWrapperType>, "Il2CppWrapperType did not match the il2cpp_reference_type concept!"); // wrappertype should match reference type always
+  static_assert(il2cpp_reference_type<::StringW>, "StringW did not match the il2cpp_reference_type concept!"); // wrappertype should match reference type always
 
   template <class T, class U>
   concept is_or_is_backed_by =
