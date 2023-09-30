@@ -1331,6 +1331,7 @@ pub trait CSType: Sized {
 
             let constructor_impl = CppConstructorImpl {
                 body,
+                template: cpp_type.cpp_template.clone(),
                 parameters: instance_fields,
                 declaring_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
                 ..constructor_decl.clone().into()
@@ -2575,10 +2576,10 @@ pub trait CSType: Sized {
     }
 }
 
-/// 
+///
 /// This makes generic args for types such as ValueTask<List<T>> work
 /// by recursively checking if any generic arg is a reference or numeric type (for enums)
-/// 
+///
 fn parse_generic_arg(
     t: &Il2CppType,
     gen_name: String,
@@ -2642,11 +2643,7 @@ fn parse_generic_arg(
                 .iter()
                 .enumerate()
                 .map(|(param_idx, u)| {
-                    let t = metadata
-                        .metadata_registration
-                        .types
-                        .get(*u)
-                        .unwrap();
+                    let t = metadata.metadata_registration.types.get(*u).unwrap();
                     let gen_param = gen_container
                         .generic_parameters(metadata.metadata)
                         .iter()
@@ -2657,7 +2654,8 @@ fn parse_generic_arg(
                 })
                 .map(|(t, gen_param)| {
                     let inner_gen_name = gen_param.name(metadata.metadata).to_owned();
-                    let mangled_gen_name = format!("{inner_gen_name}_cordlgen_{}", template_args.len());
+                    let mangled_gen_name =
+                        format!("{inner_gen_name}_cordlgen_{}", template_args.len());
                     parse_generic_arg(
                         t,
                         mangled_gen_name,
