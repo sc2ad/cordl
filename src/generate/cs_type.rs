@@ -2563,7 +2563,7 @@ pub trait CSType: Sized {
                 requirements.needs_stringw_include();
                 "::StringW".to_string()
             }
-            Il2CppTypeEnum::Ptr => "void*".to_owned(),
+            Il2CppTypeEnum::Ptr => "::cordl_internals::voidptr_t".to_string().to_owned(),
             // TODO: Void and the other primitives
             _ => format!("/* UNKNOWN TYPE! {typ:?} */"),
         };

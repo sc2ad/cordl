@@ -57,5 +57,6 @@ namespace cordl_internals {
 
     using intptr_t = void*;
     using uintptr_t = void*;
+    using voidptr_t = void*; // dumb declspec stuff
 }
 }
