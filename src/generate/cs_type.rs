@@ -1981,7 +1981,7 @@ pub trait CSType: Sized {
 
         let mut cursor = Cursor::new(data);
 
-        const unsigned_suffix: &str = "u";
+        const UNSIGNED_SUFFIX: &str = "u";
 
         match ty.ty {
             Il2CppTypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
@@ -1992,16 +1992,16 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::I | Il2CppTypeEnum::I8 => {
                 cursor.read_i64::<Endian>().unwrap().to_string()
             }
-            Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string() + unsigned_suffix,
+            Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string() + UNSIGNED_SUFFIX,
             Il2CppTypeEnum::U2 => {
-                cursor.read_u16::<Endian>().unwrap().to_string() + unsigned_suffix
+                cursor.read_u16::<Endian>().unwrap().to_string() + UNSIGNED_SUFFIX
             }
             Il2CppTypeEnum::U4 => {
-                cursor.read_compressed_u32::<Endian>().unwrap().to_string() + unsigned_suffix
+                cursor.read_compressed_u32::<Endian>().unwrap().to_string() + UNSIGNED_SUFFIX
             }
             // TODO: We assume 64 bit
             Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => {
-                cursor.read_u64::<Endian>().unwrap().to_string() + unsigned_suffix
+                cursor.read_u64::<Endian>().unwrap().to_string() + UNSIGNED_SUFFIX
             }
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
@@ -2009,7 +2009,16 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::R4 => cursor.read_f32::<Endian>().unwrap().to_string(),
             Il2CppTypeEnum::R8 => cursor.read_f64::<Endian>().unwrap().to_string(),
             Il2CppTypeEnum::Char => {
-                String::from_utf16_lossy(&[cursor.read_u16::<Endian>().unwrap()])
+                let res = String::from_utf16_lossy(&[cursor.read_u16::<Endian>().unwrap()])
+                    .escape_default()
+                    .to_string();
+
+                if string_quotes {
+                    let literal_prefix = if string_as_u16 { "u" } else { "" };
+                    return format!("{literal_prefix}\"{res}\"");
+                }
+
+                res
             }
             Il2CppTypeEnum::String => {
                 // UTF-16 byte array len
