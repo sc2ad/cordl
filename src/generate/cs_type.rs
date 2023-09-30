@@ -875,12 +875,23 @@ pub trait CSType: Sized {
                 prefix_modifiers: vec![],
                 suffix_modifiers: vec![],
             };
+
+            let method_impl_template = if cpp_type
+                .cpp_template
+                .as_ref()
+                .is_some_and(|c| !c.names.is_empty())
+            {
+                cpp_type.cpp_template.clone()
+            } else {
+                None
+            };
+
             let method_impl = CppMethodImpl {
                 body: vec![Arc::new(CppLine::make(format!(
                     "return {interface_cpp_name}({convert_line});"
                 )))],
                 declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
-                template: cpp_type.cpp_template.clone(),
+                template: method_impl_template,
                 ..method_decl.clone().into()
             };
             cpp_type
@@ -1326,9 +1337,19 @@ pub trait CSType: Sized {
                 body: None,
             };
 
+            let method_impl_template = if cpp_type
+                .cpp_template
+                .as_ref()
+                .is_some_and(|c| !c.names.is_empty())
+            {
+                cpp_type.cpp_template.clone()
+            } else {
+                None
+            };
+
             let constructor_impl = CppConstructorImpl {
                 body,
-                template: cpp_type.cpp_template.clone(),
+                template: method_impl_template,
                 parameters: instance_fields,
                 declaring_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
                 ..constructor_decl.clone().into()
@@ -1711,10 +1732,15 @@ pub trait CSType: Sized {
                 };
 
                 Some(concat_template)
+                // if method has template
+            } else if template.is_some() {
+                template.clone()
+                // if declaring type template is not empty
+            } else if declaring_type_template.as_ref().is_some_and(|cp| !cp.names.is_empty()) {
+                declaring_type_template.clone()
+                // no template
             } else {
-
-                // if just one of the two templates is Some(), then we OR
-                declaring_type_template.or(template.clone())
+                None
             }
         };
 
