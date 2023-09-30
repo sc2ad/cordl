@@ -1,8 +1,7 @@
 use brocolib::global_metadata::TypeDefinitionIndex;
 
 use super::{
-    context_collection::{CppContextCollection, CppTypeTag},
-    metadata::Metadata,
+    context_collection::CppContextCollection, cpp_type_tag::CppTypeTag, metadata::Metadata,
 };
 
 pub trait CsContextCollection {

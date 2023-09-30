@@ -25,11 +25,12 @@ use crate::{
 
 use super::{
     config::GenerationConfig,
-    context_collection::{CppContextCollection, CppTypeTag},
+    context_collection::CppContextCollection,
     cpp_type::{
         CppType, CORDL_METHOD_HELPER_NAMESPACE, CORDL_NUM_ENUM_TYPE_CONSTRAINT,
         CORDL_REFERENCE_TYPE_CONSTRAINT, __CORDL_BACKING_ENUM_TYPE,
     },
+    cpp_type_tag::CppTypeTag,
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
@@ -1863,7 +1864,7 @@ pub trait CSType: Sized {
         let method_info_lines = match &impl_template {
             Some(template) => {
                 // generic
-                let generics_classes_format = template
+                let template_names = template
                     .names
                     .iter()
                     .map(|(_, t)| {
@@ -1877,12 +1878,12 @@ pub trait CSType: Sized {
                     format!("static auto* ___internal_method_base = THROW_UNLESS((::il2cpp_utils::FindMethod(
                         {declaring_classof_call},
                         \"{m_name}\",
-                        std::vector<Il2CppClass*>{{{generics_classes_format}}},
+                        std::vector<Il2CppClass*>{{{template_names}}},
                         ::std::vector<const Il2CppType*>{{{params_types_format}}}
                     )));"),
                     format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS(::il2cpp_utils::MakeGenericMethod(
                         ___internal_method_base,
-                         std::vector<Il2CppClass*>{{{generics_classes_format}}}
+                         std::vector<Il2CppClass*>{{{template_names}}}
                         ));"),
                 ]
             }
@@ -1923,17 +1924,23 @@ pub trait CSType: Sized {
             instance: !method.is_static_method(),
             suffix_modifiers: Default::default(),
             prefix_modifiers: Default::default(),
-            template: impl_template,
+            template: impl_template.clone(),
 
             // defaults
             ..method_decl.clone().into()
         };
 
-        let declaring_cpp_type: Option<&CppType> = if tag == cpp_type.self_tag {
-            Some(cpp_type)
-        } else {
-            ctx_collection.get_cpp_type(tag)
-        };
+        // check if declaring type is the current type or the interface
+        // we check TDI because if we are a generic instantiation
+        // we just use ourselves if the declaring type is also the same TDI
+        let interface_declaring_cpp_type: Option<&CppType> =
+            if tag.get_tdi() == cpp_type.self_tag.get_tdi() {
+                Some(cpp_type)
+            } else {
+                ctx_collection.get_cpp_type(tag)
+            };
+
+        // don't emit method size structs for generic methods
 
         // don't emit method size structs for generic methods
 
@@ -1943,6 +1950,7 @@ pub trait CSType: Sized {
             .as_ref()
             .is_some_and(|t| !t.names.is_empty());
 
+        // don't emit method size structs for generic methods
         if let Some(method_calc) = method_calc && template.is_none() && !has_template_args && !is_generic_method_inst {
             cpp_type
                 .nonmember_implementations
@@ -1955,13 +1963,13 @@ pub trait CSType: Sized {
                     method_info_var: METHOD_INFO_VAR_NAME.to_string(),
                     instance: method_decl.instance,
                     params: method_decl.parameters.clone(),
-                    template,
+                    template: impl_template,
                     generic_literals: resolved_generic_types,
                     method_data: CppMethodData {
                         addrs: method_calc.addrs,
                         estimated_size: method_calc.estimated_size,
                     },
-                    interface_clazz_of: declaring_cpp_type
+                    interface_clazz_of: interface_declaring_cpp_type
                         .map(|d| d.classof_cpp_name())
                         .unwrap_or_else(|| format!("Bad stuff happened {declaring_type:?}")),
                     is_final: method.is_final_method(),
@@ -1974,9 +1982,9 @@ pub trait CSType: Sized {
         }
 
         // TODO: Revise this
-        const allow_generic_method_stubs_impl: bool = true;
+        const ALLOW_GENERIC_METHOD_STUBS_IMPL: bool = true;
         // If a generic instantiation or not a template
-        if !method_stub || allow_generic_method_stubs_impl {
+        if !method_stub || ALLOW_GENERIC_METHOD_STUBS_IMPL {
             cpp_type
                 .implementations
                 .push(CppMember::MethodImpl(method_impl).into());

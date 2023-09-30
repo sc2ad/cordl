@@ -30,9 +30,9 @@ use clap::{Parser, Subcommand};
 
 use crate::{
     generate::{
-        context_collection::{CppContextCollection, CppTypeTag},
+        context_collection::{CppContextCollection},
         cs_context_collection::CsContextCollection,
-        members::CppMember,
+        members::CppMember, cpp_type_tag::CppTypeTag,
     },
     handlers::{unity, value_type},
 };

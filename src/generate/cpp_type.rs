@@ -10,7 +10,8 @@ use brocolib::global_metadata::{MethodIndex, TypeIndex};
 use itertools::Itertools;
 
 use super::{
-    context_collection::{CppContextCollection, CppTypeTag},
+    context_collection::CppContextCollection,
+    cpp_type_tag::CppTypeTag,
     members::{CppForwardDeclare, CppInclude, CppMember, CppTemplate},
     writer::Writable,
 };

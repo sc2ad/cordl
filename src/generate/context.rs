@@ -23,7 +23,7 @@ use crate::generate::{
 use crate::helpers::sorting::DependencyGraph;
 use crate::STATIC_CONFIG;
 
-use super::context_collection::CppTypeTag;
+use super::cpp_type_tag::CppTypeTag;
 use super::{
     config::GenerationConfig,
     cpp_type::CppType,
