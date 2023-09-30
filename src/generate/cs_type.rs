@@ -2016,7 +2016,7 @@ pub trait CSType: Sized {
 
                 if string_quotes {
                     let literal_prefix = if string_as_u16 { "u" } else { "" };
-                    return format!("{literal_prefix}\"{res}\"");
+                    return format!("{literal_prefix}'{res}'");
                 }
 
                 res
