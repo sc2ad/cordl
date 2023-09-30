@@ -574,7 +574,7 @@ pub trait CSType: Sized {
                 }
             };
 
-            if let TypeData::TypeDefinitionIndex(tdi) = f_type.data && metadata.blacklisted_types.contains(&tdi) {
+            if let TypeData::TypeDefinitionIndex(field_tdi) = f_type.data && metadata.blacklisted_types.contains(&field_tdi) {
                 if !cpp_type.is_value_type && !cpp_type.is_enum_type {
                     continue;
                 }
@@ -592,7 +592,6 @@ pub trait CSType: Sized {
 
             assert!(def_value.is_none() || (def_value.is_some() && f_type.is_param_optional()));
 
-            // TODO: Static fields
             if f_type.is_constant() {
                 let def_value = def_value.expect("Constant with no default value?");
 
@@ -614,6 +613,28 @@ pub trait CSType: Sized {
                             declaring_type: cpp_type.cpp_full_name.clone(),
                             ..field_decl.clone().into()
                         };
+
+                        // get enum type to include impl
+                        // this is needed since the enum constructor is not defined
+                        // in the declaration
+                        // TODO: Make enum ctors inline defined
+                        if f_type.valuetype && f_type.ty == Il2CppTypeEnum::Valuetype {
+                            let field_cpp_tag: CppTypeTag =
+                                CppTypeTag::from_type_data(f_type.data, metadata.metadata);
+                            let field_cpp_td_tag: CppTypeTag = field_cpp_tag.get_tdi().into();
+                            let field_cpp_type = ctx_collection.get_cpp_type(field_cpp_td_tag);
+
+                            if field_cpp_type.is_some_and(|f| f.is_enum_type) {
+                                let field_cpp_context = ctx_collection
+                                    .get_context(field_cpp_td_tag)
+                                    .expect("No context for cpp enum type");
+
+                                cpp_type.requirements.add_impl_include(
+                                    field_cpp_type,
+                                    CppInclude::new_context_typeimpl(field_cpp_context),
+                                );
+                            }
+                        }
 
                         cpp_type
                             .declarations
@@ -2188,6 +2209,7 @@ pub trait CSType: Sized {
                     .get(def.type_index as usize)
                     .unwrap();
 
+                // get default value for given type
                 if !def.data_index.is_valid() {
                     return Self::type_default_value(metadata, None, ty);
                 }
