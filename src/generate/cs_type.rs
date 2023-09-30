@@ -442,12 +442,8 @@ pub trait CSType: Sized {
             });
         }
 
-        cpp_type.generic_instantiation_args = Some(
-            generic_instantiation_args
-                .into_iter()
-                .map(|gen_name| gen_name)
-                .collect_vec(),
-        );
+        cpp_type.generic_instantiation_args =
+            Some(generic_instantiation_args.into_iter().collect_vec());
 
         // only set if there are no generic ref types
         cpp_type.cpp_full_name = format!(
@@ -2609,21 +2605,71 @@ fn parse_generic_arg(
 
     let inner_type = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false);
 
+    /*
+       mscorelib.xml
+       <type fullname="System.SByteEnum" />
+       <type fullname="System.Int16Enum" />
+       <type fullname="System.Int32Enum" />
+       <type fullname="System.Int64Enum" />
+
+       <type fullname="System.ByteEnum" />
+       <type fullname="System.UInt16Enum" />
+       <type fullname="System.UInt32Enum" />
+       <type fullname="System.UInt64Enum" />
+    */
+    let enum_system_type_discriminator = match t.data {
+        TypeData::TypeDefinitionIndex(tdi) => {
+            let td = &metadata.metadata.global_metadata.type_definitions[tdi];
+            let namespace = td.namespace(metadata.metadata);
+            let name = td.name(metadata.metadata);
+
+            if namespace == "System" {
+                match name {
+                    "SByteEnum" => Some(Il2CppTypeEnum::I1),
+                    "Int16Enum" => Some(Il2CppTypeEnum::I2),
+                    "Int32Enum" => Some(Il2CppTypeEnum::I4),
+                    "Int64Enum" => Some(Il2CppTypeEnum::I8),
+                    "ByteEnum" => Some(Il2CppTypeEnum::U1),
+                    "UInt16Enum" => Some(Il2CppTypeEnum::U2),
+                    "UInt32Enum" => Some(Il2CppTypeEnum::U4),
+                    "UInt64Enum" => Some(Il2CppTypeEnum::U8),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+
+    let inner_enum_type = enum_system_type_discriminator.map(|e| Il2CppType {
+        attrs: u16::MAX,
+        byref: false,
+        data: TypeData::TypeIndex(usize::MAX),
+        pinned: false,
+        ty: e,
+        valuetype: true,
+    });
+
     // if int, int64 etc.
     // this allows for enums to be supported
-    if matches!(
-        t.ty,
-        Il2CppTypeEnum::I1
-            | Il2CppTypeEnum::I2
-            | Il2CppTypeEnum::I4
-            | Il2CppTypeEnum::I8
-            | Il2CppTypeEnum::U1
-            | Il2CppTypeEnum::U2
-            | Il2CppTypeEnum::U4
-            | Il2CppTypeEnum::U8
-    ) {
+    // if matches!(
+    //     t.ty,
+    //     Il2CppTypeEnum::I1
+    //         | Il2CppTypeEnum::I2
+    //         | Il2CppTypeEnum::I4
+    //         | Il2CppTypeEnum::I8
+    //         | Il2CppTypeEnum::U1
+    //         | Il2CppTypeEnum::U2
+    //         | Il2CppTypeEnum::U4
+    //         | Il2CppTypeEnum::U8
+    // ) ||
+    if let Some(inner_enum_type) = inner_enum_type {
+        let inner_enum_type_cpp =
+            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, &inner_enum_type, false);
+
         template_args.push((
-            format!("{CORDL_NUM_ENUM_TYPE_CONSTRAINT}<{inner_type}>",),
+            format!("{CORDL_NUM_ENUM_TYPE_CONSTRAINT}<{inner_enum_type_cpp}>",),
             gen_name.clone(),
         ));
 
