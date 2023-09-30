@@ -1834,7 +1834,7 @@ pub trait CSType: Sized {
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
             .join(", ");
 
-        let method_info_lines = match &template {
+        let method_info_lines = match &impl_template {
             Some(template) => {
                 // generic
                 let generics_classes_format = template
