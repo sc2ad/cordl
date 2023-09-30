@@ -884,6 +884,7 @@ pub trait CSType: Sized {
                     "return {interface_cpp_name}({convert_line});"
                 )))],
                 declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                template: cpp_type.cpp_template.clone(),
                 ..method_decl.clone().into()
             };
             cpp_type
