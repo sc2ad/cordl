@@ -269,6 +269,9 @@ impl Writable for CppMethodImpl {
                 )
             })?;
 
+        if let Some(declaring_type_template) = &self.declaring_type_template {
+            declaring_type_template.write(writer)?;
+        }
         if let Some(template) = &self.template {
             template.write(writer)?;
         }

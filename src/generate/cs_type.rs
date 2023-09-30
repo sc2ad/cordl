@@ -1587,7 +1587,6 @@ pub trait CSType: Sized {
         declaring_type: &Il2CppTypeDefinition,
         m_params: &[CppParam],
         template: &Option<CppTemplate>,
-        impl_template: &Option<CppTemplate>,
     ) {
         if declaring_type.is_value_type() || declaring_type.is_enum_type() {
             return;
@@ -1627,6 +1626,12 @@ pub trait CSType: Sized {
         let allocate_call =
             format!("THROW_UNLESS(::il2cpp_utils::New<{ty_full_cpp_name}>({base_ctor_params}))");
 
+        let declaring_template = if cpp_type.cpp_template.as_ref().is_some_and(|t| !t.names.is_empty()) {
+            cpp_type.cpp_template.clone()
+        } else {
+            None
+        };
+
         let cpp_constructor_impl = CppMethodImpl {
             body: vec![
                 Arc::new(CppLine::make(format!(
@@ -1637,7 +1642,7 @@ pub trait CSType: Sized {
 
             declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
             parameters: m_params.to_vec(),
-            template: impl_template.clone(),
+            template: declaring_template,
             ..decl.clone().into()
         };
 
@@ -1745,25 +1750,11 @@ pub trait CSType: Sized {
             None
         };
 
-        let impl_template: Option<CppTemplate> = {
-            let declaring_type_template = cpp_type.cpp_template.clone();
-
-            if let Some(declaring_type_template) = &declaring_type_template && let Some(method_template) = &template {
-                let concat_template = CppTemplate{
-                    names: declaring_type_template.names.iter().chain(method_template.names.iter()).cloned().collect_vec()
-                };
-
-                Some(concat_template)
-                // if method has template
-            } else if template.is_some() {
-                template.clone()
-                // if declaring type template is not empty
-            } else if declaring_type_template.as_ref().is_some_and(|cp| !cp.names.is_empty()) {
-                declaring_type_template.clone()
-                // no template
-            } else {
-                None
-            }
+        let declaring_type_template = if cpp_type.cpp_template.as_ref().is_some_and(|t| !t.names.is_empty())
+        {
+            cpp_type.cpp_template.clone()
+        } else {
+            None
         };
 
         let literal_types = if is_generic_method_inst {
@@ -1804,13 +1795,7 @@ pub trait CSType: Sized {
 
         // Reference type constructor
         if m_name == ".ctor" {
-            Self::create_ref_constructor(
-                cpp_type,
-                declaring_type,
-                &m_params_with_def,
-                &template,
-                &impl_template,
-            );
+            Self::create_ref_constructor(cpp_type, declaring_type, &m_params_with_def, &template);
         }
         let cpp_m_name = {
             let cpp_m_name = config.name_cpp(m_name);
@@ -1882,7 +1867,7 @@ pub trait CSType: Sized {
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
             .join(", ");
 
-        let method_info_lines = match &impl_template {
+        let method_info_lines = match &template {
             Some(template) => {
                 // generic
                 let template_names = template
@@ -1945,7 +1930,8 @@ pub trait CSType: Sized {
             instance: !method.is_static_method(),
             suffix_modifiers: Default::default(),
             prefix_modifiers: Default::default(),
-            template: impl_template.clone(),
+            template: template.clone(),
+            declaring_type_template: declaring_type_template.clone(),
 
             // defaults
             ..method_decl.clone().into()
@@ -1984,7 +1970,7 @@ pub trait CSType: Sized {
                     method_info_var: METHOD_INFO_VAR_NAME.to_string(),
                     instance: method_decl.instance,
                     params: method_decl.parameters.clone(),
-                    template: impl_template,
+                    template: template.clone(),
                     generic_literals: resolved_generic_types,
                     method_data: CppMethodData {
                         addrs: method_calc.addrs,

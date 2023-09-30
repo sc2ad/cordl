@@ -255,6 +255,7 @@ impl From<CppMethodDecl> for CppMethodImpl {
             suffix_modifiers: value.suffix_modifiers,
             return_type: value.return_type,
             template: value.template,
+            declaring_type_template: Default::default(),
         }
     }
 }
@@ -269,6 +270,7 @@ pub struct CppMethodImpl {
     pub parameters: Vec<CppParam>,
     pub instance: bool,
 
+    pub declaring_type_template: Option<CppTemplate>,
     pub template: Option<CppTemplate>,
     pub is_const: bool,
     pub is_virtual: bool,
