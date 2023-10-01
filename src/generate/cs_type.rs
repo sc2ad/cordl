@@ -2595,20 +2595,9 @@ pub trait CSType: Sized {
                         .iter()
                         .map(|t| mr.types.get(*t).unwrap())
                         .map(|t| {
-                        // TEMPORARY WORKAROUND Foo<T>
-                        // TODO: Remove or replace with a wrapper type that allows
-                        // types to have generic args of themselves
-                        // e.g Foo : public Bar<Foo>
-
-                        // assert!(cpp_type.cpp_name() != "MonoBehaviourCallbackHooks");
-
-                        if let TypeData::TypeDefinitionIndex(tdi) = t.data && tdi == cpp_type.self_tag.get_tdi() {
-                            let td = &metadata.metadata.global_metadata.type_definitions[tdi];
-                            return wrapper_type_for_tdi(td).to_string();
-                        }
-                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, add_include)
-                     })
-                    .collect_vec();
+                            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, add_include)
+                        })
+                        .collect_vec();
 
                     let generic_type_def = &mr.types[generic_class.type_index];
                     let type_def_name = self.cppify_name_il2cpp(
