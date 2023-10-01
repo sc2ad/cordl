@@ -434,7 +434,7 @@ impl CppContext {
         ty: &CppType,
         writer: &mut super::writer::CppWriter,
     ) -> color_eyre::Result<()> {
-        let is_generic_instantiation = ty.cpp_name_components.generics.is_some();
+        let is_generic_instantiation = ty.generic_instantiations_args_types.is_some();
         if is_generic_instantiation {
             return Ok(());
         }
@@ -451,7 +451,7 @@ impl CppContext {
             writeln!(
                 writer,
                 "NEED_NO_BOX({});",
-                ty.cpp_name_components.combine_all(true)
+                ty.cpp_name_components.combine_all(false)
             )?;
         }
 
@@ -488,7 +488,7 @@ impl CppContext {
         writeln!(
             writer,
             "{macro_arg_define}({}, \"{namespace}\", \"{combined_name}\");",
-            ty.cpp_name_components.combine_all(true)
+            ty.cpp_name_components.combine_all(false)
         )?;
 
         Ok(())

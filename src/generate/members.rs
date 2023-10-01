@@ -477,19 +477,16 @@ impl CppUsingAlias {
                     false => None,
                 };
 
-                // just the names of the template types
-                let template_names = template.just_names().collect_vec();
-
                 // Essentially, all nested types inherit their declaring type's generic params.
                 // Append the rest of the template params as generic parameters
                 match new_cpp_template {
-                    Some(template) => (
+                    Some(new_cpp_template) => (
                         forwarded_generic_args
                             .iter()
-                            .chain(template_names)
+                            .chain(new_cpp_template.just_names())
                             .cloned()
                             .collect_vec(),
-                        Some(template),
+                        Some(new_cpp_template),
                     ),
                     None => (forwarded_generic_args.clone(), None),
                 }
