@@ -2377,7 +2377,7 @@ pub trait CSType: Sized {
                 let typ_cpp_tag: CppTypeTag = typ_tag.into();
                 // Self
                 if typ_cpp_tag == cpp_type.self_tag {
-                    return cpp_type.cpp_name_components.combine_all(true);
+                    return cpp_type.cpp_name_components.combine_all(false);
                 }
 
                 if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
@@ -2579,13 +2579,12 @@ pub trait CSType: Sized {
                         cpp_type.requirements.add_dependency_tag(generic_tag);
                     }
 
-                    let generic_types = generic_inst
+                    let generic_types_formatted = generic_inst
                         .types
                         .iter()
                         .map(|t| mr.types.get(*t).unwrap())
-                        .map(|t| self.cppify_name_il2cpp(ctx_collection, metadata, t, add_include));
-
-                    let generic_types_formatted = generic_types.collect_vec();
+                        .map(|t| self.cppify_name_il2cpp(ctx_collection, metadata, t, add_include))
+                        .collect_vec();
 
                     let generic_type_def = &mr.types[generic_class.type_index];
                     let type_def_name = self.cppify_name_il2cpp(

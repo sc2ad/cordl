@@ -460,17 +460,17 @@ impl CppUsingAlias {
         let forwarded_generic_args = forwarded_generic_args_opt.unwrap_or_default();
 
         // splits literals and template
-        let (literals_and_template, template) = match &cpp_type.cpp_template {
-            Some(template) => {
+        let (literal_args, template) = match &cpp_type.cpp_template {
+            Some(other_template) => {
                 // Skip the first args as those aren't necessary
-                let extra_template_args = template
+                let extra_template_args = other_template
                     .names
                     .iter()
                     .skip(forwarded_generic_args.len())
                     .cloned()
                     .collect_vec();
 
-                let new_cpp_template = match !extra_template_args.is_empty() {
+                let remaining_cpp_template = match !extra_template_args.is_empty() {
                     true => Some(CppTemplate {
                         names: extra_template_args,
                     }),
@@ -479,28 +479,28 @@ impl CppUsingAlias {
 
                 // Essentially, all nested types inherit their declaring type's generic params.
                 // Append the rest of the template params as generic parameters
-                match new_cpp_template {
-                    Some(new_cpp_template) => (
+                match remaining_cpp_template {
+                    Some(remaining_cpp_template) => (
                         forwarded_generic_args
                             .iter()
-                            .chain(new_cpp_template.just_names())
+                            .chain(remaining_cpp_template.just_names())
                             .cloned()
                             .collect_vec(),
-                        Some(new_cpp_template),
+                        Some(remaining_cpp_template),
                     ),
-                    None => (forwarded_generic_args.clone(), None),
+                    None => (forwarded_generic_args, None),
                 }
             }
-            None => (forwarded_generic_args.clone(), None),
+            None => (forwarded_generic_args, None),
         };
 
-        let do_fixup = fixup_generic_args && !literals_and_template.is_empty();
+        let do_fixup = fixup_generic_args && !literal_args.is_empty();
 
         let mut result = cpp_type.cpp_name_components.combine_all(!do_fixup);
 
         // easy way to tell it's a generic instantiation
         if do_fixup {
-            result = format!("{result}<{}>", literals_and_template.join(", "))
+            result = format!("{result}<{}>", literal_args.join(", "))
         }
 
         Self {
