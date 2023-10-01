@@ -22,10 +22,19 @@ impl GenerationConfig {
         }
     }
 
+    #[inline]
     pub fn name_cpp(&self, string: &str) -> String {
+        self.name_cpp_plus(string, &[])
+    }
+
+    pub fn name_cpp_plus(&self, string: &str, additional_exclude: &[&str]) -> String {
         if string.trim().is_empty() {
             // TODO: handle when multiple params are empty whitespace
             return "_cordl_fixed_empty_name_whitespace".to_string();
+        }
+
+        if additional_exclude.contains(&string) {
+            return format!("_cordl_{string}");
         }
 
         match string {

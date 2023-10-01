@@ -2,6 +2,7 @@ use core::panic;
 use log::{debug, warn};
 use std::{
     collections::HashMap,
+    f32::consts::E,
     io::{Cursor, Read},
     rc::Rc,
     sync::Arc,
@@ -558,6 +559,9 @@ pub trait CSType: Sized {
 
             let field_index = FieldIndex::new(t.field_start.index() + i as u32);
             let f_name = field.name(metadata.metadata);
+
+            let f_cpp_name = config.name_cpp_plus(f_name, &[cpp_type.cpp_name().as_str()]);
+
             let f_offset = {
                 if f_type.is_static() {
                     0
@@ -614,13 +618,15 @@ pub trait CSType: Sized {
                     false => {
                         // other type
                         let field_decl = CppFieldDecl {
-                            cpp_name: config.name_cpp(f_name),
+                            cpp_name: f_cpp_name,
                             field_ty: field_ty_cpp_name,
                             instance: false,
                             readonly: f_type.is_constant(),
                             value: None,
                             const_expr: false,
-                            brief_comment: Some(format!("Field {f_name} offset {f_offset} value: {def_value}")),
+                            brief_comment: Some(format!(
+                                "Field {f_name} offset {f_offset} value: {def_value}"
+                            )),
                         };
                         let field_impl = CppFieldImpl {
                             value: def_value,
@@ -662,7 +668,7 @@ pub trait CSType: Sized {
                     true => {
                         // primitive type
                         let field_decl = CppFieldDecl {
-                            cpp_name: config.name_cpp(f_name),
+                            cpp_name: f_cpp_name,
                             field_ty: field_ty_cpp_name,
                             instance: false,
                             readonly: f_type.is_constant(),
@@ -723,7 +729,7 @@ pub trait CSType: Sized {
 
                 let is_instance = !f_type.is_static() && !f_type.is_constant();
                 let getter_decl = CppMethodDecl {
-                    cpp_name: format!("__get_{}", config.name_cpp(f_name)),
+                    cpp_name: format!("__get_{}", f_cpp_name),
                     instance: is_instance,
                     return_type: field_ty_cpp_name.clone(),
 
@@ -742,7 +748,7 @@ pub trait CSType: Sized {
                 };
 
                 let setter_decl = CppMethodDecl {
-                    cpp_name: format!("__set_{}", config.name_cpp(f_name)),
+                    cpp_name: format!("__set_{}", f_cpp_name),
                     instance: !f_type.is_static() && !f_type.is_constant(),
                     return_type: "void".to_string(),
 
@@ -781,7 +787,7 @@ pub trait CSType: Sized {
                 };
 
                 let field_decl = CppPropertyDecl {
-                    cpp_name: config.name_cpp(f_name),
+                    cpp_name: f_cpp_name,
                     prop_ty: field_ty_cpp_name.clone(),
                     instance: !f_type.is_static() && !f_type.is_constant(),
                     getter: getter_decl.cpp_name.clone().into(),
@@ -1321,8 +1327,13 @@ pub trait CSType: Sized {
                 // e.g ReadOnlySpan<char> -> ReadOnlySpan<T>
                 let def_value = Self::type_default_value(metadata, Some(cpp_type), f_type);
 
+                let f_cpp_name = config.name_cpp_plus(
+                    field.name(metadata.metadata),
+                    &[cpp_type.cpp_name().as_str()],
+                );
+
                 Some(CppParam {
-                    name: config.name_cpp(field.name(metadata.metadata)),
+                    name: f_cpp_name,
                     ty: f_type_cpp_name,
                     modifiers: "".to_string(),
                     // no default value for first param
