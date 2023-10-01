@@ -97,6 +97,7 @@ pub struct CppType {
     pub generic_instantiations_args_types: Option<Vec<TypeIndex>>, // GenericArg -> Instantiation Arg
     pub method_generic_instantiation_map: HashMap<MethodIndex, Vec<TypeIndex>>, // MethodIndex -> Generic Args
     pub is_stub: bool,
+    pub is_interface: bool,
     pub is_hidden: bool,
 
     pub nested_types: HashMap<CppTypeTag, CppType>,
@@ -286,7 +287,7 @@ impl CppType {
                 .cpp_name_components
                 .formatted_name(self.generic_instantiations_args_types.is_some());
 
-            writeln!(writer, "// CS Name: {clazz_name}")?;
+            writeln!(writer, "// CS Name: {}", self.name())?;
 
             // Type definition plus inherit lines
 

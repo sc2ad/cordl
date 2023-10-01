@@ -255,6 +255,7 @@ pub trait CSType: Sized {
             requirements: Default::default(),
 
             inherit: Default::default(),
+            is_interface: t.is_interface(),
             cpp_template,
 
             generic_instantiations_args_types: Default::default(),
