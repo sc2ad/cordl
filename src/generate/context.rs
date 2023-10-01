@@ -18,12 +18,13 @@ use pathdiff::diff_paths;
 use crate::generate::members::CppForwardDeclare;
 use crate::generate::{
     members::CppInclude,
-    type_extensions::{TypeDefinitionExtensions, OBJECT_WRAPPER_TYPE},
+    type_extensions::{TypeDefinitionExtensions},
 };
 use crate::helpers::sorting::DependencyGraph;
 use crate::STATIC_CONFIG;
 
 use super::cpp_type_tag::CppTypeTag;
+use super::cs_type::OBJECT_WRAPPER_TYPE;
 use super::{
     config::GenerationConfig,
     cpp_type::CppType,
@@ -131,7 +132,6 @@ impl CppContext {
         };
 
         if metadata.blacklisted_types.contains(&tdi) {
-            println!("Skipping {ns}::{name} ({tdi:?}) because it's blacklisted");
             if !t.is_value_type() {
                 x.typealias_types.insert((
                     cpp_namespace,
@@ -142,7 +142,6 @@ impl CppContext {
                     },
                 ));
             }
-            // TODO: Make this create a struct with matching size or a using statement appropiately
             return x;
         }
 

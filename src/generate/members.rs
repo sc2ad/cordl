@@ -161,6 +161,7 @@ pub struct CppFieldDecl {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppFieldImpl {
     pub declaring_type: String,
+    pub declaring_type_template: Option<CppTemplate>,
     pub cpp_name: String,
     pub field_ty: String,
     pub readonly: bool,
@@ -176,6 +177,7 @@ impl From<CppFieldDecl> for CppFieldImpl {
             cpp_name: value.cpp_name,
             field_ty: value.field_ty,
             declaring_type: "".to_string(),
+            declaring_type_template: Default::default(),
             value: value.value.unwrap_or_default(),
         }
     }

@@ -223,6 +223,25 @@ impl CppType {
     }
 
     pub fn formatted_complete_cpp_name(&self) -> &String {
+        // if self.generic_instantiation_args.is_none()
+        //     && !self.is_stub
+        //     && self
+        //         .cpp_template
+        //         .as_ref()
+        //         .is_some_and(|t| !t.names.is_empty())
+        // {
+        //     let cpp_names = self
+        //         .cpp_template
+        //         .as_ref()
+        //         .unwrap()
+        //         .names
+        //         .iter()
+        //         .map(|(_, s)| s)
+        //         .join(", ");
+
+        //     return format!("{}<{cpp_names}>", self.cpp_full_name);
+        // }
+
         &self.cpp_full_name
         // We found a valid type that we have defined for this idx!
         // TODO: We should convert it here.

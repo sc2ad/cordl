@@ -1,5 +1,5 @@
 use core::panic;
-use log::debug;
+use log::{debug, warn};
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
@@ -39,7 +39,7 @@ use super::{
     metadata::Metadata,
     type_extensions::{
         Il2CppTypeEnumExtensions, MethodDefintionExtensions, ParameterDefinitionExtensions,
-        TypeDefinitionExtensions, TypeExtentions, OBJECT_WRAPPER_TYPE,
+        TypeDefinitionExtensions, TypeExtentions,
     },
     writer::Writable,
 };
@@ -57,6 +57,7 @@ const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::ins
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
 pub const ENUM_WRAPPER_TYPE: &str = "::bs_hook::EnumTypeWrapper";
 pub const INTERFACE_WRAPPER_TYPE: &str = "::cordl_internals::InterfaceW";
+pub const OBJECT_WRAPPER_TYPE: &str = "::bs_hook::Il2CppWrapperType";
 
 const SIZEOF_IL2CPP_OBJECT: u32 = 0x10;
 
@@ -176,6 +177,12 @@ pub trait CSType: Sized {
         let ns = t.namespace(metadata.metadata);
         let name = t.name(metadata.metadata);
         let full_name = t.full_name(metadata.metadata, false);
+
+        if metadata.blacklisted_types.contains(&tdi) {
+            println!("Skipping {full_name} ({tdi:?}) because it's blacklisted");
+
+            return None;
+        }
 
         // all nested types are unnested
         let nested = false; // t.declaring_type_index != u32::MAX;
@@ -578,7 +585,7 @@ pub trait CSType: Sized {
                 if !cpp_type.is_value_type && !cpp_type.is_enum_type {
                     continue;
                 }
-                println!("Value type uses {tdi:?} which is blacklisted! TODO");
+                warn!("Value type uses {tdi:?} which is blacklisted! TODO");
             }
 
             let field_ty_cpp_name = if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
@@ -591,6 +598,16 @@ pub trait CSType: Sized {
             let def_value = Self::field_default_value(metadata, field_index);
 
             assert!(def_value.is_none() || (def_value.is_some() && f_type.is_param_optional()));
+
+            let declaring_cpp_template = if cpp_type
+                .cpp_template
+                .as_ref()
+                .is_some_and(|t| !t.names.is_empty())
+            {
+                cpp_type.cpp_template.clone()
+            } else {
+                None
+            };
 
             if f_type.is_constant() {
                 let def_value = def_value.expect("Constant with no default value?");
@@ -611,6 +628,7 @@ pub trait CSType: Sized {
                             value: def_value,
                             const_expr: true,
                             declaring_type: cpp_type.cpp_full_name.clone(),
+                            declaring_type_template: declaring_cpp_template,
                             ..field_decl.clone().into()
                         };
 
@@ -946,6 +964,7 @@ pub trait CSType: Sized {
         let aliases = t
             .nested_types(metadata.metadata)
             .iter()
+            .filter(|t| !metadata.blacklisted_types.contains(t))
             .map(|nested_tdi| {
                 let nested_tag = CppTypeTag::TypeDefinitionIndex(*nested_tdi);
 
@@ -1626,7 +1645,11 @@ pub trait CSType: Sized {
         let allocate_call =
             format!("THROW_UNLESS(::il2cpp_utils::New<{ty_full_cpp_name}>({base_ctor_params}))");
 
-        let declaring_template = if cpp_type.cpp_template.as_ref().is_some_and(|t| !t.names.is_empty()) {
+        let declaring_template = if cpp_type
+            .cpp_template
+            .as_ref()
+            .is_some_and(|t| !t.names.is_empty())
+        {
             cpp_type.cpp_template.clone()
         } else {
             None
@@ -1750,7 +1773,10 @@ pub trait CSType: Sized {
             None
         };
 
-        let declaring_type_template = if cpp_type.cpp_template.as_ref().is_some_and(|t| !t.names.is_empty())
+        let declaring_type_template = if cpp_type
+            .cpp_template
+            .as_ref()
+            .is_some_and(|t| !t.names.is_empty())
         {
             cpp_type.cpp_template.clone()
         } else {
@@ -2359,6 +2385,10 @@ pub trait CSType: Sized {
                 if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
                     let td = &metadata.metadata.global_metadata.type_definitions[tdi];
 
+                    if metadata.blacklisted_types.contains(&tdi) {
+                        return wrapper_type_for_tdi(td).to_string();
+                    }
+
                     if td.namespace(metadata.metadata) == "System"
                         && td.name(metadata.metadata) == "ValueType"
                     {
@@ -2542,13 +2572,6 @@ pub trait CSType: Sized {
                         panic!()
                     };
 
-                    let _type_def_name = cpp_type.cppify_name_il2cpp(
-                        ctx_collection,
-                        metadata,
-                        generic_type_def,
-                        add_include,
-                    );
-
                     if add_include {
                         cpp_type.requirements.add_dependency_tag(tdi.into());
 
@@ -2622,6 +2645,22 @@ pub trait CSType: Sized {
     ) -> &'a Il2CppTypeDefinition {
         &metadata.metadata.global_metadata.type_definitions[tdi]
     }
+}
+
+fn wrapper_type_for_tdi(td: &Il2CppTypeDefinition) -> &str {
+    if td.is_enum_type() {
+        return ENUM_WRAPPER_TYPE;
+    }
+
+    if td.is_value_type() {
+        return VALUE_WRAPPER_TYPE;
+    }
+
+    if td.is_interface() {
+        return INTERFACE_WRAPPER_TYPE;
+    }
+
+    return OBJECT_WRAPPER_TYPE;
 }
 
 ///

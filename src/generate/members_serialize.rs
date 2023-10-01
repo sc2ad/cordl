@@ -135,6 +135,10 @@ impl Writable for CppFieldDecl {
 
 impl Writable for CppFieldImpl {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        if let Some(template) = &self.declaring_type_template {
+            template.write(writer)?;
+        }
+
         let ty = &self.field_ty;
         let name = &self.cpp_name;
         let declaring_ty = &self.declaring_type;

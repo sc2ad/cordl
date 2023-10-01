@@ -8,7 +8,6 @@ use brocolib::{
 
 use super::config::GenerationConfig;
 
-pub const OBJECT_WRAPPER_TYPE: &str = "::bs_hook::Il2CppWrapperType";
 
 pub const PARAM_ATTRIBUTE_IN: u16 = 0x0001;
 pub const PARAM_ATTRIBUTE_OUT: u16 = 0x0002;

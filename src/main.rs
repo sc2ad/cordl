@@ -15,7 +15,7 @@ use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
 extern crate pretty_env_logger;
 use include_dir::{include_dir, Dir};
-use log::{info, trace};
+use log::{info, trace, warn};
 use walkdir::DirEntry;
 
 use std::{
@@ -30,9 +30,8 @@ use clap::{Parser, Subcommand};
 
 use crate::{
     generate::{
-        context_collection::{CppContextCollection},
-        cs_context_collection::CsContextCollection,
-        members::CppMember, cpp_type_tag::CppTypeTag,
+        context_collection::CppContextCollection, cpp_type_tag::CppTypeTag,
+        cs_context_collection::CsContextCollection, members::CppMember,
     },
     handlers::{unity, value_type},
 };
@@ -128,6 +127,74 @@ fn main() -> color_eyre::Result<()> {
     println!("Finished in {}ms", t.elapsed().as_millis());
     let mut cpp_context_collection = CppContextCollection::new();
 
+    // blacklist types
+    {
+        let mut blacklist_type = |full_name: &str| {
+            let tdi = metadata
+                .metadata
+                .global_metadata
+                .type_definitions
+                .as_vec()
+                .iter()
+                .enumerate()
+                .find(|(_, t)| t.full_name(metadata.metadata, false) == full_name);
+
+            if let Some((tdi, _td)) = tdi {
+                info!("Blacklisted {full_name}");
+
+                metadata
+                    .blacklisted_types
+                    .insert(TypeDefinitionIndex::new(tdi as u32));
+            } else {
+                warn!("Unable to blacklist {full_name}")
+            }
+        };
+
+        blacklist_type("NetworkPacketSerializer`2::<>c__DisplayClass4_0`1");
+        blacklist_type("NetworkPacketSerializer`2::<>c__DisplayClass8_0`1");
+        blacklist_type("NetworkPacketSerializer`2::<>c__DisplayClass7_0`1");
+        blacklist_type("NetworkPacketSerializer`2::<>c__DisplayClass5_0`1");
+        blacklist_type("NetworkPacketSerializer`2::<>c__DisplayClass10_0");
+        blacklist_type("NetworkPacketSerializer`2::<>c__6`1");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass14_0`5");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass10_0`1");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass11_0`2");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass12_0`3");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass13_0`4");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass14_0`5");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass15_0`1");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass16_0`2");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass17_0`3");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass18_0`4");
+        blacklist_type("RpcHandler`1::<>c__DisplayClass19_0`5");
+    }
+    {
+        let mut blacklist_types = |full_name: &str| {
+            let tdis = metadata
+                .metadata
+                .global_metadata
+                .type_definitions
+                .as_vec()
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| t.full_name(metadata.metadata, false).contains(full_name))
+                .collect_vec();
+
+            match tdis.is_empty() {
+                true => warn!("Unable to blacklist {full_name}"),
+                false => {
+                    for (tdi, td) in tdis {
+                        info!("Blacklisted {}", td.full_name(metadata.metadata, true));
+
+                        metadata
+                            .blacklisted_types
+                            .insert(TypeDefinitionIndex::new(tdi as u32));
+                    }
+                }
+            }
+        };
+        blacklist_types("<>c__DisplayClass");
+    }
     {
         // First, make all the contexts
         info!("Making types");

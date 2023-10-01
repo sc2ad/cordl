@@ -10,7 +10,7 @@ use brocolib::{
     runtime_metadata::{Il2CppMethodSpec, TypeData},
 };
 use itertools::Itertools;
-use log::{trace, warn};
+use log::{trace, warn, info};
 use pathdiff::diff_paths;
 
 use crate::{
@@ -19,8 +19,11 @@ use crate::{
 };
 
 use super::{
-    config::GenerationConfig, context::CppContext,
-    metadata::Metadata, type_extensions::TypeDefinitionExtensions, cpp_type_tag::{CppTypeTag, GenericInstantiation}, 
+    config::GenerationConfig,
+    context::CppContext,
+    cpp_type_tag::{CppTypeTag, GenericInstantiation},
+    metadata::Metadata,
+    type_extensions::TypeDefinitionExtensions,
 };
 
 pub struct CppContextCollection {
@@ -217,6 +220,14 @@ impl CppContextCollection {
         let context_type_data: TypeDefinitionIndex = context_tag.into();
         let context_td = &metadata.metadata.global_metadata.type_definitions[context_type_data];
 
+        if metadata.blacklisted_types.contains(&tdi) {
+            warn!(
+                "Skipping nested type because it's blacklisted! {context_tag:?} {}",
+                context_td.full_name(metadata.metadata, true)
+            );
+            return None;
+        }
+
         let nested_inherits_declaring = ty_def.is_assignable_to(context_td, metadata.metadata);
         if nested_inherits_declaring {
             warn!(
@@ -288,6 +299,15 @@ impl CppContextCollection {
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
         let context_root_tag = self.get_context_root_tag(type_data);
+
+        if metadata.blacklisted_types.contains(&tdi) {
+            warn!(
+                "Skipping generic instantiation {tdi:?} {} {}",
+                method_spec.class_inst_index,
+                ty_def.full_name(metadata.metadata, true)
+            );
+            return None;
+        }
 
         if self.filling_types.contains(&context_root_tag) {
             panic!("Currently filling type {context_root_tag:?}, cannot fill")
@@ -364,7 +384,15 @@ impl CppContextCollection {
 
         // is reference type
         // only make generic spatialization
+        let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
+        let tdi = method.declaring_type;
+
         let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
+
+        if metadata.blacklisted_types.contains(&tdi) {
+            info!("Skipping {tdi:?} {} since it is blacklisted", ty_def.full_name(metadata.metadata, true));
+            return None;
+        }
 
         if ty_def.is_interface() {
             // Skip interface
@@ -374,9 +402,6 @@ impl CppContextCollection {
             );
             return None;
         }
-
-        let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
-        let tdi = method.declaring_type;
 
         let context_root_tag = self.get_context_root_tag(type_data);
 
@@ -422,6 +447,11 @@ impl CppContextCollection {
         // only make generic spatialization
         let type_data = CppTypeTag::TypeDefinitionIndex(method.declaring_type);
         let tdi = method.declaring_type;
+
+        if metadata.blacklisted_types.contains(&tdi) {
+            info!("Skipping {tdi:?} {} since it is blacklisted", ty_def.full_name(metadata.metadata, true));
+            return None;
+        }
 
         if ty_def.is_interface() {
             // Skip interface
