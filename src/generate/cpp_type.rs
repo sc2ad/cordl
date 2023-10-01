@@ -9,6 +9,8 @@ use color_eyre::eyre::Context;
 use brocolib::global_metadata::{MethodIndex, TypeIndex};
 use itertools::Itertools;
 
+use crate::data::name_components::NameComponents;
+
 use super::{
     context_collection::CppContextCollection,
     cpp_type_tag::CppTypeTag,
@@ -70,17 +72,13 @@ pub struct CppType {
     pub nested: bool,
 
     pub(crate) prefix_comments: Vec<String>,
-    pub(crate) namespace: String,
-    pub(crate) cpp_namespace: String,
-    pub(crate) name: String,
-    pub(crate) cpp_name: String, // does not include literals
 
     pub calculated_size: Option<usize>,
 
     // Computed by TypeDefinition.full_name()
     // Then fixed for generic types in CppContextCollection::make_generic_from/fill_generic_inst
-    pub cpp_full_name: String,
-    pub full_name: String,
+    pub cpp_name_components: NameComponents,
+    pub cs_name_components: NameComponents,
 
     pub declarations: Vec<Rc<CppMember>>,
     pub implementations: Vec<Rc<CppMember>>,
@@ -97,7 +95,6 @@ pub struct CppType {
     pub cpp_template: Option<CppTemplate>, // Names of templates e.g T, TKey etc.
 
     pub generic_instantiations_args_types: Option<Vec<TypeIndex>>, // GenericArg -> Instantiation Arg
-    pub generic_instantiation_args: Option<Vec<String>>, // generic_instantiations_args_types but formatted
     pub method_generic_instantiation_map: HashMap<MethodIndex, Vec<TypeIndex>>, // MethodIndex -> Generic Args
     pub is_stub: bool,
     pub is_hidden: bool,
@@ -144,19 +141,19 @@ impl CppTypeRequirements {
 
 impl CppType {
     pub fn namespace(&self) -> &String {
-        &self.namespace
+        &self.cs_name_components.namespace
     }
 
     pub fn cpp_namespace(&self) -> &str {
-        &self.cpp_namespace
+        &self.cpp_name_components.namespace
     }
 
     pub fn name(&self) -> &String {
-        &self.name
+        &self.cs_name_components.name
     }
 
     pub fn cpp_name(&self) -> &String {
-        &self.cpp_name
+        &self.cpp_name_components.name
     }
 
     pub fn nested_types_flattened(&self) -> HashMap<CppTypeTag, &CppType> {
@@ -222,41 +219,8 @@ impl CppType {
         }
     }
 
-    pub fn formatted_complete_cpp_name(&self) -> &String {
-        // if self.generic_instantiation_args.is_none()
-        //     && !self.is_stub
-        //     && self
-        //         .cpp_template
-        //         .as_ref()
-        //         .is_some_and(|t| !t.names.is_empty())
-        // {
-        //     let cpp_names = self
-        //         .cpp_template
-        //         .as_ref()
-        //         .unwrap()
-        //         .names
-        //         .iter()
-        //         .map(|(_, s)| s)
-        //         .join(", ");
-
-        //     return format!("{}<{cpp_names}>", self.cpp_full_name);
-        // }
-
-        &self.cpp_full_name
-        // We found a valid type that we have defined for this idx!
-        // TODO: We should convert it here.
-        // Ex, if it is a generic, convert it to a template specialization
-        // If it is a normal type, handle it accordingly, etc.
-        // match &self.parent_ty_cpp_name {
-        //     Some(parent_ty) => {
-        //         format!("{}::{parent_ty}::{}", self.cpp_namespace(), self.cpp_name())
-        //     }
-        //     None => format!("{}::{}", self.cpp_namespace(), self.cpp_name()),
-        // }
-    }
-
     pub fn write_impl(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        self.write_impl_internal(writer, Some(self.cpp_namespace()))
+        self.write_impl_internal(writer)
     }
 
     pub fn write_def(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -266,7 +230,6 @@ impl CppType {
     pub fn write_impl_internal(
         &self,
         writer: &mut super::writer::CppWriter,
-        _namespace: Option<&str>,
     ) -> color_eyre::Result<()> {
         self.nonmember_implementations
             .iter()
@@ -280,7 +243,7 @@ impl CppType {
         // TODO: Figure out
         self.nested_types
             .iter()
-            .try_for_each(|(_tag, n)| n.write_impl_internal(writer, None))?;
+            .try_for_each(|(_tag, n)| n.write_impl_internal(writer))?;
 
         Ok(())
     }
@@ -318,14 +281,14 @@ impl CppType {
                 self.requirements.depending_types
             )?;
             writeln!(writer, "// Self: {:?}", self.self_tag)?;
-            writeln!(writer, "// CS Name: {}", self.full_name)?;
+
+            let clazz_name = self
+                .cpp_name_components
+                .formatted_name(self.generic_instantiations_args_types.is_some());
+
+            writeln!(writer, "// CS Name: {clazz_name}")?;
 
             // Type definition plus inherit lines
-
-            let clazz_name = match &self.generic_instantiation_args {
-                Some(literals) => format!("{}<{}>", self.cpp_name(), literals.join(",")),
-                None => self.cpp_name().to_string(),
-            };
 
             // add_generic_inst sets template to []
             // if self.generic_instantiation_args.is_some() {
@@ -361,9 +324,9 @@ impl CppType {
                     writeln!(
                         writer,
                         "// nested type forward declare {} is stub {} {:?} {:?}\n//{:?}",
-                        t.cpp_full_name,
+                        t.cs_name_components.combine_all(true),
                         t.is_stub,
-                        t.generic_instantiation_args,
+                        t.cs_name_components.generics,
                         t.generic_instantiations_args_types,
                         t.self_tag
                     )?;
@@ -377,7 +340,8 @@ impl CppType {
                     writeln!(
                         writer,
                         "// nested type {} is stub {}",
-                        n.cpp_full_name, n.is_stub
+                        n.cs_name_components.combine_all(true),
+                        n.is_stub
                     )?;
                     n.write_def_internal(writer, None)?;
                     writer.dedent();

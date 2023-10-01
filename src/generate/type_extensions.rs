@@ -5,9 +5,11 @@ use brocolib::{
     runtime_metadata::{Il2CppType, Il2CppTypeEnum, TypeData},
     Metadata,
 };
+use itertools::Itertools;
+
+use crate::data::name_components::NameComponents;
 
 use super::config::GenerationConfig;
-
 
 pub const PARAM_ATTRIBUTE_IN: u16 = 0x0001;
 pub const PARAM_ATTRIBUTE_OUT: u16 = 0x0002;
@@ -110,13 +112,6 @@ impl TypeExtentions for Il2CppType {
     }
 }
 
-pub struct NameComponents {
-    pub namespace: String,
-    pub declaring_types: Vec<String>,
-    pub name: String,
-    pub generics: Option<String>,
-}
-
 pub trait TypeDefinitionExtensions {
     fn is_value_type(&self) -> bool;
     fn is_enum_type(&self) -> bool;
@@ -212,7 +207,12 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
         let generics = match self.generic_container_index.is_valid() {
             true => {
                 let gc = self.generic_container(metadata);
-                Some(gc.to_string(metadata))
+                Some(
+                    gc.generic_parameters(metadata)
+                        .iter()
+                        .map(|p| p.name(metadata).to_string())
+                        .collect_vec(),
+                )
             }
             false => None,
         };

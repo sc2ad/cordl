@@ -8,7 +8,6 @@ use std::{
 
 use brocolib::global_metadata::TypeDefinitionIndex;
 
-
 use color_eyre::eyre::ContextCompat;
 
 use itertools::Itertools;
@@ -16,10 +15,7 @@ use log::trace;
 use pathdiff::diff_paths;
 
 use crate::generate::members::CppForwardDeclare;
-use crate::generate::{
-    members::CppInclude,
-    type_extensions::{TypeDefinitionExtensions},
-};
+use crate::generate::{members::CppInclude, type_extensions::TypeDefinitionExtensions};
 use crate::helpers::sorting::DependencyGraph;
 use crate::STATIC_CONFIG;
 
@@ -164,7 +160,7 @@ impl CppContext {
         if cpp_type.nested {
             panic!(
                 "Cannot have a root type as a nested type! {}",
-                &cpp_type.cpp_full_name
+                &cpp_type.cpp_name_components.combine_all(true)
             );
         }
         self.typedef_types.insert(cpp_type.self_tag, cpp_type);
@@ -230,7 +226,7 @@ impl CppContext {
                 t.nested_types_flattened().values().copied().collect_vec()
             })
             .chain(self.typedef_types.values())
-            .sorted_by(|a, b| a.cpp_full_name.cmp(&b.cpp_full_name))
+            .sorted_by(|a, b| a.cpp_name_components.cmp(&b.cpp_name_components))
             // Enums go after stubs
             .sorted_by(|a, b| {
                 if a.is_enum_type == b.is_enum_type {
@@ -396,7 +392,7 @@ impl CppContext {
             if t.nested {
                 panic!(
                     "Cannot have a root type as a nested type! {}",
-                    &t.cpp_full_name
+                    &t.cpp_name_components.combine_all(true)
                 );
             }
             // if t.generic_instantiation_args.is_none() || true {
@@ -438,7 +434,7 @@ impl CppContext {
         ty: &CppType,
         writer: &mut super::writer::CppWriter,
     ) -> color_eyre::Result<()> {
-        let is_generic_instantiation = ty.generic_instantiation_args.is_some();
+        let is_generic_instantiation = ty.cpp_name_components.generics.is_some();
         if is_generic_instantiation {
             return Ok(());
         }
@@ -452,7 +448,11 @@ impl CppContext {
         if !ty.is_value_type && !ty.is_stub && !template_container_type && !is_generic_instantiation
         {
             // reference types need no boxing
-            writeln!(writer, "NEED_NO_BOX({});", ty.cpp_full_name)?;
+            writeln!(
+                writer,
+                "NEED_NO_BOX({});",
+                ty.cpp_name_components.combine_all(true)
+            )?;
         }
 
         if ty.nested {
@@ -474,31 +474,21 @@ impl CppContext {
         };
 
         // Essentially splits namespace.foo/nested_foo into (namespace, foo/nested_foo)
-        // TODO: Use name components
-        let (namespace, name) = match ty.full_name.rsplit_once("::") {
-            Some((declaring, name)) => {
-                // (namespace, declaring/foo)
-                let (namespace, declaring_name) =
-                    declaring.rsplit_once('.').unwrap_or(("", declaring));
 
-                let fixed_declaring_name = declaring_name.replace("::", "/");
-
-                (namespace, format!("{fixed_declaring_name}/{name}"))
-            }
-            None => {
-                let (namespace, name) = ty
-                    .full_name
-                    .rsplit_once('.')
-                    .unwrap_or(("", ty.full_name.as_str()));
-
-                (namespace, name.to_string())
-            }
+        let namespace = &ty.cs_name_components.namespace;
+        let combined_name = match ty.cs_name_components.declaring_types.is_empty() {
+            true => ty.cs_name_components.name.clone(),
+            false => format!(
+                "{}/{}",
+                ty.cs_name_components.declaring_types.join("/"),
+                ty.cs_name_components.name.clone()
+            ),
         };
 
         writeln!(
             writer,
-            "{macro_arg_define}({}, \"{namespace}\", \"{name}\");",
-            ty.cpp_full_name,
+            "{macro_arg_define}({}, \"{namespace}\", \"{combined_name}\");",
+            ty.cpp_name_components.combine_all(true)
         )?;
 
         Ok(())

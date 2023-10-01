@@ -19,6 +19,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use itertools::Itertools;
 
 use crate::{
+    data::name_components::NameComponents,
     generate::{members::CppUsingAlias, offsets},
     helpers::cursor::ReadBytesExtensions,
 };
@@ -114,6 +115,7 @@ pub trait CSType: Sized {
 
         cpp_type.cpp_template = Some(CppTemplate { names: vec![] });
         cpp_type.is_stub = false;
+        cpp_type.cpp_name_components.generics = None;
 
         cpp_type
     }
@@ -186,7 +188,18 @@ pub trait CSType: Sized {
 
         // all nested types are unnested
         let nested = false; // t.declaring_type_index != u32::MAX;
-        let cpp_full_name = t.full_name_cpp(metadata.metadata, config, false);
+        let cs_name_components = t.get_name_components(metadata.metadata);
+
+        let cpp_name_components = NameComponents {
+            declaring_types: cs_name_components
+                .declaring_types
+                .iter()
+                .map(|s| config.name_cpp(s))
+                .collect_vec(),
+            generics: cs_name_components.generics.clone(),
+            name: config.name_cpp(&cs_name_components.name),
+            namespace: config.namespace_cpp(&cs_name_components.namespace),
+        };
 
         // TODO: Come up with a way to avoid this extra call to layout the entire type
         // We really just want to call it once for a given size and then move on
@@ -226,15 +239,11 @@ pub trait CSType: Sized {
             self_tag: tag,
             nested,
             prefix_comments: vec![format!("Type: {ns}::{name}")],
-            namespace: ns.to_string(),
-            cpp_namespace: config.namespace_cpp(ns),
-            name: name.to_string(),
-            cpp_name: config.name_cpp(name),
 
             calculated_size: Some(metadata_size as usize),
 
-            cpp_full_name,
-            full_name,
+            cpp_name_components,
+            cs_name_components,
 
             declarations: Default::default(),
             implementations: Default::default(),
@@ -249,7 +258,6 @@ pub trait CSType: Sized {
             cpp_template,
 
             generic_instantiations_args_types: Default::default(),
-            generic_instantiation_args: Default::default(),
             method_generic_instantiation_map: Default::default(),
 
             is_stub: false,
@@ -268,13 +276,13 @@ pub trait CSType: Sized {
             let declaring_tag = CppTypeTag::from_type_data(declaring_ty.data, metadata.metadata);
             let declaring_tdi: TypeDefinitionIndex = declaring_tag.into();
             let declaring_td = &metadata.metadata.global_metadata.type_definitions[declaring_tdi];
+            let combined_name = cpptype.cpp_name_components.combine_all(false);
 
-            cpptype.cpp_namespace = config.namespace_cpp(declaring_td.namespace(metadata.metadata));
+            cpptype.cpp_name_components.namespace =
+                config.namespace_cpp(declaring_td.namespace(metadata.metadata));
+            cpptype.cpp_name_components.declaring_types = vec![]; // remove declaring types
 
-            cpptype.cpp_name = config.generic_nested_name(&cpptype.cpp_full_name);
-
-            // full name will have literals in `fill_generic_class_inst`
-            cpptype.cpp_full_name = format!("{}::{}", cpptype.cpp_namespace, cpptype.cpp_name);
+            cpptype.cpp_name_components.name = config.generic_nested_name(&combined_name);
         }
 
         if t.parent_index == u32::MAX {
@@ -450,19 +458,8 @@ pub trait CSType: Sized {
             });
         }
 
-        cpp_type.generic_instantiation_args =
+        cpp_type.cpp_name_components.generics =
             Some(generic_instantiation_args.into_iter().collect_vec());
-
-        // only set if there are no generic ref types
-        cpp_type.cpp_full_name = format!(
-            "{}<{}>",
-            cpp_type.cpp_full_name,
-            cpp_type
-                .generic_instantiation_args
-                .as_ref()
-                .unwrap()
-                .join(",")
-        )
     }
 
     fn make_methods(
@@ -627,7 +624,7 @@ pub trait CSType: Sized {
                         let field_impl = CppFieldImpl {
                             value: def_value,
                             const_expr: true,
-                            declaring_type: cpp_type.cpp_full_name.clone(),
+                            declaring_type: cpp_type.cpp_name_components.combine_all(true),
                             declaring_type_template: declaring_cpp_template,
                             ..field_decl.clone().into()
                         };
@@ -768,7 +765,7 @@ pub trait CSType: Sized {
 
                 let getter_impl = CppMethodImpl {
                     body: vec![Arc::new(CppLine::make(getter_call))],
-                    declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
                     template: useful_template.clone(),
 
                     ..getter_decl.clone().into()
@@ -776,7 +773,7 @@ pub trait CSType: Sized {
 
                 let setter_impl = CppMethodImpl {
                     body: vec![Arc::new(CppLine::make(setter_call))],
-                    declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
                     template: useful_template.clone(),
 
                     ..setter_decl.clone().into()
@@ -930,7 +927,7 @@ pub trait CSType: Sized {
                 body: vec![Arc::new(CppLine::make(format!(
                     "return {interface_cpp_name}({convert_line});"
                 )))],
-                declaring_cpp_full_name: cpp_type.cpp_full_name.clone(),
+                declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
                 template: method_impl_template,
                 ..method_decl.clone().into()
             };
@@ -959,7 +956,7 @@ pub trait CSType: Sized {
             return;
         }
 
-        let generic_instantiation_args = cpp_type.generic_instantiation_args.clone();
+        let generic_instantiation_args = cpp_type.cpp_name_components.generics.clone();
 
         let aliases = t
             .nested_types(metadata.metadata)
@@ -976,12 +973,12 @@ pub trait CSType: Sized {
                     .expect("Unable to find nested CppType");
 
                 let alias = CppUsingAlias::from_cpp_type(
-                    config.name_cpp(&nested.name),
+                    config.name_cpp(&nested.cs_name_components.name),
                     nested,
                     generic_instantiation_args.clone(),
                     // if no generic args are made, we can do the generic fixup
                     // ORDER OF PASSES MATTERS
-                    nested.generic_instantiation_args.is_none(),
+                    nested.cs_name_components.generics.is_none(),
                 );
                 let fd = CppForwardDeclare::from_cpp_type(nested);
                 let inc = CppInclude::new_context_typedef(nested_context);
@@ -1243,7 +1240,7 @@ pub trait CSType: Sized {
 
         cpp_type.declarations.push(
             CppMember::ConstructorDecl(CppConstructorDecl {
-                cpp_name: cpp_type.cpp_name.clone(),
+                cpp_name: cpp_type.cpp_name().clone(),
                 parameters: vec![CppParam {
                     name: "instance".to_string(),
                     ty: format!("std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>"),
@@ -1392,7 +1389,7 @@ pub trait CSType: Sized {
                 body,
                 template: method_impl_template,
                 parameters: instance_fields,
-                declaring_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
+                declaring_full_name: cpp_type.cpp_name_components.combine_all(true),
                 ..constructor_decl.clone().into()
             };
 
@@ -1431,10 +1428,10 @@ pub trait CSType: Sized {
         let cpp_type = self.get_mut_cpp_type();
         let cpp_name = cpp_type.cpp_name().clone();
 
+        let cs_name = cpp_type.name().clone();
+
         // Skip if System.ValueType or System.Enum
-        if cpp_type.namespace() == "System"
-            && (cpp_type.cpp_name() == "ValueType" || cpp_type.cpp_name() == "Enum")
-        {
+        if cpp_type.namespace() == "System" && (cs_name == "ValueType" || cs_name == "Enum") {
             return;
         }
 
@@ -1564,7 +1561,7 @@ pub trait CSType: Sized {
     }
     fn create_ref_default_operators(&mut self) {
         let cpp_type = self.get_mut_cpp_type();
-        let cpp_name = cpp_type.cpp_name().clone();
+        let cpp_name = cpp_type.cpp_name();
 
         // Skip if System.ValueType or System.Enum
         if cpp_type.namespace() == "System"
@@ -1620,7 +1617,7 @@ pub trait CSType: Sized {
             })
             .collect_vec();
 
-        let ty_full_cpp_name = cpp_type.formatted_complete_cpp_name();
+        let ty_full_cpp_name = cpp_type.cpp_name_components.combine_all(true);
 
         let decl: CppMethodDecl = CppMethodDecl {
             cpp_name: "New_ctor".into(),
@@ -1663,7 +1660,7 @@ pub trait CSType: Sized {
                 Arc::new(CppLine::make("return o;".into())),
             ],
 
-            declaring_cpp_full_name: cpp_type.formatted_complete_cpp_name().to_string(),
+            declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
             parameters: m_params.to_vec(),
             template: declaring_template,
             ..decl.clone().into()
@@ -1886,7 +1883,7 @@ pub trait CSType: Sized {
 
         let method_invoke_params = vec![instance_ptr.as_str(), METHOD_INFO_VAR_NAME];
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
-        let declaring_type_cpp_full_name = cpp_type.formatted_complete_cpp_name().to_string();
+        let declaring_type_cpp_full_name = cpp_type.cpp_name_components.combine_all(true);
         let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{declaring_type_cpp_full_name}>::get()");
 
         let params_types_format: String = CppParam::params_types(&method_decl.parameters)
@@ -2379,7 +2376,7 @@ pub trait CSType: Sized {
                 let typ_cpp_tag: CppTypeTag = typ_tag.into();
                 // Self
                 if typ_cpp_tag == cpp_type.self_tag {
-                    return cpp_type.formatted_complete_cpp_name().clone();
+                    return cpp_type.cpp_name_components.combine_all(true);
                 }
 
                 if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
@@ -2446,7 +2443,7 @@ pub trait CSType: Sized {
                     }
                 }
 
-                to_incl_cpp_ty.formatted_complete_cpp_name().clone()
+                to_incl_cpp_ty.cpp_name_components.combine_all(false)
             }
             // Single dimension array
             Il2CppTypeEnum::Szarray => {
@@ -2536,7 +2533,8 @@ pub trait CSType: Sized {
                     }
 
                     cpp_type
-                        .generic_instantiation_args
+                        .cpp_name_components
+                        .generics
                         .as_ref()
                         .expect("Generic instantiation args not made yet!")
                         .get(generic_param.num as usize)
@@ -2635,7 +2633,7 @@ pub trait CSType: Sized {
     fn classof_cpp_name(&self) -> String {
         format!(
             "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get",
-            self.get_cpp_type().formatted_complete_cpp_name()
+            self.get_cpp_type().cpp_name_components.combine_all(true)
         )
     }
 

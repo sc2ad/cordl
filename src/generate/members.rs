@@ -352,8 +352,20 @@ impl From<CppConstructorDecl> for CppConstructorImpl {
 
 impl CppForwardDeclare {
     pub fn from_cpp_type(cpp_type: &CppType) -> Self {
+        Self::from_cpp_type_long(cpp_type, false)
+    }
+    pub fn from_cpp_type_long(cpp_type: &CppType, force_generics: bool) -> Self {
         let ns = if !cpp_type.nested {
             Some(cpp_type.cpp_namespace().to_string())
+        } else {
+            None
+        };
+
+        assert!(cpp_type.cpp_name_components.declaring_types.is_empty(), "Can't forward declare nested types!");
+
+        // literals should only be added for generic specializations
+        let literals = if cpp_type.generic_instantiations_args_types.is_some() || force_generics {
+            cpp_type.cpp_name_components.generics.clone()
         } else {
             None
         };
@@ -363,7 +375,7 @@ impl CppForwardDeclare {
             cpp_namespace: ns,
             cpp_name: cpp_type.cpp_name().clone(),
             templates: cpp_type.cpp_template.clone(),
-            literals: cpp_type.generic_instantiation_args.clone(),
+            literals,
         }
     }
 }
@@ -481,7 +493,7 @@ impl CppUsingAlias {
             None => (forwarded_generic_args.clone(), None),
         };
 
-        let mut result = cpp_type.cpp_full_name.clone();
+        let mut result = cpp_type.cpp_name_components.combine_all(true);
 
         // easy way to tell it's a generic instantiation
         if fixup_generic_args && !literals_and_template.is_empty() {

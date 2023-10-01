@@ -38,6 +38,7 @@ use crate::{
 mod generate;
 mod handlers;
 mod helpers;
+mod data;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -392,7 +393,7 @@ fn main() -> color_eyre::Result<()> {
             .iter()
             .find(|(_, c)| {
                 c.get_types().iter().any(|(_, t)| {
-                    t.generic_instantiation_args.is_some() && t.cpp_name() == "List_1"
+                    t.cpp_name_components.generics.is_some() && t.cpp_name() == "List_1"
                 })
             })
             .unwrap()
@@ -404,7 +405,7 @@ fn main() -> color_eyre::Result<()> {
             .iter()
             .find(|(_, c)| {
                 c.get_types().iter().any(|(_, t)| {
-                    t.is_value_type && t.name == "Color" && t.namespace == "UnityEngine"
+                    t.is_value_type && t.name() == "Color" && t.namespace() == "UnityEngine"
                 })
             })
             .unwrap()
@@ -432,7 +433,7 @@ fn main() -> color_eyre::Result<()> {
         //     .find(|(_, c)| {
         //         c.get_types()
         //             .iter()
-        //             .any(|(_, t)| t.is_value_type && &t.name == "AlignmentUnion")
+        //             .any(|(_, t)| t.is_value_type && &t.name()== "AlignmentUnion")
         //     })
         //     .unwrap()
         //     .1
@@ -444,7 +445,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.name == "Array" && t.namespace == "System")
+                    .any(|(_, t)| t.name() == "Array" && t.namespace() == "System")
             })
             .unwrap()
             .1
@@ -483,7 +484,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.name == "Object" && t.namespace == "UnityEngine")
+                    .any(|(_, t)| t.name()== "Object" && t.namespace()== "UnityEngine")
             })
             .unwrap()
             .1
@@ -495,7 +496,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.name == "BeatmapSaveDataHelpers")
+                    .any(|(_, t)| t.name()== "BeatmapSaveDataHelpers")
             })
             .unwrap()
             .1
@@ -507,7 +508,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace == "HMUI" && t.name == "ViewController")
+                    .any(|(_, t)| t.namespace()== "HMUI" && t.name()== "ViewController")
             })
             .unwrap()
             .1
@@ -519,7 +520,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace == "UnityEngine" && t.name == "Component")
+                    .any(|(_, t)| t.namespace()== "UnityEngine" && t.name()== "Component")
             })
             .unwrap()
             .1
@@ -531,7 +532,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace == "UnityEngine" && t.name == "GameObject")
+                    .any(|(_, t)| t.namespace()== "UnityEngine" && t.name()== "GameObject")
             })
             .unwrap()
             .1
@@ -543,7 +544,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace.is_empty() && t.name == "MainFlowCoordinator")
+                    .any(|(_, t)| t.namespace().is_empty() && t.name()== "MainFlowCoordinator")
             })
             .unwrap()
             .1
@@ -555,7 +556,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace.is_empty() && t.name == "OVRPlugin")
+                    .any(|(_, t)| t.namespace().is_empty() && t.name()== "OVRPlugin")
             })
             .unwrap()
             .1
@@ -567,7 +568,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace == "HMUI" && t.name == "IValueChanger`1")
+                    .any(|(_, t)| t.namespace()== "HMUI" && t.name()== "IValueChanger`1")
             })
             .unwrap()
             .1
@@ -579,7 +580,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace == "System" && t.name == "ValueType")
+                    .any(|(_, t)| t.namespace()== "System" && t.name()== "ValueType")
             })
             .unwrap()
             .1
@@ -591,7 +592,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace == "System" && t.name == "ValueTuple`2")
+                    .any(|(_, t)| t.namespace()== "System" && t.name()== "ValueTuple`2")
             })
             .unwrap()
             .1
@@ -603,7 +604,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace == "System" && t.name == "Decimal")
+                    .any(|(_, t)| t.namespace()== "System" && t.name()== "Decimal")
             })
             .unwrap()
             .1
@@ -615,7 +616,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace == "System" && t.name == "Enum")
+                    .any(|(_, t)| t.namespace()== "System" && t.name()== "Enum")
             })
             .unwrap()
             .1
@@ -627,7 +628,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace == "System" && t.name == "MulticastDelegate")
+                    .any(|(_, t)| t.namespace()== "System" && t.name()== "MulticastDelegate")
             })
             .unwrap()
             .1
@@ -639,7 +640,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.namespace == "System" && t.name == "Delegate")
+                    .any(|(_, t)| t.namespace()== "System" && t.name()== "Delegate")
             })
             .unwrap()
             .1
@@ -651,7 +652,7 @@ fn main() -> color_eyre::Result<()> {
             .find(|(_, c)| {
                 c.get_types()
                     .iter()
-                    .any(|(_, t)| t.name.contains("EventBoxGroup`1"))
+                    .any(|(_, t)| t.name().contains("EventBoxGroup`1"))
             })
             .unwrap()
             .1
