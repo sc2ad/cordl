@@ -38,6 +38,10 @@ impl CppTemplate {
                 .collect(),
         }
     }
+
+    fn just_names(&self) -> impl Iterator<Item = &String> {
+        self.names.iter().map(|(_constraint, t)| t)
+    }
 }
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
@@ -361,7 +365,10 @@ impl CppForwardDeclare {
             None
         };
 
-        assert!(cpp_type.cpp_name_components.declaring_types.is_empty(), "Can't forward declare nested types!");
+        assert!(
+            cpp_type.cpp_name_components.declaring_types.is_empty(),
+            "Can't forward declare nested types!"
+        );
 
         // literals should only be added for generic specializations
         let literals = if cpp_type.generic_instantiations_args_types.is_some() || force_generics {
@@ -443,6 +450,7 @@ impl CppInclude {
 }
 
 impl CppUsingAlias {
+    // TODO: Rewrite
     pub fn from_cpp_type(
         alias: String,
         cpp_type: &CppType,
@@ -470,11 +478,7 @@ impl CppUsingAlias {
                 };
 
                 // just the names of the template types
-                let template_names = template
-                    .names
-                    .iter()
-                    .map(|(_constraint, t)| t)
-                    .collect_vec();
+                let template_names = template.just_names().collect_vec();
 
                 // Essentially, all nested types inherit their declaring type's generic params.
                 // Append the rest of the template params as generic parameters
@@ -493,10 +497,12 @@ impl CppUsingAlias {
             None => (forwarded_generic_args.clone(), None),
         };
 
-        let mut result = cpp_type.cpp_name_components.combine_all(true);
+        let do_fixup = fixup_generic_args && !literals_and_template.is_empty();
+
+        let mut result = cpp_type.cpp_name_components.combine_all(!do_fixup);
 
         // easy way to tell it's a generic instantiation
-        if fixup_generic_args && !literals_and_template.is_empty() {
+        if do_fixup {
             result = format!("{result}<{}>", literals_and_template.join(", "))
         }
 

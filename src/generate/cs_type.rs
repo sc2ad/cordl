@@ -974,12 +974,12 @@ pub trait CSType: Sized {
                     .expect("Unable to find nested CppType");
 
                 let alias = CppUsingAlias::from_cpp_type(
-                    config.name_cpp(&nested.cs_name_components.name),
+                    nested.cpp_name().clone(),
                     nested,
                     generic_instantiation_args.clone(),
                     // if no generic args are made, we can do the generic fixup
                     // ORDER OF PASSES MATTERS
-                    nested.cs_name_components.generics.is_none(),
+                    nested.generic_instantiations_args_types.is_none(),
                 );
                 let fd = CppForwardDeclare::from_cpp_type(nested);
                 let inc = CppInclude::new_context_typedef(nested_context);
