@@ -10,7 +10,7 @@ use brocolib::{
     runtime_metadata::{Il2CppMethodSpec, TypeData},
 };
 use itertools::Itertools;
-use log::{trace, warn, info};
+use log::{info, trace, warn};
 use pathdiff::diff_paths;
 
 use crate::{
@@ -390,7 +390,10 @@ impl CppContextCollection {
         let ty_def = &metadata.metadata.global_metadata.type_definitions[method.declaring_type];
 
         if metadata.blacklisted_types.contains(&tdi) {
-            info!("Skipping {tdi:?} {} since it is blacklisted", ty_def.full_name(metadata.metadata, true));
+            info!(
+                "Skipping {tdi:?} {} since it is blacklisted",
+                ty_def.full_name(metadata.metadata, true)
+            );
             return None;
         }
 
@@ -449,7 +452,10 @@ impl CppContextCollection {
         let tdi = method.declaring_type;
 
         if metadata.blacklisted_types.contains(&tdi) {
-            info!("Skipping {tdi:?} {} since it is blacklisted", ty_def.full_name(metadata.metadata, true));
+            info!(
+                "Skipping {tdi:?} {} since it is blacklisted",
+                ty_def.full_name(metadata.metadata, true)
+            );
             return None;
         }
 
