@@ -15,7 +15,7 @@ use super::{
     context_collection::CppContextCollection,
     cpp_type_tag::CppTypeTag,
     members::{CppForwardDeclare, CppInclude, CppMember, CppTemplate},
-    writer::Writable,
+    writer::{CppWriter, Writable},
 };
 
 pub const CORDL_TYPE_MACRO: &str = "CORDL_TYPE";
@@ -295,7 +295,7 @@ impl CppType {
             // if self.generic_instantiation_args.is_some() {
             //     writeln!(writer, "template<>")?;
             // }
-
+            // start writing class
             let cordl_hide = match self.is_hidden {
                 true => CORDL_TYPE_MACRO,
                 false => "",
@@ -386,6 +386,24 @@ impl CppType {
         }
 
         // TODO: Write additional meta-info here, perhaps to ensure correct conversions?
+        Ok(())
+    }
+
+    pub fn write_ref_type_trait(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        let template = self.cpp_template.clone().unwrap_or_default();
+
+        template.write(writer)?;
+
+        writeln!(
+            writer,
+            "
+struct cordl_internals::RefTypeTrait<{}> {{
+    constexpr static bool value = true;
+}};
+        ",
+            self.cpp_name_components.formatted_name(true)
+        )?;
+
         Ok(())
     }
 }

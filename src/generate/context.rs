@@ -378,6 +378,12 @@ impl CppContext {
                     fd.write(&mut typedef_writer)
                 })?;
 
+            writeln!(typedef_writer, "// Add ref type trait")?;
+            typedef_root_types
+                .iter()
+                .filter(|cpp_type| !cpp_type.is_value_type && !cpp_type.is_enum_type)
+                .try_for_each(|cpp_type| cpp_type.write_ref_type_trait(&mut typedef_writer))?;
+
             // This is likely not necessary
             // self.typedef_types
             //     .values()
