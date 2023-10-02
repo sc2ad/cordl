@@ -401,7 +401,7 @@ struct cordl_internals::RefTypeTrait<{}> {{
     constexpr static bool value = true;
 }};
         ",
-            self.cpp_name_components.formatted_name(true)
+            self.cpp_name_components.combine_all(true)
         )?;
 
         Ok(())
