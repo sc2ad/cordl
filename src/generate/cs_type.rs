@@ -1623,7 +1623,7 @@ pub trait CSType: Sized {
             })
             .collect_vec();
 
-        let ty_full_cpp_name = cpp_type.cpp_name_components.combine_all(true);
+        let ty_full_cpp_name = format!("::{}", cpp_type.cpp_name_components.combine_all(true));
 
         let decl: CppMethodDecl = CppMethodDecl {
             cpp_name: "New_ctor".into(),
@@ -1890,7 +1890,7 @@ pub trait CSType: Sized {
         let method_invoke_params = vec![instance_ptr.as_str(), METHOD_INFO_VAR_NAME];
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
         let declaring_type_cpp_full_name = cpp_type.cpp_name_components.combine_all(true);
-        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{declaring_type_cpp_full_name}>::get()");
+        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{declaring_type_cpp_full_name}>::get()");
 
         let params_types_format: String = CppParam::params_types(&method_decl.parameters)
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
@@ -2350,11 +2350,7 @@ pub trait CSType: Sized {
         include_depth: usize,
     ) -> String {
         let add_include = include_depth > 0;
-        let next_include_depth = if add_include {
-            include_depth - 1
-        } else {
-            0
-        };
+        let next_include_depth = if add_include { include_depth - 1 } else { 0 };
 
         let typ_tag = typ.data;
 
@@ -2388,8 +2384,11 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class => {
                 let typ_cpp_tag: CppTypeTag = typ_tag.into();
                 // Self
+
+                // we add :: here since we can't add it to method ddefinitions
+                // e.g void ::Foo::method() <- not allowed
                 if typ_cpp_tag == cpp_type.self_tag {
-                    return cpp_type.cpp_name_components.combine_all(false);
+                    return format!("::{}", cpp_type.cpp_name_components.combine_all(false));
                 }
 
                 if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
@@ -2456,7 +2455,12 @@ pub trait CSType: Sized {
                     }
                 }
 
-                to_incl_cpp_ty.cpp_name_components.combine_all(false)
+                // we add :: here since we can't add it to method ddefinitions
+                // e.g void ::Foo::method() <- not allowed
+                format!(
+                    "::{}",
+                    to_incl_cpp_ty.cpp_name_components.combine_all(false)
+                )
             }
             // Single dimension array
             Il2CppTypeEnum::Szarray => {
@@ -2651,7 +2655,7 @@ pub trait CSType: Sized {
 
     fn classof_cpp_name(&self) -> String {
         format!(
-            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get",
+            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{}>::get",
             self.get_cpp_type().cpp_name_components.combine_all(true)
         )
     }

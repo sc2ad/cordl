@@ -7,6 +7,8 @@ pub struct NameComponents {
 }
 
 impl NameComponents {
+    // TODO: Add setting for adding :: prefix
+    // however, this cannot be allowed in all cases
     pub fn combine_all(&self, include_generics: bool) -> String {
         let combined_namespace = match self.declaring_types.is_empty() {
             true => self.namespace.to_string(),
