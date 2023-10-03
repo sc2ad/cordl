@@ -5,7 +5,15 @@
 #include "beatsaber-hook/shared/utils/base-wrapper-type.hpp"
 #include "beatsaber-hook/shared/utils/value-wrapper-type.hpp"
 #include "beatsaber-hook/shared/utils/enum-wrapper-type.hpp"
-#include "beatsaber-hook/shared/utils/typedefs-string.hpp"
+// #include "beatsaber-hook/shared/utils/typedefs-string.hpp"
+// #include "beatsaber-hook/shared/utils/typedefs-array.hpp"
+// #include "beatsaber-hook/shared/utils/typedefs-list.hpp"
+
+template <typename T, typename U> struct ArrayW;
+
+struct StringW;
+
+
 
 namespace {
 namespace cordl_internals {
@@ -89,16 +97,17 @@ namespace cordl_internals {
     CORDL_REF_TYPE(::bs_hook::Il2CppWrapperType);
 
     // explicitly mark ArrayW as reftype
-    template<typename T>
-    struct ::cordl_internals::RefTypeTrait<ArrayW<T>> { constexpr static bool value = true; };
-    template<typename T>
-    struct ::cordl_internals::ValueTypeTrait<ArrayW<T>> { constexpr static bool value = false; };
+    template<typename T, typename U>
+    struct ::cordl_internals::RefTypeTrait<::ArrayW<T, U>> { constexpr static bool value = true; };
+    template<typename T, typename U>
+    struct ::cordl_internals::ValueTypeTrait<::ArrayW<T, U>> { constexpr static bool value = false; };
 
     // explicitly mark ListW as reftype
-    template<typename T>
-    struct ::cordl_internals::RefTypeTrait<ListW<T>> { constexpr static bool value = true; };
-    template<typename T>
-    struct ::cordl_internals::ValueTypeTrait<ListWT>> { constexpr static bool value = false; };
+    // TODO:
+    // template<typename T, typename U>
+    // struct ::cordl_internals::RefTypeTrait<ListW<T, U>> { constexpr static bool value = true; };
+    // template<typename T, typename U>
+    // struct ::cordl_internals::ValueTypeTrait<ListW<T, U>> { constexpr static bool value = false; };
 
     static_assert(il2cpp_reference_type<::bs_hook::Il2CppWrapperType>,
                   "Il2CppWrapperType did not match the il2cpp_reference_type "
