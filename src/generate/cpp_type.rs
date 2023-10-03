@@ -389,20 +389,34 @@ impl CppType {
         Ok(())
     }
 
-    pub fn write_ref_type_trait(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        let template = self.cpp_template.clone().unwrap_or_default();
+    pub fn write_type_trait(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
+        if let Some(template) = &self.cpp_template { // generic
+            // the existing macros don't work for generics, emit the structs directly
+            let mut type_kinds = vec![];
+            if self.is_enum_type || self.is_value_type { // value type
+                type_kinds.push("ValueTypeTrait");
+                type_kinds.push("RefTypeTrait");
+            } else { // reference type
+                type_kinds.push("RefTypeTrait");
+                type_kinds.push("ValueTypeTrait");
+            }
 
-        template.write(writer)?;
+            let full_name = self.cpp_name_components.combine_all(true);
+            // TODO: ensure this works correctly
+            template.write(writer)?;
+            writeln!(writer, "struct ::cordl_internals::{}<{}> {{ constexpr static bool value = true; }};", type_kinds[0], full_name)?;
+            template.write(writer)?;
+            writeln!(writer, "struct ::cordl_internals::{}<{}> {{ constexpr static bool value = false; }};", type_kinds[1], full_name)?;
+        } else { // non-generic
+            // use existing macros for non generics, this way we can emit less lines
+            let type_trait_macro = if self.is_enum_type || self.is_value_type {
+                "CORDL_VAL_TYPE"
+            } else {
+                "CORDL_REF_TYPE"
+            };
 
-        writeln!(
-            writer,
-            "
-struct cordl_internals::RefTypeTrait<{}> {{
-    constexpr static bool value = true;
-}};
-        ",
-            self.cpp_name_components.combine_all(true)
-        )?;
+            writeln!(writer, "{type_trait_macro}({});", self.cpp_name_components.combine_all(true))?;
+        }
 
         Ok(())
     }

@@ -683,9 +683,9 @@ pub trait CSType: Sized {
                     }
                 }
             } else {
-                let self_wrapper_instance = match t.is_value_type() || t.is_enum_type() {
-                    true => VALUE_TYPE_WRAPPER_INSTANCE_NAME.to_string(),
-                    false => REFERENCE_WRAPPER_INSTANCE_NAME.to_string(),
+                let instance = match t.is_value_type() || t.is_enum_type() {
+                    true => format!("this->{VALUE_TYPE_WRAPPER_INSTANCE_NAME}"),
+                    false => "*this".to_string(),
                 };
 
                 let klass_resolver = cpp_type.classof_cpp_name();
@@ -698,7 +698,7 @@ pub trait CSType: Sized {
                     }
                     false => {
                         format!(
-                            "return {CORDL_METHOD_HELPER_NAMESPACE}::getInstanceField<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance});"
+                            "return {CORDL_METHOD_HELPER_NAMESPACE}::getInstanceField<{field_ty_cpp_name}, 0x{f_offset:x}>({instance});"
                         )
                     }
                 };
@@ -712,7 +712,7 @@ pub trait CSType: Sized {
                     }
                     false => {
                         format!(
-                            "{CORDL_METHOD_HELPER_NAMESPACE}::setInstanceField<{field_ty_cpp_name}, 0x{f_offset:x}>(this->{self_wrapper_instance}, std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                            "{CORDL_METHOD_HELPER_NAMESPACE}::setInstanceField<{field_ty_cpp_name}, 0x{f_offset:x}>({instance}, std::forward<{field_ty_cpp_name}>({setter_var_name}));"
                         )
                     }
                 };

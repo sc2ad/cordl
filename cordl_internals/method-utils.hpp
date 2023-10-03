@@ -184,7 +184,16 @@ template<typename T>
         if (exp) throw il2cpp_utils::RunMethodException(exp, method);
 
         if constexpr (!std::is_same_v<void, TOut>) { // return type is not void, we should return something!
-            return Unbox<TOut>(::bs_hook::Il2CppWrapperType(ret));
+            // FIXME: what if the return type is a ByRef<T> ?
+            if constexpr (::il2cpp_utils::il2cpp_type_check::need_box<TOut>::value) { // value type returns from runtime invoke are boxed
+                // FIXME: somehow allow the gc free as an out of scope instead of having to temporarily save the retval?
+                auto retval = Unbox<TOut>(::bs_hook::Il2CppWrapperType(ret));
+                il2cpp_functions::il2cpp_GC_free(ret);
+                return retval;
+            } else { // ref type returns are just that, ref type returns
+                return TOut(ret);
+            }
+
         }
     }
 }

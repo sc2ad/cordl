@@ -218,7 +218,7 @@ fn get_type_size_and_alignment(ty: &Il2CppType, metadata: &Metadata) -> SizeAndA
         actual_size: 0,
     };
 
-    if ty.byref {
+    if ty.byref && !ty.valuetype {
         sa.size = metadata.pointer_size as usize;
         sa.actual_size = metadata.pointer_size as usize;
         sa.alignment = get_alignment_of_type(OffsetType::Pointer, metadata.pointer_size);
@@ -264,7 +264,9 @@ fn get_type_size_and_alignment(ty: &Il2CppType, metadata: &Metadata) -> SizeAndA
         | Il2CppTypeEnum::Class
         | Il2CppTypeEnum::Object
         | Il2CppTypeEnum::Var
-        | Il2CppTypeEnum::Mvar => {
+        | Il2CppTypeEnum::Mvar
+        | Il2CppTypeEnum::I
+        | Il2CppTypeEnum::U => {
             // voidptr_t
             sa.size = metadata.pointer_size as usize;
             sa.actual_size = metadata.pointer_size as usize;
