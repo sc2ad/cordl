@@ -287,7 +287,7 @@ impl CppType {
                 .cpp_name_components
                 .formatted_name(self.generic_instantiations_args_types.is_some());
 
-            writeln!(writer, "// CS Name: {}", self.name())?;
+            writeln!(writer, "// CS Name: {}", self.cs_name_components.combine_all(true))?;
 
             // Type definition plus inherit lines
 

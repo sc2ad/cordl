@@ -593,7 +593,7 @@ pub trait CSType: Sized {
             let field_ty_cpp_name = if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
                 "::ConstString".to_string()
             } else {
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false)
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, 0)
             };
 
             // TODO: Check a flag to look for default values to speed this up
@@ -852,7 +852,7 @@ pub trait CSType: Sized {
 
             // We have a parent, lets do something with it
             let inherit_type =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, true);
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, usize::MAX);
 
             if matches!(
                 parent_type.ty,
@@ -893,7 +893,7 @@ pub trait CSType: Sized {
 
             // We have an interface, lets do something with it
             let interface_cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, false);
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, 0);
 
             let convert_line = match t.is_value_type() || t.is_enum_type() {
                 true => {
@@ -1067,8 +1067,7 @@ pub trait CSType: Sized {
                 .get(p_type_index)
                 .unwrap();
 
-            let p_ty_cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, false);
+            let p_ty_cpp_name = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, 0);
 
             let _method_map = |p: MethodIndex| {
                 let method_calc = metadata.method_calculations.get(&p).unwrap();
@@ -1129,8 +1128,7 @@ pub trait CSType: Sized {
         let backing_field_idx = t.element_type_index as usize;
         let backing_field_ty = &metadata.metadata_registration.types[backing_field_idx];
 
-        let enum_base =
-            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field_ty, false);
+        let enum_base = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field_ty, 0);
 
         cpp_type.declarations.push(
             CppMember::CppUsingAlias(CppUsingAlias {
@@ -1155,8 +1153,7 @@ pub trait CSType: Sized {
         let backing_field_idx = t.element_type_index as usize;
         let backing_field_ty = &metadata.metadata_registration.types[backing_field_idx];
 
-        let enum_base =
-            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field_ty, false);
+        let enum_base = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field_ty, 0);
 
         wrapper_declaration.push(format!("enum class {unwrapped_name} : {enum_base} {{"));
 
@@ -1317,11 +1314,8 @@ pub trait CSType: Sized {
                     return None;
                 }
 
-                let f_type_cpp_name = {
-                    // add include because it's required
-
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, false)
-                };
+                let f_type_cpp_name =
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, 0);
 
                 // Get the inner type of a Generic Inst
                 // e.g ReadOnlySpan<char> -> ReadOnlySpan<T>
@@ -1725,9 +1719,9 @@ pub trait CSType: Sized {
                 .unwrap();
 
             let def_value = Self::param_default_value(metadata, param_index);
-            let must_include = false;
+
             let make_param_cpp_type_name = |cpp_type: &mut CppType| {
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, must_include)
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, 0)
             };
 
             let param_cpp_name = {
@@ -1805,13 +1799,13 @@ pub trait CSType: Sized {
             literal_types
                 .iter()
                 .map(|t| &metadata.metadata_registration.types[*t as usize])
-                .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false))
+                .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, 0))
                 .collect_vec()
         });
 
         // Lazy cppify
         let make_ret_cpp_type_name = |cpp_type: &mut CppType| {
-            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, false)
+            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, 0)
         };
 
         let m_ret_cpp_type_name = {
@@ -2353,8 +2347,15 @@ pub trait CSType: Sized {
         ctx_collection: &CppContextCollection,
         metadata: &Metadata,
         typ: &Il2CppType,
-        add_include: bool,
+        include_depth: usize,
     ) -> String {
+        let add_include = include_depth > 0;
+        let next_include_depth = if add_include {
+            include_depth - 1
+        } else {
+            0
+        };
+
         let typ_tag = typ.data;
 
         let cpp_type = self.get_mut_cpp_type();
@@ -2464,7 +2465,7 @@ pub trait CSType: Sized {
                 let generic: String = match typ.data {
                     TypeData::TypeIndex(e) => {
                         let ty = &metadata.metadata_registration.types[e];
-                        self.cppify_name_il2cpp(ctx_collection, metadata, ty, add_include)
+                        self.cppify_name_il2cpp(ctx_collection, metadata, ty, include_depth)
                     }
 
                     _ => panic!("Unknown type data for array {typ:?}!"),
@@ -2505,7 +2506,7 @@ pub trait CSType: Sized {
                         .get(ty_idx as usize)
                         .unwrap();
 
-                    self.cppify_name_il2cpp(ctx_collection, metadata, ty, add_include)
+                    self.cppify_name_il2cpp(ctx_collection, metadata, ty, include_depth)
                 }
                 _ => todo!(),
             },
@@ -2595,7 +2596,12 @@ pub trait CSType: Sized {
                         .iter()
                         .map(|t| mr.types.get(*t).unwrap())
                         .map(|t| {
-                            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, add_include)
+                            cpp_type.cppify_name_il2cpp(
+                                ctx_collection,
+                                metadata,
+                                t,
+                                next_include_depth,
+                            )
                         })
                         .collect_vec();
 
@@ -2604,7 +2610,7 @@ pub trait CSType: Sized {
                         ctx_collection,
                         metadata,
                         generic_type_def,
-                        add_include,
+                        include_depth,
                     );
 
                     format!("{type_def_name}<{}>", generic_types_formatted.join(","))
@@ -2695,7 +2701,7 @@ fn parse_generic_arg(
         return gen_name;
     }
 
-    let inner_type = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, false);
+    let inner_type = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, 0);
 
     /*
        mscorelib.xml
@@ -2758,7 +2764,7 @@ fn parse_generic_arg(
     // ) ||
     if let Some(inner_enum_type) = inner_enum_type {
         let inner_enum_type_cpp =
-            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, &inner_enum_type, false);
+            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, &inner_enum_type, 0);
 
         template_args.push((
             format!("{CORDL_NUM_ENUM_TYPE_CONSTRAINT}<{inner_enum_type_cpp}>",),
@@ -2784,7 +2790,7 @@ fn parse_generic_arg(
 
             // this relies on the fact TDIs do not include their generic params
             let non_generic_inner_type =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, gen_class_ty, false);
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, gen_class_ty, 0);
 
             let inner_generic_params = gen_class_inst
                 .types
