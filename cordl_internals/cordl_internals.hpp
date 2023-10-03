@@ -9,10 +9,15 @@
 #include "beatsaber-hook/shared/utils/typedefs-string.hpp"
 #include "beatsaber-hook/shared/utils/typedefs-array.hpp"
 #include "beatsaber-hook/shared/utils/typedefs-list.hpp"
+#include "beatsaber-hook/shared/utils/byref.hpp"
 
 #ifndef csnull
 #define csnull (::cordl_internals::NullArg())
 #endif
+
+// TODO: Implement
+template <typename T>
+using ByRefConst = ::ByRef<T>;
 
 namespace {
 namespace cordl_internals {
