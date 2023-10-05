@@ -95,7 +95,7 @@ pub trait CSType: Sized {
         ty_def.full_name(metadata.metadata, true)
     }
 
-    fn fixup_into_generic_instantiation(&mut self, metadata: &Metadata) -> &mut CppType {
+    fn fixup_into_generic_instantiation(&mut self) -> &mut CppType {
         let cpp_type = self.get_mut_cpp_type();
         assert!(
             cpp_type.generic_instantiations_args_types.is_some(),
@@ -258,7 +258,7 @@ pub trait CSType: Sized {
         };
 
         if cpptype.generic_instantiations_args_types.is_some() {
-            cpptype.fixup_into_generic_instantiation(metadata);
+            cpptype.fixup_into_generic_instantiation();
         }
 
         // Nested type unnesting fix
@@ -413,11 +413,7 @@ pub trait CSType: Sized {
             .iter()
             .enumerate()
             .map(|(gen_param_idx, u)| {
-                let t = metadata
-                    .metadata_registration
-                    .types
-                    .get(*u as usize)
-                    .unwrap();
+                let t = metadata.metadata_registration.types.get(*u).unwrap();
 
                 let gen_param = generic_container
                     .generic_parameters(metadata.metadata)
@@ -2126,7 +2122,11 @@ pub trait CSType: Sized {
             // https://en.cppreference.com/w/cpp/types/floating-point
             Il2CppTypeEnum::R4 => {
                 let val = format!("{}", cursor.read_f32::<Endian>().unwrap());
-                if !val.contains('.') && val.find(|c| (c < '0' || c > '9') && c != '-').is_none() {
+                if !val.contains('.')
+                    && val
+                        .find(|c: char| !c.is_ascii_digit() && c != '-')
+                        .is_none()
+                {
                     val + ".0"
                 } else {
                     val.replace("inf", "INFINITY").replace("NaN", "NAN")
@@ -2134,7 +2134,11 @@ pub trait CSType: Sized {
             }
             Il2CppTypeEnum::R8 => {
                 let val = format!("{}", cursor.read_f64::<Endian>().unwrap());
-                if !val.contains('.') && val.find(|c| (c < '0' || c > '9') && c != '-').is_none() {
+                if !val.contains('.')
+                    && val
+                        .find(|c: char| !c.is_ascii_digit() && c != '-')
+                        .is_none()
+                {
                     val + ".0"
                 } else {
                     val.replace("inf", "INFINITY").replace("NaN", "NAN")
@@ -2259,7 +2263,7 @@ pub trait CSType: Sized {
                                 .generic_instantiations_args_types
                                 .as_ref()
                                 .and_then(|gen_args| gen_args.get(gen_param.num as usize))
-                                .map(|t| &metadata.metadata_registration.types[*t as usize])
+                                .map(|t| &metadata.metadata_registration.types[*t])
                         })
                         .unwrap_or(ty)
                 }
@@ -2772,7 +2776,7 @@ fn wrapper_type_for_tdi(td: &Il2CppTypeDefinition) -> &str {
         return INTERFACE_WRAPPER_TYPE;
     }
 
-    return OBJECT_WRAPPER_TYPE;
+    OBJECT_WRAPPER_TYPE
 }
 
 ///

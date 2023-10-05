@@ -207,7 +207,7 @@ fn main() -> color_eyre::Result<()> {
             let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
 
             let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
-            let ty = &metadata.metadata_registration.types[ty_def.byval_type_index as usize];
+            let _ty = &metadata.metadata_registration.types[ty_def.byval_type_index as usize];
 
             if ty_def.declaring_type_index != u32::MAX {
                 continue;
@@ -351,7 +351,6 @@ fn main() -> color_eyre::Result<()> {
                 &metadata,
                 &STATIC_CONFIG,
                 CppTypeTag::TypeDefinitionIndex(tdi),
-                None,
             );
         }
     }

@@ -44,7 +44,8 @@ pub fn layout_fields_for_type<'a>(
                     .metadata_registration
                     .generic_classes[generic_class];
 
-                let generic_inst = &metadata.metadata_registration.generic_insts[generic_class.context.class_inst_idx.unwrap()];
+                let generic_inst = &metadata.metadata_registration.generic_insts
+                    [generic_class.context.class_inst_idx.unwrap()];
 
                 let generic_ty = &metadata.metadata_registration.types[generic_class.type_index];
                 let TypeData::TypeDefinitionIndex(parent_tdi) = generic_ty.data else {
@@ -237,7 +238,7 @@ fn get_type_size_and_alignment(
 
     // only handle if generic inst, otherwise let the rest handle it as before
     // aka a pointer size
-    if ty.ty == Il2CppTypeEnum::Var && let TypeData::GenericParameterIndex(generic_param_index) = ty.data && 
+    if ty.ty == Il2CppTypeEnum::Var && let TypeData::GenericParameterIndex(generic_param_index) = ty.data &&
          let Some(generic_args) = &generic_inst_types {
 
         let generic_param =
@@ -249,7 +250,6 @@ fn get_type_size_and_alignment(
         if resulting_ty == ty {
             warn!("Var points to itself! Type: {resulting_ty:?} generic args: {generic_args:?} {}", ty.full_name(metadata.metadata));
         }
-        
         // If Var, this is partial instantiation
         // we just treat it as Ptr below
         if resulting_ty.ty != Il2CppTypeEnum::Var {
@@ -305,29 +305,30 @@ fn get_type_size_and_alignment(
             sa.alignment = get_alignment_of_type(OffsetType::Pointer, metadata.pointer_size);
         }
         Il2CppTypeEnum::Valuetype => {
-            let TypeData::TypeDefinitionIndex(tdi) = ty.data else {
+            let TypeData::TypeDefinitionIndex(value_tdi) = ty.data else {
                 panic!(
                     "Failed to find a valid TypeDefinitionIndex from type's data: {:?}",
                     ty.data
                 )
             };
-            let td = &metadata.metadata.global_metadata.type_definitions[tdi];
+            let value_td = &metadata.metadata.global_metadata.type_definitions[value_tdi];
 
-            if td.is_enum_type() {
+            if value_td.is_enum_type() {
                 let enum_base_type =
-                    metadata.metadata_registration.types[td.element_type_index as usize];
+                    metadata.metadata_registration.types[value_td.element_type_index as usize];
                 return get_type_size_and_alignment(&enum_base_type, generic_inst_types, metadata);
-            } else {
-                // Size of the value type comes from the instance size - size of the wrapper object
-                // The way we compute the instance size is by grabbing the TD and performing a full field walk over that type
-                // Specifically, we call: layout_fields_for_type
-                // TODO: We should cache this call
-                let res = layout_fields_for_type(td, tdi, generic_inst_types, metadata, None);
-                sa.actual_size = res.actual_size - metadata.object_size() as usize;
-                sa.size = res.size - metadata.object_size() as usize;
-                sa.alignment = res.alignment;
-                sa.natural_alignment = res.natural_alignment;
             }
+
+            // Size of the value type comes from the instance size - size of the wrapper object
+            // The way we compute the instance size is by grabbing the TD and performing a full field walk over that type
+            // Specifically, we call: layout_fields_for_type
+            // TODO: We should cache this call
+            let res =
+                layout_fields_for_type(value_td, value_tdi, generic_inst_types, metadata, None);
+            sa.actual_size = res.actual_size - metadata.object_size() as usize;
+            sa.size = res.size - metadata.object_size() as usize;
+            sa.alignment = res.alignment;
+            sa.natural_alignment = res.natural_alignment;
         }
         Il2CppTypeEnum::Genericinst => {
             let TypeData::GenericClassIndex(gtype) = ty.data else {
@@ -351,28 +352,34 @@ fn get_type_size_and_alignment(
             };
             let td = &metadata.metadata.global_metadata.type_definitions[tdi];
 
-            if td.is_value_type() {
-                if td.is_enum_type() {
-                    let enum_base_type =
-                        metadata.metadata_registration.types[td.element_type_index as usize];
-                    return get_type_size_and_alignment(&enum_base_type, Some(&generic_inst.types), metadata);
-                } else {
-                    // Size of the value type comes from the instance size
-                    // We compute the instance size by grabbing the TD and performing a full field walk over that type
-                    // by calling layout_fields_for_type
-                    // TODO: We should cache this call
-                    let res = layout_fields_for_type(td, tdi, Some(&generic_inst.types), metadata, None);
-                    sa.actual_size = res.actual_size - metadata.object_size() as usize;
-                    sa.size = res.size - metadata.object_size() as usize;
-                    sa.alignment = res.alignment;
-                    sa.natural_alignment = res.natural_alignment;
-                }
-            } else {
+            // reference type
+            if !td.is_value_type() {
                 sa.size = metadata.pointer_size as usize;
                 sa.actual_size = metadata.pointer_size as usize;
                 sa.alignment = get_alignment_of_type(OffsetType::Pointer, metadata.pointer_size);
                 return sa;
             }
+
+            // enum type
+            if td.is_enum_type() {
+                let enum_base_type =
+                    metadata.metadata_registration.types[td.element_type_index as usize];
+                return get_type_size_and_alignment(
+                    &enum_base_type,
+                    Some(&generic_inst.types),
+                    metadata,
+                );
+            }
+
+            // Size of the value type comes from the instance size
+            // We compute the instance size by grabbing the TD and performing a full field walk over that type
+            // by calling layout_fields_for_type
+            // TODO: We should cache this call
+            let res = layout_fields_for_type(td, tdi, Some(&generic_inst.types), metadata, None);
+            sa.actual_size = res.actual_size - metadata.object_size() as usize;
+            sa.size = res.size - metadata.object_size() as usize;
+            sa.alignment = res.alignment;
+            sa.natural_alignment = res.natural_alignment;
         }
         _ => {
             panic!(

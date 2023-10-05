@@ -7,7 +7,7 @@ use std::{
 
 use brocolib::{
     global_metadata::TypeDefinitionIndex,
-    runtime_metadata::{Il2CppMethodSpec, Il2CppType, Il2CppTypeEnum, TypeData},
+    runtime_metadata::{Il2CppMethodSpec, TypeData},
 };
 use itertools::Itertools;
 use log::{info, trace, warn};
@@ -41,7 +41,7 @@ impl CppContextCollection {
         &mut self,
         cpp_type: &mut CppType,
         metadata: &Metadata,
-        config: &GenerationConfig
+        config: &GenerationConfig,
     ) {
         let tag = cpp_type.self_tag;
 
@@ -61,13 +61,7 @@ impl CppContextCollection {
         self.filling_types.remove(&tag.clone());
     }
 
-    pub fn fill(
-        &mut self,
-        metadata: &Metadata,
-        config: &GenerationConfig,
-        type_tag: CppTypeTag,
-        ty_opt: Option<&Il2CppType>,
-    ) {
+    pub fn fill(&mut self, metadata: &Metadata, config: &GenerationConfig, type_tag: CppTypeTag) {
         let _tdi = CppType::get_cpp_tag_tdi(type_tag);
 
         let context_tag = self.get_context_root_tag(type_tag);
@@ -156,7 +150,7 @@ impl CppContextCollection {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        owner_ty: CppTypeTag
+        owner_ty: CppTypeTag,
     ) {
         let owner_type_tag = owner_ty;
         let owner = self
