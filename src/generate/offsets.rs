@@ -134,8 +134,7 @@ pub fn layout_fields_for_type<'a>(
                 + metadata.object_size() as u32) as usize;
         }
     }
-    instance_size =
-        update_instance_size_for_generic_class(ty_def, tdi, ty, instance_size, metadata);
+    instance_size = update_instance_size_for_generic_class(ty_def, tdi, instance_size, metadata);
 
     SizeAndAlignment {
         size: instance_size,
@@ -148,7 +147,6 @@ pub fn layout_fields_for_type<'a>(
 fn update_instance_size_for_generic_class(
     ty_def: &Il2CppTypeDefinition,
     tdi: TypeDefinitionIndex,
-    _ty: &Il2CppType,
     instance_size: usize,
     metadata: &Metadata<'_>,
 ) -> usize {
@@ -236,10 +234,14 @@ fn get_type_size_and_alignment(
 
     // only handle if generic inst, otherwise let the rest handle it as before
     // aka a pointer size
-    if let TypeData::GenericParameterIndex(generic_param_index) = ty.data && let TypeData::GenericClassIndex(generic_inst_class) = declaring_ty.data {
+    if let TypeData::GenericParameterIndex(generic_param_index) = ty.data && 
+         let TypeData::GenericClassIndex(generic_class_idx) = declaring_ty.data {
+        
+        let generic_class = &metadata.metadata_registration.generic_classes[generic_class_idx];
+        if generic_class.context.class_inst_idx.unwrap_or(usize::MAX) == usize::MAX {
+            panic!();
+        }
 
-
-        let generic_class = &metadata.metadata_registration.generic_classes[generic_inst_class];
         let generic_inst = &metadata.metadata_registration.generic_insts[generic_class.context.class_inst_idx.unwrap()];
 
         let generic_param =

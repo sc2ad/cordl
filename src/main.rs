@@ -352,6 +352,7 @@ fn main() -> color_eyre::Result<()> {
                 &metadata,
                 &STATIC_CONFIG,
                 CppTypeTag::TypeDefinitionIndex(tdi),
+                None
             );
         }
     }
