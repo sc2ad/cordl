@@ -89,7 +89,7 @@ impl CppContext {
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
         tag: CppTypeTag,
-        ty: &Il2CppType,
+        generic_inst: Option<&Vec<usize>>,
     ) -> CppContext {
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
 
@@ -143,7 +143,7 @@ impl CppContext {
             return x;
         }
 
-        match CppType::make_cpp_type(metadata, config, tdi, tag, ty) {
+        match CppType::make_cpp_type(metadata, config, tdi, tag, generic_inst) {
             Some(cpptype) => {
                 x.insert_cpp_type(cpptype);
             }

@@ -41,8 +41,7 @@ impl CppContextCollection {
         &mut self,
         cpp_type: &mut CppType,
         metadata: &Metadata,
-        config: &GenerationConfig,
-        ty_opt: Option<&Il2CppType>,
+        config: &GenerationConfig
     ) {
         let tag = cpp_type.self_tag;
 
@@ -56,7 +55,7 @@ impl CppContextCollection {
         // Move ownership to local
         self.filling_types.insert(tag);
 
-        cpp_type.fill_from_il2cpp(metadata, config, self, ty_opt);
+        cpp_type.fill_from_il2cpp(metadata, config, self);
 
         self.filled_types.insert(tag);
         self.filling_types.remove(&tag.clone());
@@ -67,7 +66,7 @@ impl CppContextCollection {
         metadata: &Metadata,
         config: &GenerationConfig,
         type_tag: CppTypeTag,
-        ty_opt: Option<&Il2CppType>
+        ty_opt: Option<&Il2CppType>,
     ) {
         let _tdi = CppType::get_cpp_tag_tdi(type_tag);
 
@@ -93,7 +92,7 @@ impl CppContextCollection {
         if let Some((_t, mut cpp_type)) = cpp_type_entry {
             assert!(!cpp_type.nested, "Cannot fill a nested type!");
 
-            self.fill_cpp_type(&mut cpp_type, metadata, config, ty_opt);
+            self.fill_cpp_type(&mut cpp_type, metadata, config);
 
             // Move ownership back up
             self.all_contexts
@@ -157,8 +156,7 @@ impl CppContextCollection {
         &mut self,
         metadata: &Metadata,
         config: &GenerationConfig,
-        owner_ty: CppTypeTag,
-        ty_opt: Option<&Il2CppType>
+        owner_ty: CppTypeTag
     ) {
         let owner_type_tag = owner_ty;
         let owner = self
@@ -176,7 +174,7 @@ impl CppContextCollection {
             .clone()
             .into_iter()
             .map(|(nested_tag, mut nested_type)| {
-                self.fill_cpp_type(&mut nested_type, metadata, config, ty_opt);
+                self.fill_cpp_type(&mut nested_type, metadata, config);
 
                 (nested_tag, nested_type)
             })
@@ -205,7 +203,7 @@ impl CppContextCollection {
         metadata: &Metadata<'_>,
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
-        ty: &Il2CppType,
+        generic_inst: Option<&Vec<usize>>,
     ) -> Option<&mut CppContext> {
         let ty_data = CppTypeTag::TypeDefinitionIndex(tdi);
         let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
@@ -250,7 +248,7 @@ impl CppContextCollection {
             true => {
                 // If a nested type inherits its declaring type, move it to its own CppContext
 
-                let context = CppContext::make(metadata, config, tdi, ty_data, ty);
+                let context = CppContext::make(metadata, config, tdi, ty_data, generic_inst);
 
                 // Unnest type does not alias to another context or type
                 self.alias_context.remove(&ty_data);
@@ -260,8 +258,9 @@ impl CppContextCollection {
                 self.all_contexts.get_mut(&ty_data)
             }
             false => {
-                let new_cpp_type = CppType::make_cpp_type(metadata, config, tdi, ty_data, ty)
-                    .expect("Failed to make nested type");
+                let new_cpp_type =
+                    CppType::make_cpp_type(metadata, config, tdi, ty_data, generic_inst)
+                        .expect("Failed to make nested type");
 
                 let context = self.get_context_mut(ty_data).unwrap();
                 // self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true);
@@ -327,31 +326,8 @@ impl CppContextCollection {
             inst: method_spec.class_inst_index as usize,
         });
 
-        // let generic_ty = &metadata.metadata_registration.types.iter().find(|t: &&Il2CppType| matches!(t.data, TypeData::GenericClassIndex(class_inst) if class_inst == method_spec.class_inst_index as usize)).expect(msg);
-        let gen_class = &metadata
-            .metadata_registration
-            .generic_classes
-            .iter()
-            .find_position(|t| {
-                t.context.class_inst_idx == Some(method_spec.class_inst_index as usize)
-            })
-            .map(|(i, _)| i);
-
-        let non_generic_ty =
-            &metadata.metadata_registration.types[ty_def.byval_type_index as usize];
-
-        let generic_placeholder_ty = Il2CppType {
-            data: TypeData::GenericClassIndex(gen_class.unwrap_or_default()),
-            attrs: 0,
-            ty: Il2CppTypeEnum::Genericinst,
-            byref: false,
-            pinned: false,
-            valuetype: ty_def.is_value_type() || ty_def.is_enum_type(),
-        };
-
-        let ty = gen_class
-            .map(|_| &generic_placeholder_ty)
-            .unwrap_or(non_generic_ty);
+        let generic_inst =
+            &metadata.metadata_registration.generic_insts[method_spec.class_inst_index as usize];
 
         // Why is the borrow checker so dumb?
         // Using entries causes borrow checker to die :(
@@ -370,9 +346,14 @@ impl CppContextCollection {
             cpptype
         });
 
-        let mut new_cpp_type =
-            CppType::make_cpp_type(metadata, config, tdi, generic_class_ty_data, ty)
-                .expect("Failed to make generic type");
+        let mut new_cpp_type = CppType::make_cpp_type(
+            metadata,
+            config,
+            tdi,
+            generic_class_ty_data,
+            Some(&generic_inst.types),
+        )
+        .expect("Failed to make generic type");
         new_cpp_type.self_tag = generic_class_ty_data;
         self.alias_type_to_context(new_cpp_type.self_tag, context_root_tag, true, false);
 
@@ -383,7 +364,6 @@ impl CppContextCollection {
         // let mut stub = new_cpp_type.clone();
         // stub.self_tag = type_data;
 
-        new_cpp_type.add_generic_inst(method_spec.class_inst_index, metadata);
         new_cpp_type.requirements.add_dependency_tag(type_data);
 
         // if generic type is a nested type
@@ -500,32 +480,6 @@ impl CppContextCollection {
             return None;
         }
 
-           let gen_class = &metadata
-            .metadata_registration
-            .generic_classes
-            .iter()
-            .find_position(|t| {
-                t.context.class_inst_idx == Some(method_spec.class_inst_index as usize)
-            })
-            .map(|(i, _)| i);
-
-        let non_generic_ty =
-            &metadata.metadata_registration.types[ty_def.byval_type_index as usize];
-
-        let generic_placeholder_ty = Il2CppType {
-            data: TypeData::GenericClassIndex(gen_class.unwrap_or_default()),
-            attrs: 0,
-            ty: Il2CppTypeEnum::Genericinst,
-            byref: false,
-            pinned: false,
-            valuetype: ty_def.is_value_type() || ty_def.is_enum_type(),
-        };
-
-        let ty = gen_class
-            .map(|_| &generic_placeholder_ty)
-            .unwrap_or(non_generic_ty);
-
-
         let context_root_tag = self.get_context_root_tag(type_data);
 
         let generic_class_ty_data = if method_spec.class_inst_index != u32::MAX {
@@ -539,7 +493,7 @@ impl CppContextCollection {
 
         self.borrow_cpp_type(generic_class_ty_data, |collection, mut cpp_type| {
             // cpp_type.make_generics_args(metadata, collection);
-            collection.fill_cpp_type(&mut cpp_type, metadata, config, Some(ty));
+            collection.fill_cpp_type(&mut cpp_type, metadata, config);
 
             cpp_type
         });
@@ -552,7 +506,7 @@ impl CppContextCollection {
         metadata: &Metadata,
         config: &GenerationConfig,
         type_tag: TypeData,
-        ty: &Il2CppType,
+        generic_inst: Option<&Vec<usize>>,
     ) -> &mut CppContext {
         assert!(
             !metadata
@@ -577,7 +531,7 @@ impl CppContextCollection {
         }
 
         let tdi = CppType::get_cpp_tag_tdi(context_root_tag);
-        let context = CppContext::make(metadata, config, tdi, context_root_tag, ty);
+        let context = CppContext::make(metadata, config, tdi, context_root_tag, generic_inst);
         // Now do children
         for cpp_type in context.typedef_types.values() {
             self.alias_nested_types(cpp_type, cpp_type.self_tag, false);

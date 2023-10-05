@@ -95,23 +95,12 @@ pub trait CSType: Sized {
         ty_def.full_name(metadata.metadata, true)
     }
 
-    fn add_generic_inst(&mut self, generic_il2cpp_inst: u32, metadata: &Metadata) -> &mut CppType {
-        assert!(generic_il2cpp_inst != u32::MAX);
-
+    fn fixup_into_generic_instantiation(&mut self, metadata: &Metadata) -> &mut CppType {
         let cpp_type = self.get_mut_cpp_type();
-
-        let inst = metadata
-            .metadata_registration
-            .generic_insts
-            .get(generic_il2cpp_inst as usize)
-            .unwrap();
-
-        if cpp_type.generic_instantiations_args_types.is_some() {
-            panic!("Generic instantiation args are already set!");
-        }
-
-        cpp_type.generic_instantiations_args_types =
-            Some(inst.types.iter().map(|t| *t as TypeIndex).collect());
+        assert!(
+            cpp_type.generic_instantiations_args_types.is_some(),
+            "No generic instantiation args!"
+        );
 
         cpp_type.cpp_template = Some(CppTemplate { names: vec![] });
         cpp_type.is_stub = false;
@@ -148,7 +137,7 @@ pub trait CSType: Sized {
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
         tag: CppTypeTag,
-        ty: &Il2CppType,
+        generic_inst_types: Option<&Vec<usize>>,
     ) -> Option<CppType> {
         // let iface = metadata.interfaces.get(t.interfaces_start);
         // Then, handle interfaces
@@ -210,13 +199,14 @@ pub trait CSType: Sized {
             .instance_size;
         if metadata_size == 0 && !t.is_interface() {
             debug!(
-                "Computing instance size by laying out type for tdi: {:?}",
-                tdi
+                "Computing instance size by laying out type for tdi: {tdi:?} {}",
+                t.full_name(metadata.metadata, true)
             );
-            metadata_size = offsets::layout_fields_for_type(t, tdi, ty, metadata, None)
-                .size
-                .try_into()
-                .unwrap();
+            metadata_size =
+                offsets::layout_fields_for_type(t, tdi, generic_inst_types, metadata, None)
+                    .size
+                    .try_into()
+                    .unwrap();
             // Remove implicit size of object from total size of instance
         }
         if t.is_value_type() {
@@ -259,13 +249,17 @@ pub trait CSType: Sized {
             is_interface: t.is_interface(),
             cpp_template,
 
-            generic_instantiations_args_types: Default::default(),
+            generic_instantiations_args_types: generic_inst_types.cloned(),
             method_generic_instantiation_map: Default::default(),
 
             is_stub: false,
             is_hidden: true,
             nested_types: Default::default(),
         };
+
+        if cpptype.generic_instantiations_args_types.is_some() {
+            cpptype.fixup_into_generic_instantiation(metadata);
+        }
 
         // Nested type unnesting fix
         if t.declaring_type_index != u32::MAX {
@@ -309,7 +303,6 @@ pub trait CSType: Sized {
         metadata: &Metadata,
         config: &GenerationConfig,
         ctx_collection: &CppContextCollection,
-        ty_opt: Option<&Il2CppType>,
     ) {
         if self.get_cpp_type().is_stub {
             // Do not fill stubs
@@ -319,8 +312,6 @@ pub trait CSType: Sized {
         let tdi: TypeDefinitionIndex = self.get_cpp_type().self_tag.into();
 
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
-        let ty = ty_opt
-            .unwrap_or_else(|| &metadata.metadata_registration.types[t.byval_type_index as usize]);
 
         self.make_generics_args(metadata, ctx_collection, tdi);
         self.make_parents(metadata, ctx_collection, tdi);
@@ -344,7 +335,7 @@ pub trait CSType: Sized {
         }
 
         self.make_nested_types(metadata, ctx_collection, config, tdi);
-        self.make_fields(metadata, ctx_collection, config, tdi, ty);
+        self.make_fields(metadata, ctx_collection, config, tdi);
         self.make_properties(metadata, ctx_collection, config, tdi);
         self.make_methods(metadata, config, ctx_collection, tdi);
 
@@ -511,7 +502,6 @@ pub trait CSType: Sized {
         ctx_collection: &CppContextCollection,
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
-        ty: &Il2CppType,
     ) {
         let cpp_type = self.get_mut_cpp_type();
         let t = Self::get_type_definition(metadata, tdi);
@@ -548,8 +538,13 @@ pub trait CSType: Sized {
                     "Computing offsets for TDI: {:?}, as it has a size of 0",
                     tdi
                 );
-                let _resulting_size =
-                    offsets::layout_fields_for_type(t, tdi, ty, metadata, Some(&mut offsets));
+                let _resulting_size = offsets::layout_fields_for_type(
+                    t,
+                    tdi,
+                    cpp_type.generic_instantiations_args_types.as_ref(),
+                    metadata,
+                    Some(&mut offsets),
+                );
             }
         }
         let mut offset_iter = offsets.iter();

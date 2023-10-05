@@ -221,7 +221,7 @@ fn main() -> color_eyre::Result<()> {
                 &metadata,
                 &STATIC_CONFIG,
                 TypeData::TypeDefinitionIndex(tdi),
-                ty,
+                None,
             );
             cpp_context_collection.alias_nested_types_il2cpp(
                 tdi,
@@ -240,7 +240,6 @@ fn main() -> color_eyre::Result<()> {
             let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
 
             let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
-            let ty = &metadata.metadata_registration.types[ty_def.byval_type_index as usize];
 
             if ty_def.declaring_type_index == u32::MAX {
                 continue;
@@ -250,7 +249,7 @@ fn main() -> color_eyre::Result<()> {
                 "Making nested types {:.4}% ({tdi_u64}/{total})",
                 (tdi_u64 as f64 / total as f64 * 100.0)
             );
-            cpp_context_collection.make_nested_from(&metadata, &STATIC_CONFIG, tdi, ty);
+            cpp_context_collection.make_nested_from(&metadata, &STATIC_CONFIG, tdi, None);
         }
     }
 
@@ -352,7 +351,7 @@ fn main() -> color_eyre::Result<()> {
                 &metadata,
                 &STATIC_CONFIG,
                 CppTypeTag::TypeDefinitionIndex(tdi),
-                None
+                None,
             );
         }
     }
