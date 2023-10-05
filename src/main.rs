@@ -172,7 +172,7 @@ fn main() -> color_eyre::Result<()> {
         // blacklist_type("RpcHandler`1::<>c__DisplayClass19_0`5");
     }
     {
-        let mut blacklist_types = |full_name: &str| {
+        let _blacklist_types = |full_name: &str| {
             let tdis = metadata
                 .metadata
                 .global_metadata
@@ -206,9 +206,10 @@ fn main() -> color_eyre::Result<()> {
         for tdi_u64 in 0..total {
             let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
 
-            let ty = &metadata.metadata.global_metadata.type_definitions[tdi];
+            let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
+            let ty = &metadata.metadata_registration.types[ty_def.byval_type_index as usize];
 
-            if ty.declaring_type_index != u32::MAX {
+            if ty_def.declaring_type_index != u32::MAX {
                 continue;
             }
 
@@ -220,6 +221,7 @@ fn main() -> color_eyre::Result<()> {
                 &metadata,
                 &STATIC_CONFIG,
                 TypeData::TypeDefinitionIndex(tdi),
+                ty,
             );
             cpp_context_collection.alias_nested_types_il2cpp(
                 tdi,
@@ -237,9 +239,10 @@ fn main() -> color_eyre::Result<()> {
         for tdi_u64 in 0..total {
             let tdi = TypeDefinitionIndex::new(tdi_u64 as u32);
 
-            let ty = &metadata.metadata.global_metadata.type_definitions[tdi];
+            let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
+            let ty = &metadata.metadata_registration.types[ty_def.byval_type_index as usize];
 
-            if ty.declaring_type_index == u32::MAX {
+            if ty_def.declaring_type_index == u32::MAX {
                 continue;
             }
 
@@ -247,7 +250,7 @@ fn main() -> color_eyre::Result<()> {
                 "Making nested types {:.4}% ({tdi_u64}/{total})",
                 (tdi_u64 as f64 / total as f64 * 100.0)
             );
-            cpp_context_collection.make_nested_from(&metadata, &STATIC_CONFIG, tdi);
+            cpp_context_collection.make_nested_from(&metadata, &STATIC_CONFIG, tdi, ty);
         }
     }
 

@@ -2,7 +2,6 @@ use core::panic;
 use log::{debug, warn};
 use std::{
     collections::HashMap,
-    f32::consts::E,
     io::{Cursor, Read},
     rc::Rc,
     sync::Arc,
@@ -149,6 +148,7 @@ pub trait CSType: Sized {
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
         tag: CppTypeTag,
+        ty: &Il2CppType,
     ) -> Option<CppType> {
         // let iface = metadata.interfaces.get(t.interfaces_start);
         // Then, handle interfaces
@@ -213,7 +213,7 @@ pub trait CSType: Sized {
                 "Computing instance size by laying out type for tdi: {:?}",
                 tdi
             );
-            metadata_size = offsets::layout_fields_for_type(t, tdi, metadata, None)
+            metadata_size = offsets::layout_fields_for_type(t, tdi, ty, metadata, None)
                 .size
                 .try_into()
                 .unwrap();
@@ -309,6 +309,7 @@ pub trait CSType: Sized {
         metadata: &Metadata,
         config: &GenerationConfig,
         ctx_collection: &CppContextCollection,
+        ty_opt: Option<&Il2CppType>,
     ) {
         if self.get_cpp_type().is_stub {
             // Do not fill stubs
@@ -318,6 +319,8 @@ pub trait CSType: Sized {
         let tdi: TypeDefinitionIndex = self.get_cpp_type().self_tag.into();
 
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
+        let ty = ty_opt
+            .unwrap_or_else(|| &metadata.metadata_registration.types[t.byval_type_index as usize]);
 
         self.make_generics_args(metadata, ctx_collection, tdi);
         self.make_parents(metadata, ctx_collection, tdi);
@@ -341,7 +344,7 @@ pub trait CSType: Sized {
         }
 
         self.make_nested_types(metadata, ctx_collection, config, tdi);
-        self.make_fields(metadata, ctx_collection, config, tdi);
+        self.make_fields(metadata, ctx_collection, config, tdi, ty);
         self.make_properties(metadata, ctx_collection, config, tdi);
         self.make_methods(metadata, config, ctx_collection, tdi);
 
@@ -508,6 +511,7 @@ pub trait CSType: Sized {
         ctx_collection: &CppContextCollection,
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
+        ty: &Il2CppType,
     ) {
         let cpp_type = self.get_mut_cpp_type();
         let t = Self::get_type_definition(metadata, tdi);
@@ -545,7 +549,7 @@ pub trait CSType: Sized {
                     tdi
                 );
                 let _resulting_size =
-                    offsets::layout_fields_for_type(t, tdi, metadata, Some(&mut offsets));
+                    offsets::layout_fields_for_type(t, tdi, ty, metadata, Some(&mut offsets));
             }
         }
         let mut offset_iter = offsets.iter();
@@ -788,7 +792,8 @@ pub trait CSType: Sized {
                     ..setter_decl.clone().into()
                 };
 
-                if is_instance { // instance fields should declare a cpp property
+                if is_instance {
+                    // instance fields should declare a cpp property
                     let field_decl = CppPropertyDecl {
                         cpp_name: f_cpp_name,
                         prop_ty: field_ty_cpp_name.clone(),
@@ -801,7 +806,8 @@ pub trait CSType: Sized {
                     cpp_type
                         .declarations
                         .push(CppMember::Property(field_decl).into());
-                } else { // static fields can't declare a cpp property
+                } else {
+                    // static fields can't declare a cpp property
                     let field_comment = CppLine {
                         line: format!("// Static field {f_name}"),
                     };
@@ -965,7 +971,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         ctx_collection: &CppContextCollection,
-        config: &GenerationConfig,
+        _config: &GenerationConfig,
 
         tdi: TypeDefinitionIndex,
     ) {
@@ -1070,7 +1076,7 @@ pub trait CSType: Sized {
             let p_getter = (prop.get != u32::MAX).then(|| prop.get_method(t, metadata.metadata));
 
             // if this is a static property, skip emitting a cpp property since those can't be static
-            if (!p_getter.or(p_setter).unwrap().is_static_method()) {
+            if !p_getter.or(p_setter).unwrap().is_static_method() {
                 continue;
             }
 
@@ -2075,35 +2081,56 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
             Il2CppTypeEnum::I1 => {
                 format!("static_cast<int8_t>(0x{:x})", cursor.read_i8().unwrap())
-            },
+            }
             Il2CppTypeEnum::I2 => {
-                format!("static_cast<int16_t>(0x{:x})", cursor.read_i16::<Endian>().unwrap())
-            },
+                format!(
+                    "static_cast<int16_t>(0x{:x})",
+                    cursor.read_i16::<Endian>().unwrap()
+                )
+            }
             Il2CppTypeEnum::I4 => {
-                format!("static_cast<int32_t>(0x{:x})", cursor.read_compressed_i32::<Endian>().unwrap())
+                format!(
+                    "static_cast<int32_t>(0x{:x})",
+                    cursor.read_compressed_i32::<Endian>().unwrap()
+                )
             }
             // TODO: We assume 64 bit
             Il2CppTypeEnum::I | Il2CppTypeEnum::I8 => {
-                format!("static_cast<int64_t>(0x{:x})", cursor.read_i64::<Endian>().unwrap())
+                format!(
+                    "static_cast<int64_t>(0x{:x})",
+                    cursor.read_i64::<Endian>().unwrap()
+                )
             }
             Il2CppTypeEnum::U1 => {
-                format!("static_cast<uint8_t>(0x{:x}{UNSIGNED_SUFFIX})", cursor.read_u8().unwrap())
-            },
+                format!(
+                    "static_cast<uint8_t>(0x{:x}{UNSIGNED_SUFFIX})",
+                    cursor.read_u8().unwrap()
+                )
+            }
             Il2CppTypeEnum::U2 => {
-                format!("static_cast<uint16_t>(0x{:x}{UNSIGNED_SUFFIX})", cursor.read_u16::<Endian>().unwrap())
-            },
+                format!(
+                    "static_cast<uint16_t>(0x{:x}{UNSIGNED_SUFFIX})",
+                    cursor.read_u16::<Endian>().unwrap()
+                )
+            }
             Il2CppTypeEnum::U4 => {
-                format!("static_cast<uint32_t>(0x{:x}{UNSIGNED_SUFFIX})", cursor.read_u32::<Endian>().unwrap())
+                format!(
+                    "static_cast<uint32_t>(0x{:x}{UNSIGNED_SUFFIX})",
+                    cursor.read_u32::<Endian>().unwrap()
+                )
             }
             // TODO: We assume 64 bit
             Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => {
-                format!("static_cast<uint64_t>(0x{:x}{UNSIGNED_SUFFIX})", cursor.read_u64::<Endian>().unwrap())
-            },
+                format!(
+                    "static_cast<uint64_t>(0x{:x}{UNSIGNED_SUFFIX})",
+                    cursor.read_u64::<Endian>().unwrap()
+                )
+            }
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point
             Il2CppTypeEnum::R4 => {
                 let val = format!("{}", cursor.read_f32::<Endian>().unwrap());
-                if !val.contains('.') && val.find(|c| (c < '0' || c > '9') && c != '-' ).is_none() {
+                if !val.contains('.') && val.find(|c| (c < '0' || c > '9') && c != '-').is_none() {
                     val + ".0"
                 } else {
                     val.replace("inf", "INFINITY").replace("NaN", "NAN")
@@ -2111,7 +2138,7 @@ pub trait CSType: Sized {
             }
             Il2CppTypeEnum::R8 => {
                 let val = format!("{}", cursor.read_f64::<Endian>().unwrap());
-                if !val.contains('.') && val.find(|c| (c < '0' || c > '9') && c != '-' ).is_none() {
+                if !val.contains('.') && val.find(|c| (c < '0' || c > '9') && c != '-').is_none() {
                     val + ".0"
                 } else {
                     val.replace("inf", "INFINITY").replace("NaN", "NAN")
@@ -2704,7 +2731,7 @@ pub trait CSType: Sized {
                 };
 
                 format!("::cordl_internals::Ptr<{generic}>")
-            },
+            }
             // Il2CppTypeEnum::Typedbyref => {
             //     // TODO: test this
             //     if add_include && let TypeData::TypeDefinitionIndex(tdi) = typ.data {
@@ -2714,7 +2741,7 @@ pub trait CSType: Sized {
             //     "::System::TypedReference".to_string()
             //     // "::cordl_internals::TypedByref".to_string()
             // },
-                // TODO: Void and the other primitives
+            // TODO: Void and the other primitives
             _ => format!("/* UNKNOWN TYPE! {typ:?} */"),
         };
 

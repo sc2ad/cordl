@@ -8,6 +8,7 @@ use std::{
 
 use brocolib::global_metadata::TypeDefinitionIndex;
 
+use brocolib::runtime_metadata::Il2CppType;
 use color_eyre::eyre::ContextCompat;
 
 use itertools::Itertools;
@@ -88,6 +89,7 @@ impl CppContext {
         config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
         tag: CppTypeTag,
+        ty: &Il2CppType,
     ) -> CppContext {
         let t = &metadata.metadata.global_metadata.type_definitions[tdi];
 
@@ -141,7 +143,7 @@ impl CppContext {
             return x;
         }
 
-        match CppType::make_cpp_type(metadata, config, tdi, tag) {
+        match CppType::make_cpp_type(metadata, config, tdi, tag, ty) {
             Some(cpptype) => {
                 x.insert_cpp_type(cpptype);
             }
