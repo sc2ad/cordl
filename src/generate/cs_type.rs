@@ -568,6 +568,14 @@ pub trait CSType: Sized {
                         field_offsets[i]
                     };
 
+                    if offset < metadata.object_size() as u32 {
+                        warn!("Field {f_name} ({offset:x}) of {} is smaller than object size {:x} is value type {}", 
+                            t.full_name(metadata.metadata, true), 
+                            metadata.object_size(),
+                            t.is_value_type() || t.is_enum_type()
+                        );
+                    }
+
                     // TODO: Is the offset supposed to be smaller than object size for fixups?
                     match t.is_value_type() && offset >= metadata.object_size() as u32 {
                         true => {
@@ -723,9 +731,17 @@ pub trait CSType: Sized {
                             false => Some(t),
                         });
 
+
                 let is_instance = !f_type.is_static() && !f_type.is_constant();
+
+                let (getter_name, setter_name) = match is_instance {
+                    true => (format!("__get_{}", f_cpp_name), format!("__set_{}", f_cpp_name)),
+                    false => (format!("getStaticF_{}", f_cpp_name), format!("setStaticF_{}", f_cpp_name)),
+                };
+
+
                 let getter_decl = CppMethodDecl {
-                    cpp_name: format!("__get_{}", f_cpp_name),
+                    cpp_name: getter_name,
                     instance: is_instance,
                     return_type: field_ty_cpp_name.clone(),
 
@@ -745,7 +761,7 @@ pub trait CSType: Sized {
                 };
 
                 let setter_decl = CppMethodDecl {
-                    cpp_name: format!("__set_{}", f_cpp_name),
+                    cpp_name: setter_name,
                     instance: is_instance,
                     return_type: "void".to_string(),
 
