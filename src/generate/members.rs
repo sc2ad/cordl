@@ -238,6 +238,7 @@ pub struct CppMethodDecl {
     pub is_const: bool,
     pub is_no_except: bool,
     pub is_operator: bool,
+    pub is_inline: bool,
 
     pub brief: Option<String>,
     pub body: Option<Vec<Arc<dyn Writable>>>,
@@ -256,6 +257,7 @@ impl From<CppMethodDecl> for CppMethodImpl {
             is_operator: value.is_operator,
             is_virtual: value.is_virtual,
             is_constexpr: value.is_constexpr,
+            is_inline: value.is_inline,
             parameters: value.parameters,
             prefix_modifiers: value.prefix_modifiers,
             suffix_modifiers: value.suffix_modifiers,
@@ -283,6 +285,7 @@ pub struct CppMethodImpl {
     pub is_constexpr: bool,
     pub is_no_except: bool,
     pub is_operator: bool,
+    pub is_inline: bool,
 
     // TODO: Use bitflags to indicate these attributes
     // Holds unique of:

@@ -52,7 +52,7 @@ namespace cordl_internals {
   CORDL_HIDDEN void setInstanceField(std::array<std::byte, sz>& instance, T&& v) {
     // TODO: should assigning a ref type field on a value type instance also require wbarrier?
     OFFSET_CHECK(sz, offset, sizeof(void*), "offset is too large for the size of the instance to be assigned correctly!");
-    std::copy_n(std::bit_cast<std::array<std::byte, sizeof(void*)>>(v.convert()), sizeof(void*), std::next(instance.begin(), offset));
+    std::copy_n(std::bit_cast<std::array<std::byte, sizeof(void*)>>(v.convert()).begin(), sizeof(void*), std::next(instance.begin(), offset));
   }
 
   /// @brief set value type value @ offset on instance

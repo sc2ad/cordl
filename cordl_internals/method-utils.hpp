@@ -17,9 +17,19 @@ template<typename T>
         return const_cast<void*>(static_cast<void*>(&arg));
     }
 
+    template<>
+    CORDL_HIDDEN void* ExtractValue(void*& arg)  {
+        return arg;
+    }
+
     template<typename T>
     CORDL_HIDDEN void* ExtractValue(T&& arg)  {
         return const_cast<void*>(&arg);
+    }
+
+    template<>
+    CORDL_HIDDEN void* ExtractValue(void*&& arg)  {
+        return arg;
     }
 
     template<>

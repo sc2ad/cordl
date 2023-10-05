@@ -292,6 +292,9 @@ impl Writable for CppMethodImpl {
             .map(|s| s.as_str())
             .collect_vec();
 
+        if self.is_inline {
+            prefix_modifiers.push("inline");
+        }
         if self.is_constexpr {
             prefix_modifiers.push("constexpr");
         }
@@ -479,6 +482,10 @@ impl Writable for CppPropertyDecl {
 
         let prefixes = prefix_modifiers.join(" ");
         let suffixes = suffix_modifiers.join(" ");
+
+        if let Some(comment) = &self.brief_comment {
+            writeln!(writer, "/// @brief {comment}")?;
+        }
 
         writeln!(
             writer,

@@ -54,7 +54,7 @@ impl GenerationConfig {
             | "template" | "this" | "thread_local" | "throw" | "true" | "try" | "typedef"
             | "typeid" | "typename" | "union" | "unsigned" | "using" | "virtual" | "void"
             | "volatile" | "wchar_t" | "while" | "xor" | "xor_eq" | "INT_MAX" | "INT_MIN"
-            | "Assert" | "bzero" | "ID" | "VERSION" | "NULL" | "EOF" | "MOD_ID" | "errno" |
+            | "Assert" | "bzero" | "ID" | "VERSION" | "NULL" | "EOF" | "MOD_ID" | "errno" | "linux" |
             // networking headers
             "EPERM"
             | "ENOENT" | "ESRCH" | "EINTR" | "EIO" | "ENXIO" | "E2BIG" | "ENOEXEC" | "EBADF"

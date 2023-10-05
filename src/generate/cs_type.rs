@@ -741,6 +741,7 @@ pub trait CSType: Sized {
                     is_virtual: false,
                     is_operator: false,
                     is_no_except: false, // TODO:
+                    is_inline: true,
                     parameters: vec![],
                     prefix_modifiers: vec![],
                     suffix_modifiers: vec![],
@@ -749,7 +750,7 @@ pub trait CSType: Sized {
 
                 let setter_decl = CppMethodDecl {
                     cpp_name: format!("__set_{}", f_cpp_name),
-                    instance: !f_type.is_static() && !f_type.is_constant(),
+                    instance: is_instance,
                     return_type: "void".to_string(),
 
                     brief: None,
@@ -759,6 +760,7 @@ pub trait CSType: Sized {
                     is_virtual: false,
                     is_operator: false,
                     is_no_except: false, // TODO:
+                    is_inline: true,
                     parameters: vec![CppParam {
                         def_value: None,
                         modifiers: "".to_string(),
@@ -786,18 +788,28 @@ pub trait CSType: Sized {
                     ..setter_decl.clone().into()
                 };
 
-                let field_decl = CppPropertyDecl {
-                    cpp_name: f_cpp_name,
-                    prop_ty: field_ty_cpp_name.clone(),
-                    instance: !f_type.is_static() && !f_type.is_constant(),
-                    getter: getter_decl.cpp_name.clone().into(),
-                    setter: setter_decl.cpp_name.clone().into(),
-                    brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
-                };
+                if is_instance { // instance fields should declare a cpp property
+                    let field_decl = CppPropertyDecl {
+                        cpp_name: f_cpp_name,
+                        prop_ty: field_ty_cpp_name.clone(),
+                        instance: !f_type.is_static() && !f_type.is_constant(),
+                        getter: getter_decl.cpp_name.clone().into(),
+                        setter: setter_decl.cpp_name.clone().into(),
+                        brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
+                    };
 
-                cpp_type
-                    .declarations
-                    .push(CppMember::Property(field_decl).into());
+                    cpp_type
+                        .declarations
+                        .push(CppMember::Property(field_decl).into());
+                } else { // static fields can't declare a cpp property
+                    let field_comment = CppLine {
+                        line: format!("// Static field {f_name}"),
+                    };
+
+                    cpp_type
+                        .declarations
+                        .push(CppMember::CppLine(field_comment).into());
+                }
 
                 // decl
                 cpp_type
@@ -914,6 +926,7 @@ pub trait CSType: Sized {
                 is_no_except: !t.is_value_type() && !t.is_enum_type(),
                 is_operator: true,
                 is_virtual: false,
+                is_inline: true,
                 parameters: vec![],
                 template: None,
                 prefix_modifiers: vec![],
@@ -1056,6 +1069,11 @@ pub trait CSType: Sized {
             let p_setter = (prop.set != u32::MAX).then(|| prop.set_method(t, metadata.metadata));
             let p_getter = (prop.get != u32::MAX).then(|| prop.get_method(t, metadata.metadata));
 
+            // if this is a static property, skip emitting a cpp property since those can't be static
+            if (!p_getter.or(p_setter).unwrap().is_static_method()) {
+                continue;
+            }
+
             let p_type_index = match p_getter {
                 Some(g) => g.return_type as usize,
                 None => p_setter.unwrap().parameters(metadata.metadata)[0].type_index as usize,
@@ -1089,7 +1107,7 @@ pub trait CSType: Sized {
                     setter: p_setter.map(|m| config.name_cpp(m.name(metadata.metadata))),
                     getter: p_getter.map(|m| config.name_cpp(m.name(metadata.metadata))),
                     brief_comment: None,
-                    instance: !p_getter.or(p_setter).unwrap().is_static_method(),
+                    instance: true,
                 })
                 .into(),
             );
@@ -1194,6 +1212,7 @@ pub trait CSType: Sized {
             is_constexpr: true,
             is_virtual: false,
             is_operator: true,
+            is_inline: true,
             is_no_except: true, // TODO:
             parameters: vec![],
             prefix_modifiers: vec![],
@@ -1284,6 +1303,7 @@ pub trait CSType: Sized {
                 is_const: true,
                 is_no_except: true,
                 is_operator: false,
+                is_inline: true,
                 brief: Some("conversion method for value type".into()),
             }).into())
     }
@@ -1638,6 +1658,7 @@ pub trait CSType: Sized {
             is_const: false,
             is_operator: false,
             is_virtual: false,
+            is_inline: true,
             prefix_modifiers: vec![],
             suffix_modifiers: vec![],
         };
@@ -1661,9 +1682,9 @@ pub trait CSType: Sized {
         let cpp_constructor_impl = CppMethodImpl {
             body: vec![
                 Arc::new(CppLine::make(format!(
-                    "{ty_full_cpp_name} o{{{allocate_call}}};"
+                    "{ty_full_cpp_name} _cordl_instantiated_o{{{allocate_call}}};"
                 ))),
-                Arc::new(CppLine::make("return o;".into())),
+                Arc::new(CppLine::make("return _cordl_instantiated_o;".into())),
             ],
 
             declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
@@ -1875,6 +1896,7 @@ pub trait CSType: Sized {
             prefix_modifiers: Default::default(),
             is_virtual: false,
             is_operator: false,
+            is_inline: true,
         };
 
         let instance_ptr: String = if method.is_static_method() {
@@ -2049,32 +2071,52 @@ pub trait CSType: Sized {
         let mut cursor = Cursor::new(data);
 
         const UNSIGNED_SUFFIX: &str = "u";
-
         match ty.ty {
             Il2CppTypeEnum::Boolean => (if data[0] == 0 { "false" } else { "true" }).to_string(),
-            Il2CppTypeEnum::I1 => cursor.read_i8().unwrap().to_string(),
-            Il2CppTypeEnum::I2 => cursor.read_i16::<Endian>().unwrap().to_string(),
-            Il2CppTypeEnum::I4 => cursor.read_compressed_i32::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::I1 => {
+                format!("static_cast<int8_t>(0x{:x})", cursor.read_i8().unwrap())
+            },
+            Il2CppTypeEnum::I2 => {
+                format!("static_cast<int16_t>(0x{:x})", cursor.read_i16::<Endian>().unwrap())
+            },
+            Il2CppTypeEnum::I4 => {
+                format!("static_cast<int32_t>(0x{:x})", cursor.read_compressed_i32::<Endian>().unwrap())
+            }
             // TODO: We assume 64 bit
             Il2CppTypeEnum::I | Il2CppTypeEnum::I8 => {
-                cursor.read_i64::<Endian>().unwrap().to_string()
+                format!("static_cast<int64_t>(0x{:x})", cursor.read_i64::<Endian>().unwrap())
             }
-            Il2CppTypeEnum::U1 => cursor.read_u8().unwrap().to_string() + UNSIGNED_SUFFIX,
+            Il2CppTypeEnum::U1 => {
+                format!("static_cast<uint8_t>(0x{:x}{UNSIGNED_SUFFIX})", cursor.read_u8().unwrap())
+            },
             Il2CppTypeEnum::U2 => {
-                cursor.read_u16::<Endian>().unwrap().to_string() + UNSIGNED_SUFFIX
-            }
+                format!("static_cast<uint16_t>(0x{:x}{UNSIGNED_SUFFIX})", cursor.read_u16::<Endian>().unwrap())
+            },
             Il2CppTypeEnum::U4 => {
-                cursor.read_compressed_u32::<Endian>().unwrap().to_string() + UNSIGNED_SUFFIX
+                format!("static_cast<uint32_t>(0x{:x}{UNSIGNED_SUFFIX})", cursor.read_u32::<Endian>().unwrap())
             }
             // TODO: We assume 64 bit
             Il2CppTypeEnum::U | Il2CppTypeEnum::U8 => {
-                cursor.read_u64::<Endian>().unwrap().to_string() + UNSIGNED_SUFFIX
-            }
-
+                format!("static_cast<uint64_t>(0x{:x}{UNSIGNED_SUFFIX})", cursor.read_u64::<Endian>().unwrap())
+            },
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point
-            Il2CppTypeEnum::R4 => cursor.read_f32::<Endian>().unwrap().to_string(),
-            Il2CppTypeEnum::R8 => cursor.read_f64::<Endian>().unwrap().to_string(),
+            Il2CppTypeEnum::R4 => {
+                let val = format!("{}", cursor.read_f32::<Endian>().unwrap());
+                if !val.contains('.') && val.find(|c| (c < '0' || c > '9') && c != '-' ).is_none() {
+                    val + ".0"
+                } else {
+                    val.replace("inf", "INFINITY").replace("NaN", "NAN")
+                }
+            }
+            Il2CppTypeEnum::R8 => {
+                let val = format!("{}", cursor.read_f64::<Endian>().unwrap());
+                if !val.contains('.') && val.find(|c| (c < '0' || c > '9') && c != '-' ).is_none() {
+                    val + ".0"
+                } else {
+                    val.replace("inf", "INFINITY").replace("NaN", "NAN")
+                }
+            }
             Il2CppTypeEnum::Char => {
                 let res = String::from_utf16_lossy(&[cursor.read_u16::<Endian>().unwrap()])
                     .escape_default()
@@ -2381,7 +2423,7 @@ pub trait CSType: Sized {
                 requirements.need_wrapper();
                 OBJECT_WRAPPER_TYPE.to_string()
             }
-            Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class => {
+            Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class | Il2CppTypeEnum::Typedbyref => {
                 let typ_cpp_tag: CppTypeTag = typ_tag.into();
                 // Self
 
@@ -2476,6 +2518,12 @@ pub trait CSType: Sized {
                 };
 
                 format!("::ArrayW<{generic}>")
+            }
+            // multi dimensional array
+            Il2CppTypeEnum::Array => {
+                // FIXME: when stack further implements the TypeData::ArrayType we can actually implement this fully to be a multidimensional array, whatever that might mean
+                warn!("Multidimensional array was requested but this is not implemented, typ: {typ:?}");
+                "::bs_hook::Il2CppWrapperType".to_string()
             }
             Il2CppTypeEnum::Mvar => match typ.data {
                 TypeData::GenericParameterIndex(index) => {
@@ -2645,8 +2693,28 @@ pub trait CSType: Sized {
                 requirements.needs_stringw_include();
                 "::StringW".to_string()
             }
-            Il2CppTypeEnum::Ptr => "::cordl_internals::voidptr_t".to_string().to_owned(),
-            // TODO: Void and the other primitives
+            Il2CppTypeEnum::Ptr => {
+                let generic: String = match typ.data {
+                    TypeData::TypeIndex(e) => {
+                        let ty = &metadata.metadata_registration.types[e];
+                        self.cppify_name_il2cpp(ctx_collection, metadata, ty, include_depth)
+                    }
+
+                    _ => panic!("Unknown type data for array {typ:?}!"),
+                };
+
+                format!("::cordl_internals::Ptr<{generic}>")
+            },
+            // Il2CppTypeEnum::Typedbyref => {
+            //     // TODO: test this
+            //     if add_include && let TypeData::TypeDefinitionIndex(tdi) = typ.data {
+            //         cpp_type.requirements.add_dependency_tag(tdi.into());
+            //     }
+
+            //     "::System::TypedReference".to_string()
+            //     // "::cordl_internals::TypedByref".to_string()
+            // },
+                // TODO: Void and the other primitives
             _ => format!("/* UNKNOWN TYPE! {typ:?} */"),
         };
 
