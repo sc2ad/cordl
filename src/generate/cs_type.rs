@@ -569,7 +569,7 @@ pub trait CSType: Sized {
                     };
 
                     // TODO: Is the offset supposed to be smaller than object size for fixups?
-                    match t.is_value_type() && offset > metadata.object_size() as u32 {
+                    match t.is_value_type() && offset >= metadata.object_size() as u32 {
                         true => {
                             // value type fixup
                             offset - metadata.object_size() as u32
