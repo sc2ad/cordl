@@ -561,10 +561,9 @@ pub trait CSType: Sized {
 
             let f_cpp_name = config.name_cpp_plus(f_name, &[cpp_type.cpp_name().as_str()]);
 
-            let f_offset = {
-                if f_type.is_static() || f_type.is_constant() {
-                    0
-                } else {
+            let f_offset = match f_type.is_static() || f_type.is_constant() {
+                true => 0,
+                false => {
                     // If we have a hotfix offset, use that instead
                     // We can safely assume this always returns None even if we "next" past the end
                     let offset = if let Some(computed_offset) = offset_iter.next() {
@@ -573,12 +572,13 @@ pub trait CSType: Sized {
                         field_offsets[i]
                     };
 
-                    match t.is_value_type() {
-                        false => offset,
+                    // TODO: Is the offset supposed to be smaller than object size for fixups?
+                    match t.is_value_type() && offset > metadata.object_size() as u32 {
                         true => {
                             // value type fixup
                             offset - metadata.object_size() as u32
                         }
+                        false => offset,
                     }
                 }
             };
