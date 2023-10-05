@@ -246,14 +246,17 @@ fn get_type_size_and_alignment(
         let resulting_ty_idx = generic_args[generic_param.num as usize];
         let resulting_ty =  &metadata.metadata_registration.types[resulting_ty_idx];
 
-        if resulting_ty != ty {
-            // TODO: Figure out why a Var would point to itself
-            // maybe because it's a type def?
-            return get_type_size_and_alignment(resulting_ty, generic_inst_types, metadata);
-        } else {
+        if resulting_ty == ty {
             warn!("Var points to itself! Type: {resulting_ty:?} generic args: {generic_args:?} {}", ty.full_name(metadata.metadata));
         }
+        
+        // If Var, this is partial instantiation
+        // we just treat it as Ptr below
+        if resulting_ty.ty != Il2CppTypeEnum::Var {
+            return get_type_size_and_alignment(resulting_ty, None, metadata);
+        }
     }
+
     match ty.ty {
         Il2CppTypeEnum::I1 | Il2CppTypeEnum::U1 | Il2CppTypeEnum::Boolean => {
             sa.size = mem::size_of::<i8>();
@@ -313,7 +316,7 @@ fn get_type_size_and_alignment(
             if td.is_enum_type() {
                 let enum_base_type =
                     metadata.metadata_registration.types[td.element_type_index as usize];
-                return get_type_size_and_alignment(&enum_base_type, None, metadata);
+                return get_type_size_and_alignment(&enum_base_type, generic_inst_types, metadata);
             } else {
                 // Size of the value type comes from the instance size - size of the wrapper object
                 // The way we compute the instance size is by grabbing the TD and performing a full field walk over that type

@@ -562,7 +562,7 @@ pub trait CSType: Sized {
             let f_cpp_name = config.name_cpp_plus(f_name, &[cpp_type.cpp_name().as_str()]);
 
             let f_offset = {
-                if f_type.is_static() {
+                if f_type.is_static() || f_type.is_constant() {
                     0
                 } else {
                     // If we have a hotfix offset, use that instead
@@ -573,11 +573,12 @@ pub trait CSType: Sized {
                         field_offsets[i]
                     };
 
-                    if !t.is_value_type() && !f_type.is_static() && !f_type.is_constant() {
-                        offset
-                    } else {
-                        // value type fixup
-                        offset - metadata.object_size() as u32
+                    match t.is_value_type() {
+                        false => offset,
+                        true => {
+                            // value type fixup
+                            offset - metadata.object_size() as u32
+                        }
                     }
                 }
             };
