@@ -2398,7 +2398,7 @@ pub trait CSType: Sized {
         metadata: &Metadata,
         typ: &Il2CppType,
         include_depth: usize,
-        generic_inst_types: Option<&Vec<usize>>,
+        declaring_generic_inst_types: Option<&Vec<usize>>,
     ) -> String {
         let add_include = include_depth > 0;
         let next_include_depth = if add_include { include_depth - 1 } else { 0 };
@@ -2445,7 +2445,7 @@ pub trait CSType: Sized {
                     let td = &metadata.metadata.global_metadata.type_definitions[tdi];
 
                     // TODO: Do we need generic inst types here? Hopefully not!
-                    let size = offsets::get_sizeof_type(td, tdi, generic_inst_types, metadata);
+                    let size = offsets::get_sizeof_type(td, tdi, None, metadata);
 
                     if metadata.blacklisted_types.contains(&tdi) {
                         return wrapper_type_for_tdi(td).to_string();
@@ -2532,7 +2532,7 @@ pub trait CSType: Sized {
                             metadata,
                             ty,
                             include_depth,
-                            generic_inst_types,
+                            declaring_generic_inst_types,
                         )
                     }
 
@@ -2586,7 +2586,7 @@ pub trait CSType: Sized {
                         metadata,
                         ty,
                         include_depth,
-                        generic_inst_types,
+                        declaring_generic_inst_types,
                     )
                 }
                 _ => todo!(),
@@ -2659,39 +2659,66 @@ pub trait CSType: Sized {
                         .get(generic_class.context.class_inst_idx.unwrap())
                         .unwrap();
 
+                    let new_generic_inst_types = &generic_inst.types;
+
                     let generic_type_def = &mr.types[generic_class.type_index];
                     let TypeData::TypeDefinitionIndex(tdi) = generic_type_def.data else {
                         panic!()
                     };
 
                     if add_include {
-                        cpp_type.requirements.add_dependency_tag(tdi.into());
+                        requirements.add_dependency_tag(tdi.into());
 
                         let generic_tag = CppTypeTag::from_type_data(typ.data, metadata.metadata);
 
-                        cpp_type.requirements.add_dependency_tag(generic_tag);
+                        requirements.add_dependency_tag(generic_tag);
                     }
 
-                    let generic_types_formatted = generic_inst
-                        .types
+                    println!("Doing {}", typ.full_name(metadata.metadata));
+
+                    let generic_types_formatted = new_generic_inst_types
                         .iter()
                         .map(|t| mr.types.get(*t).unwrap())
+                        // if t is a Var, we use the generic inst provided by the caller
+                        .map(|inst_t| match inst_t.data {
+                            TypeData::GenericParameterIndex(gen_param_idx) => {
+                                let gen_param =
+                                    &metadata.metadata.global_metadata.generic_parameters
+                                        [gen_param_idx];
+
+                                declaring_generic_inst_types
+                                    .and_then(|declaring_generic_inst_types| {
+                                        // TODO: Figure out why we this goes out of bounds
+                                        declaring_generic_inst_types.get(gen_param.num as usize)
+                                    })
+                                    .map(|t| &mr.types[*t])
+                                    // fallback to T since generic typedefs can be called
+                                    .unwrap_or(inst_t)
+                            }
+                            _ => inst_t,
+                        })
                         .map(|t| {
-                            cpp_type.cppify_name_il2cpp(
+
+                            cpp_type.cppify_name_il2cpp_recurse(
+                                requirements,
                                 ctx_collection,
                                 metadata,
                                 t,
                                 next_include_depth,
+                                // use declaring generic inst since we're cppifying generic args
+                                declaring_generic_inst_types,
                             )
                         })
                         .collect_vec();
 
                     let generic_type_def = &mr.types[generic_class.type_index];
-                    let type_def_name = self.cppify_name_il2cpp(
+                    let type_def_name = cpp_type.cppify_name_il2cpp_recurse(
+                        requirements,
                         ctx_collection,
                         metadata,
                         generic_type_def,
                         include_depth,
+                        Some(new_generic_inst_types),
                     );
 
                     format!("{type_def_name}<{}>", generic_types_formatted.join(","))
@@ -2732,7 +2759,7 @@ pub trait CSType: Sized {
                             metadata,
                             ty,
                             include_depth,
-                            generic_inst_types,
+                            declaring_generic_inst_types,
                         )
                     }
 
