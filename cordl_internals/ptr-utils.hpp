@@ -33,8 +33,15 @@ namespace cordl_internals {
         protected:
             void* instance;
     };
+
+    static_assert(sizeof(Ptr<void>) == sizeof(void*));
+
+    // Ptr is neither Ref nor Val type
+    template<> struct ::cordl_internals::GenRefTypeTrait<Ptr> { constexpr static bool value = false; };
+    template<> struct ::cordl_internals::GenValueTypeTrait<Ptr> { constexpr static bool value = false; };
 }
 } // end anonymous namespace
+
 
 template<typename T>
 struct ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<::cordl_internals::Ptr<T>> {

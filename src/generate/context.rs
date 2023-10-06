@@ -379,10 +379,15 @@ impl CppContext {
                     fd.write(&mut typedef_writer)
                 })?;
 
-            writeln!(typedef_writer, "// Add ref type trait")?;
+            writeln!(typedef_writer, "// Write type traits")?;
             typedef_root_types
                 .iter()
-                .try_for_each(|cpp_type| cpp_type.write_type_trait(&mut typedef_writer))?;
+                .try_for_each(|cpp_type| -> color_eyre::Result<()> {
+                    if cpp_type.generic_instantiations_args_types.is_none() {
+                        cpp_type.write_type_trait(&mut typedef_writer)?;
+                    }
+                    Ok(())
+                })?;
 
             // This is likely not necessary
             // self.typedef_types
@@ -469,7 +474,7 @@ impl CppContext {
         }
 
         let macro_arg_define = {
-            match //ty.generic_instantiation_args.is_some() ||  
+            match //ty.generic_instantiation_args.is_some() ||
                     template_container_type {
                     true => match ty.is_value_type {
                         true => "DEFINE_IL2CPP_ARG_TYPE_GENERIC_STRUCT",

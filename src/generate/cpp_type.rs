@@ -408,37 +408,16 @@ impl CppType {
     }
 
     pub fn write_type_trait(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if let Some(ref_template) = &self.cpp_template {
+        if self.cpp_template.is_some() {
             // generic
             // the existing macros don't work for generics, emit the structs directly
-            let mut type_kinds = vec![];
-            if self.is_enum_type || self.is_value_type {
-                // value type
-                type_kinds.push("ValueTypeTrait");
-                type_kinds.push("RefTypeTrait");
+            let type_trait_macro = if self.is_enum_type || self.is_value_type {
+                "CORDL_GEN_VAL_TYPE"
             } else {
-                // reference type
-                type_kinds.push("RefTypeTrait");
-                type_kinds.push("ValueTypeTrait");
-            }
+                "CORDL_GEN_REF_TYPE"
+            };
 
-            let full_name = self.cpp_name_components.combine_all(true);
-            // TODO: ensure this works correctly
-
-            // we convert the constraits to typenames since we don't care about those for the trait
-            let new_template = CppTemplate::make_typenames(ref_template.just_names().cloned());
-            new_template.write(writer)?;
-            writeln!(
-                writer,
-                "struct ::cordl_internals::{}<{full_name}> {{ constexpr static bool value = true; }};",
-                type_kinds[0], 
-            )?;
-            ref_template.write(writer)?;
-            writeln!(
-                writer,
-                "struct ::cordl_internals::{}<{full_name}> {{ constexpr static bool value = false; }};",
-                type_kinds[1],
-            )?;
+            writeln!(writer, "{type_trait_macro}({});", self.cpp_name_components.combine_all(false))?;
         } else {
             // non-generic
             // use existing macros for non generics, this way we can emit less lines
@@ -448,11 +427,7 @@ impl CppType {
                 "CORDL_REF_TYPE"
             };
 
-            writeln!(
-                writer,
-                "{type_trait_macro}({});",
-                self.cpp_name_components.combine_all(true)
-            )?;
+            writeln!(writer, "{type_trait_macro}({});", self.cpp_name_components.combine_all(true))?;
         }
 
         Ok(())

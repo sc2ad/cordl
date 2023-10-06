@@ -41,13 +41,24 @@ namespace cordl_internals {
     // value type type trait, allows us to explicitly mark something a value type if required
     template<class T> struct ValueTypeTrait;
 
+    template<template<class...> class T> struct GenValueTypeTrait;
+
     // automatically make anything that matches the VT requirements actually a VT
     template <il2cpp_value_type_requirements T> struct ValueTypeTrait<T> {
         constexpr static bool value = true;
     };
 
+    template<class T> struct ValueDecompose {
+        constexpr static bool value = false;
+    };
+
+    template<template<class...> class T, class... TArgs> struct ValueDecompose<T<TArgs...>> {
+        constexpr static bool value = GenValueTypeTrait<T>::value;
+    };
+
     template<class T>
-    concept il2cpp_value_type = ValueTypeTrait<T>::value;
+    concept il2cpp_value_type = ValueDecompose<T>::value || ValueTypeTrait<T>::value;
+
 
     template<std::size_t sz>
     struct ValueTypeTrait<::bs_hook::ValueTypeWrapper<sz>> {
@@ -81,8 +92,18 @@ namespace cordl_internals {
     // We can partially specialize this with our type and we are good to go
     template <class T> struct RefTypeTrait;
 
+    template<template<class...> class T> struct GenRefTypeTrait;
+
     template <il2cpp_reference_type_requirements T> struct RefTypeTrait<T> {
       constexpr static bool value = true;
+    };
+
+    template<class T> struct RefDecompose {
+        constexpr static bool value = false;
+    };
+
+    template<template<class...> class T, class... TArgs> struct RefDecompose<T<TArgs...>> {
+        constexpr static bool value = GenRefTypeTrait<T>::value;
     };
 
     // Now, as for our FULL, EXPOSED ref_type concept:
@@ -90,7 +111,7 @@ namespace cordl_internals {
     // Failing that, we check for standard ref_type-ness (but we do that
     // already) So:
     template <class T>
-    concept il2cpp_reference_type = RefTypeTrait<T>::value;
+    concept il2cpp_reference_type = RefDecompose<T>::value || RefTypeTrait<T>::value;
 #pragma endregion // ref type
 
     /// Macro to mark an incomplete type as being a ref type, also marks explicitly not a value type
@@ -103,15 +124,21 @@ namespace cordl_internals {
         template<> struct ::cordl_internals::RefTypeTrait<__VA_ARGS__> { constexpr static bool value = false; }; \
         template<> struct ::cordl_internals::ValueTypeTrait<__VA_ARGS__> { constexpr static bool value = true; }
 
+    /// Macro to mark an incomplete generic type as being a ref type, also marks explicitly not a value type
+    #define CORDL_GEN_REF_TYPE(...) \
+        template<> struct ::cordl_internals::GenRefTypeTrait<__VA_ARGS__> { constexpr static bool value = true; }; \
+        template<> struct ::cordl_internals::GenValueTypeTrait<__VA_ARGS__> { constexpr static bool value = false; }
+
+    /// Macro to mark an incomplete generic type as being a value type, also marks explicitly not a ref type
+    #define CORDL_GEN_VAL_TYPE(...) \
+        template<> struct ::cordl_internals::GenRefTypeTrait<__VA_ARGS__> { constexpr static bool value = false; }; \
+        template<> struct ::cordl_internals::GenValueTypeTrait<__VA_ARGS__> { constexpr static bool value = true; }
+
     CORDL_REF_TYPE(::StringW);
     CORDL_REF_TYPE(::bs_hook::Il2CppWrapperType);
 
-    // explicitly mark ArrayW as reftype
-    template<typename T, typename U>
-    struct ::cordl_internals::RefTypeTrait<::ArrayW<T, U>> { constexpr static bool value = true; };
-    template<typename T, typename U>
-    struct ::cordl_internals::ValueTypeTrait<::ArrayW<T, U>> { constexpr static bool value = false; };
-
+    // explicitly mark ListW as reftype
+    CORDL_GEN_REF_TYPE(ArrayW);
     // explicitly mark ListW as reftype
     // TODO:
     // template<typename T, typename U>
@@ -119,17 +146,14 @@ namespace cordl_internals {
     // template<typename T, typename U>
     // struct ::cordl_internals::ValueTypeTrait<ListW<T, U>> { constexpr static bool value = false; };
 
+    // Il2CppWrapperType type should match as ref type
     static_assert(il2cpp_reference_type<::bs_hook::Il2CppWrapperType>,
                   "Il2CppWrapperType did not match the il2cpp_reference_type "
-                  "concept!"); // wrappertype should match reference type always
+                  "concept!");
+    // StringW type should match as ref type
     static_assert(
         il2cpp_reference_type<::StringW>,
-        "StringW did not match the il2cpp_reference_type concept!"); // wrappertype
-                                                                     // should
-                                                                     // match
-                                                                     // reference
-                                                                     // type
-                                                                     // always
+        "StringW did not match the il2cpp_reference_type concept!");
 
     template <class T, class U>
     concept is_or_is_backed_by =
