@@ -1205,7 +1205,7 @@ pub trait CSType: Sized {
                 let value =
                     Self::field_default_value(metadata, field_index).expect("Enum without value!");
 
-                wrapper_declaration.push(format!("__{f_name} = {value},"));
+                wrapper_declaration.push(format!("__E_{f_name} = {value},"));
             }
         }
 
