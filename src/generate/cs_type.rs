@@ -629,7 +629,7 @@ pub trait CSType: Sized {
                             value: None,
                             const_expr: false,
                             brief_comment: Some(format!(
-                                "Field {f_name} offset {f_offset} value: {def_value}"
+                                "Field {f_name} value: {def_value}"
                             )),
                         };
                         let field_impl = CppFieldImpl {
@@ -678,7 +678,7 @@ pub trait CSType: Sized {
                             readonly: f_type.is_constant(),
                             value: Some(def_value),
                             const_expr: true,
-                            brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
+                            brief_comment: Some(format!("Field {f_name} offset 0x{f_offset:x}")),
                         };
 
                         cpp_type
@@ -808,7 +808,7 @@ pub trait CSType: Sized {
                         instance: !f_type.is_static() && !f_type.is_constant(),
                         getter: getter_decl.cpp_name.clone().into(),
                         setter: setter_decl.cpp_name.clone().into(),
-                        brief_comment: Some(format!("Field {f_name} offset {f_offset}")),
+                        brief_comment: Some(format!("Field {f_name} offset 0x{f_offset:x}")),
                     };
 
                     cpp_type
