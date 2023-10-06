@@ -120,6 +120,22 @@ namespace cordl_internals {
                                                                      // reference
                                                                      // type
                                                                      // always
+    static_assert(il2cpp_value_type<::bs_hook::ValueTypeWrapper>,
+                  "ValueTypeWrapper did not match the il2cpp_value_type "
+                  "concept!"); // wrappertype
+                               // should
+                               // match
+                               // reference
+                               // type
+                               // always
+    static_assert(il2cpp_value_type<::bs_hook::EnumTypeWrapper>,
+                  "EnumTypeWrapper did not match the il2cpp_value_type "
+                  "concept!"); // wrappertype
+                               // should
+                               // match
+                               // reference
+                               // type
+                               // always
 
     template <class T, class U>
     concept is_or_is_backed_by =
