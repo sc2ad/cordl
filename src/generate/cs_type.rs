@@ -2674,8 +2674,6 @@ pub trait CSType: Sized {
                         requirements.add_dependency_tag(generic_tag);
                     }
 
-                    println!("Doing {}", typ.full_name(metadata.metadata));
-
                     let generic_types_formatted = new_generic_inst_types
                         .iter()
                         .map(|t| mr.types.get(*t).unwrap())
