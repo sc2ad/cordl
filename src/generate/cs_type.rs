@@ -28,8 +28,8 @@ use super::{
     config::GenerationConfig,
     context_collection::CppContextCollection,
     cpp_type::{
-        CppType, CORDL_METHOD_HELPER_NAMESPACE, CORDL_NUM_ENUM_TYPE_CONSTRAINT,
-        CORDL_REFERENCE_TYPE_CONSTRAINT, __CORDL_BACKING_ENUM_TYPE,
+        CppType, CppTypeRequirements, CORDL_METHOD_HELPER_NAMESPACE,
+        CORDL_NUM_ENUM_TYPE_CONSTRAINT, CORDL_REFERENCE_TYPE_CONSTRAINT, __CORDL_BACKING_ENUM_TYPE,
     },
     cpp_type_tag::CppTypeTag,
     members::{
@@ -194,36 +194,7 @@ pub trait CSType: Sized {
         // TODO: Come up with a way to avoid this extra call to layout the entire type
         // We really just want to call it once for a given size and then move on
         // Every type should have a valid metadata size, even if it is 0
-        let mut metadata_size = offsets::get_size_of_type_table(metadata, tdi)
-            .unwrap()
-            .instance_size;
-        if metadata_size == 0 && !t.is_interface() {
-            debug!(
-                "Computing instance size by laying out type for tdi: {tdi:?} {}",
-                t.full_name(metadata.metadata, true)
-            );
-            metadata_size =
-                offsets::layout_fields_for_type(t, tdi, generic_inst_types, metadata, None)
-                    .size
-                    .try_into()
-                    .unwrap();
-            // Remove implicit size of object from total size of instance
-        }
-        if t.is_value_type() {
-            // For value types we need to ALWAYS subtract our object size
-            metadata_size = metadata_size
-                .checked_sub(metadata.object_size() as u32)
-                .unwrap();
-            debug!(
-                "Resulting computed instance size (post subtractiong) for type {:?} is: {}",
-                t.full_name(metadata.metadata, true),
-                metadata_size
-            );
-            // If we are still 0, todo!
-            if metadata_size == 0 {
-                todo!("We do not yet support cases where the instance type would be a 0 AFTER we have done computation!");
-            }
-        }
+        let metadata_size = offsets::get_sizeof_type(t, tdi, generic_inst_types, metadata);
 
         // Modified later for nested types
         let mut cpptype = CppType {
@@ -685,7 +656,9 @@ pub trait CSType: Sized {
                 }
             } else {
                 let instance = match t.is_value_type() || t.is_enum_type() {
-                    true => format!("this->{VALUE_WRAPPER_TYPE}<{VALUE_TYPE_WRAPPER_SIZE}>::instance"),
+                    true => {
+                        format!("this->{VALUE_WRAPPER_TYPE}<{VALUE_TYPE_WRAPPER_SIZE}>::instance")
+                    }
                     false => "*this".to_string(),
                 };
 
@@ -1215,8 +1188,7 @@ pub trait CSType: Sized {
             .push(CppMember::CppLine(CppLine::make(wrapper_declaration.join("\n"))).into());
 
         let wrapper = format!("{VALUE_WRAPPER_TYPE}<{VALUE_TYPE_WRAPPER_SIZE}>::instance");
-        let operator_body =
-            format!("return std::bit_cast<{unwrapped_name}>(this->{wrapper});");
+        let operator_body = format!("return std::bit_cast<{unwrapped_name}>(this->{wrapper});");
         let operator_decl = CppMethodDecl {
             cpp_name: Default::default(),
             instance: true,
@@ -1276,7 +1248,10 @@ pub trait CSType: Sized {
                 is_explicit: true,
                 is_default: false,
                 is_no_except: true,
-                base_ctor: Some((cpp_type.inherit.get(0).unwrap().to_string(), "instance".to_string())),
+                base_ctor: Some((
+                    cpp_type.inherit.get(0).unwrap().to_string(),
+                    "instance".to_string(),
+                )),
                 initialized_values: Default::default(),
                 brief: Some(
                     "Constructor that lets you initialize the internal array explicitly".into(),
@@ -2398,14 +2373,40 @@ pub trait CSType: Sized {
         typ: &Il2CppType,
         include_depth: usize,
     ) -> String {
+        let cpp_type = self.get_mut_cpp_type();
+
+        let mut requirements = cpp_type.requirements.clone();
+
+        let res = cpp_type.cppify_name_il2cpp_recurse(
+            &mut requirements,
+            ctx_collection,
+            metadata,
+            typ,
+            include_depth,
+            cpp_type.generic_instantiations_args_types.as_ref(),
+        );
+
+        cpp_type.requirements = requirements;
+
+        res
+    }
+
+    fn cppify_name_il2cpp_recurse(
+        &self,
+        requirements: &mut CppTypeRequirements,
+        ctx_collection: &CppContextCollection,
+        metadata: &Metadata,
+        typ: &Il2CppType,
+        include_depth: usize,
+        generic_inst_types: Option<&Vec<usize>>,
+    ) -> String {
         let add_include = include_depth > 0;
         let next_include_depth = if add_include { include_depth - 1 } else { 0 };
 
         let typ_tag = typ.data;
 
-        let cpp_type = self.get_mut_cpp_type();
+        let cpp_type = self.get_cpp_type();
 
-        let requirements = &mut cpp_type.requirements;
         match typ.ty {
             Il2CppTypeEnum::I1
             | Il2CppTypeEnum::U1
@@ -2443,6 +2444,9 @@ pub trait CSType: Sized {
                 if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
                     let td = &metadata.metadata.global_metadata.type_definitions[tdi];
 
+                    // TODO: Do we need generic inst types here? Hopefully not!
+                    let size = offsets::get_sizeof_type(td, tdi, generic_inst_types, metadata);
+
                     if metadata.blacklisted_types.contains(&tdi) {
                         return wrapper_type_for_tdi(td).to_string();
                     }
@@ -2452,14 +2456,14 @@ pub trait CSType: Sized {
                     {
                         requirements.needs_value_include();
                         // FIXME: get the correct size!
-                        return format!("{VALUE_WRAPPER_TYPE}<0x{:x}>", 0);
+                        return format!("{VALUE_WRAPPER_TYPE}<0x{size:x}>");
                     }
                     if td.namespace(metadata.metadata) == "System"
                         && td.name(metadata.metadata) == "Enum"
                     {
                         requirements.needs_enum_include();
                         // FIXME: get the correct size!
-                        return format!("{ENUM_WRAPPER_TYPE}<0x{:x}>", 0);
+                        return format!("{ENUM_WRAPPER_TYPE}<0x{size:x}>");
                     }
                 }
 
@@ -2522,7 +2526,14 @@ pub trait CSType: Sized {
                 let generic: String = match typ.data {
                     TypeData::TypeIndex(e) => {
                         let ty = &metadata.metadata_registration.types[e];
-                        self.cppify_name_il2cpp(ctx_collection, metadata, ty, include_depth)
+                        cpp_type.cppify_name_il2cpp_recurse(
+                            requirements,
+                            ctx_collection,
+                            metadata,
+                            ty,
+                            include_depth,
+                            generic_inst_types,
+                        )
                     }
 
                     _ => panic!("Unknown type data for array {typ:?}!"),
@@ -2569,7 +2580,14 @@ pub trait CSType: Sized {
                         .get(ty_idx as usize)
                         .unwrap();
 
-                    self.cppify_name_il2cpp(ctx_collection, metadata, ty, include_depth)
+                    cpp_type.cppify_name_il2cpp_recurse(
+                        requirements,
+                        ctx_collection,
+                        metadata,
+                        ty,
+                        include_depth,
+                        generic_inst_types,
+                    )
                 }
                 _ => todo!(),
             },
@@ -2708,7 +2726,14 @@ pub trait CSType: Sized {
                 let generic: String = match typ.data {
                     TypeData::TypeIndex(e) => {
                         let ty = &metadata.metadata_registration.types[e];
-                        self.cppify_name_il2cpp(ctx_collection, metadata, ty, include_depth)
+                        cpp_type.cppify_name_il2cpp_recurse(
+                            requirements,
+                            ctx_collection,
+                            metadata,
+                            ty,
+                            include_depth,
+                            generic_inst_types,
+                        )
                     }
 
                     _ => panic!("Unknown type data for array {typ:?}!"),

@@ -18,6 +18,44 @@ use super::type_extensions::TypeDefinitionExtensions;
 
 const IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS: u32 = 1;
 
+pub fn get_sizeof_type<'a>(
+    t: &'a Il2CppTypeDefinition,
+    tdi: TypeDefinitionIndex,
+    generic_inst_types: Option<&Vec<usize>>,
+    metadata: &'a Metadata,
+) -> u32 {
+    let mut metadata_size = get_size_of_type_table(metadata, tdi).unwrap().instance_size;
+    if metadata_size == 0 && !t.is_interface() {
+        debug!(
+            "Computing instance size by laying out type for tdi: {tdi:?} {}",
+            t.full_name(metadata.metadata, true)
+        );
+        metadata_size = layout_fields_for_type(t, tdi, generic_inst_types, metadata, None)
+            .size
+            .try_into()
+            .unwrap();
+        // Remove implicit size of object from total size of instance
+    }
+
+    if t.is_value_type() {
+        // For value types we need to ALWAYS subtract our object size
+        metadata_size = metadata_size
+            .checked_sub(metadata.object_size() as u32)
+            .unwrap();
+        debug!(
+            "Resulting computed instance size (post subtractiong) for type {:?} is: {}",
+            t.full_name(metadata.metadata, true),
+            metadata_size
+        );
+        // If we are still 0, todo!
+        if metadata_size == 0 {
+            todo!("We do not yet support cases where the instance type would be a 0 AFTER we have done computation!");
+        }
+    }
+
+    metadata_size
+}
+
 pub fn layout_fields_for_type<'a>(
     declaring_ty_def: &'a Il2CppTypeDefinition,
     tdi: TypeDefinitionIndex,
@@ -383,17 +421,21 @@ fn get_type_size_and_alignment(
                 .map(|t_idx| {
                     let t = &metadata.metadata_registration.types[*t_idx];
 
-                    if let TypeData::GenericParameterIndex(generic_param_idx) = t.data {
-                        let generic_param = &metadata.metadata.global_metadata.generic_parameters
-                            [generic_param_idx];
+                    match t.data {
+                        TypeData::GenericParameterIndex(generic_param_idx) => {
+                            let generic_param =
+                                &metadata.metadata.global_metadata.generic_parameters
+                                    [generic_param_idx];
 
-                        generic_inst_types
-                            .map(|new_generic_inst| new_generic_inst[generic_param.num as usize])
-                            // fallback to Var because we may not pass generic types
-                            // when sizing a type def
-                            .unwrap_or(*t_idx)
-                    } else {
-                        *t_idx
+                            generic_inst_types
+                                .map(|generic_inst_types| {
+                                    generic_inst_types[generic_param.num as usize]
+                                })
+                                // fallback to Var because we may not pass generic types
+                                // when sizing a type def
+                                .unwrap_or(*t_idx)
+                        }
+                        _ => *t_idx,
                     }
                 })
                 .collect_vec();
