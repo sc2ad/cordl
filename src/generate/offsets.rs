@@ -104,48 +104,12 @@ pub fn layout_fields_for_type<'a>(
                 .metadata_registration
                 .types[f.type_index as usize];
 
-            let generic_args_str = generic_inst_types.as_ref().map(|t| {
-                t.iter()
-                    .map(|t| &metadata.metadata_registration.types[*t])
-                    .map(|t| t.full_name(metadata.metadata))
-                    .collect_vec()
-            });
-
-            let is_our_broken_generic = field_ty
-                .full_name(metadata.metadata)
-                .contains("KeyValuePair`2")
-                && (declaring_ty_def
-                    .full_name(metadata.metadata, true)
-                    .contains("Dictionary`2::Enumerator"))
-                && generic_args_str
-                    .as_ref()
-                    .is_some_and(|t| t.iter().all(|t| t.contains("XPathNodeRef")));
-
-            let f_name = f.name(metadata.metadata);
-            let ty_name = declaring_ty_def.full_name(metadata.metadata, true);
-
-            if is_our_broken_generic {
-                println!(
-                    "type {} field {} {} {}",
-                    declaring_ty_def.full_name(metadata.metadata, true),
-                    field_ty.full_name(metadata.metadata),
-                    f.name(metadata.metadata),
-                    generic_args_str.as_ref().unwrap().join(",")
-                );
-                println!();
-            }
-
             if field_ty.is_static() || field_ty.is_constant() {
                 // TODO: We only support non-static instance field offset computation!
                 // This needs to match up with the instance fields as we write out our results
                 continue;
             }
             let sa = get_type_size_and_alignment(&field_ty, generic_inst_types, metadata);
-
-            if is_our_broken_generic {
-                println!("Size and alignment {sa:?}");
-                println!();
-            }
 
             // Il2cpp alignment logic from: FieldLayout.cpp: FieldLayout::LayoutFields
             let mut local_alignment = sa.alignment;
@@ -180,22 +144,6 @@ pub fn layout_fields_for_type<'a>(
     }
     instance_size =
         update_instance_size_for_generic_class(declaring_ty_def, tdi, instance_size, metadata);
-
-    // let s_types = generic_inst_types
-    //     .cloned()
-    //     .unwrap_or_default()
-    //     .into_iter()
-    //     .map(|t| metadata.metadata_registration.types[t].full_name(metadata.metadata))
-    //     .collect_vec();
-
-    // let s = ty_def.full_name(metadata.metadata, true);
-    // if s.contains("Dictionary`2")
-    //     && s.contains("::Enumerator")
-    //     && generic_inst_types.is_some()
-    //     && s_types.iter().all(|s| s.contains("XPathNodeRef"))
-    // {
-    //     panic!();
-    // }
 
     SizeAndAlignment {
         size: instance_size,
@@ -279,22 +227,6 @@ fn get_type_size_and_alignment(
     generic_inst_types: Option<&Vec<usize>>,
     metadata: &Metadata,
 ) -> SizeAndAlignment {
-    // let s_types = generic_inst_types
-    //     .cloned()
-    //     .unwrap_or_default()
-    //     .into_iter()
-    //     .map(|t| metadata.metadata_registration.types[t].full_name(metadata.metadata))
-    //     .collect_vec();
-
-    // let s = ty.full_name(metadata.metadata);
-    // if s.contains("Dictionary")
-    //     && s.contains("Enumerator")
-    //     && generic_inst_types.is_some()
-    //     && s_types.iter().all(|s| s.contains("XPathNodeRef"))
-    // {
-    //     panic!();
-    // }
-
     let mut sa = SizeAndAlignment {
         alignment: 0,
         natural_alignment: 0,
