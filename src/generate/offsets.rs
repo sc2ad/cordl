@@ -37,7 +37,7 @@ pub fn get_sizeof_type<'a>(
         // Remove implicit size of object from total size of instance
     }
 
-    if t.is_value_type() {
+    if t.is_value_type() || t.is_enum_type() {
         // For value types we need to ALWAYS subtract our object size
         metadata_size = metadata_size
             .checked_sub(metadata.object_size() as u32)

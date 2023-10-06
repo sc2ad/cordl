@@ -286,6 +286,7 @@ pub trait CSType: Sized {
 
         self.make_generics_args(metadata, ctx_collection, tdi);
         self.make_parents(metadata, ctx_collection, tdi);
+        self.make_interfaces(metadata, ctx_collection, tdi);
 
         // we depend on parents and generic args here
         // default ctor
@@ -842,51 +843,92 @@ pub trait CSType: Sized {
                     println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
                 }
             }
-        } else if let Some(parent_type) = metadata
+            return;
+        }
+
+        let parent_type = metadata
             .metadata_registration
             .types
             .get(t.parent_index as usize)
-        {
-            let parent_ty: CppTypeTag =
-                CppTypeTag::from_type_data(parent_type.data, metadata.metadata);
+            .unwrap_or_else(|| panic!("NO PARENT! But valid index found: {}", t.parent_index));
 
-            // We have a parent, lets do something with it
-            let inherit_type =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, usize::MAX);
+        let parent_ty: CppTypeTag = CppTypeTag::from_type_data(parent_type.data, metadata.metadata);
 
-            if matches!(
-                parent_type.ty,
-                Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
-            ) {
-                // TODO: Figure out why some generic insts don't work here
-                let parent_tdi: TypeDefinitionIndex = parent_ty.into();
+        // handle value types and enum types specially
+        match t.is_value_type() || t.is_enum_type() {
+            // parent will be a value wrapper type
+            // which will have the size
+            // OF THE TYPE ITSELF, NOT PARENT
+            true => {
+                let size = cpp_type
+                    .calculated_size
+                    .expect("No size for value/enum type!");
 
-                let base_type_context = ctx_collection
-                    .get_context(parent_ty)
-                    .or_else(|| ctx_collection.get_context(parent_tdi.into()))
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "No CppContext for base type {inherit_type}. Using tag {parent_ty:?}"
-                        )
-                    });
+                let wrapper = wrapper_type_for_tdi(t);
 
-                let base_type_cpp_type = ctx_collection
-                    .get_cpp_type(parent_ty)
-                    .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
-                    .unwrap_or_else(|| {
-                        panic!("No CppType for base type {inherit_type}. Using tag {parent_ty:?}")
-                    });
-
-                cpp_type.requirements.add_impl_include(
-                    Some(base_type_cpp_type),
-                    CppInclude::new_context_typeimpl(base_type_context),
-                )
+                cpp_type.inherit.push(format!("{wrapper}<0x{size:x}>"));
             }
+            // handle as reference type
+            false => {
+                // make sure our parent is intended
+                assert!(
+                    matches!(
+                        parent_type.ty,
+                        Il2CppTypeEnum::Class
+                            | Il2CppTypeEnum::Genericinst
+                            | Il2CppTypeEnum::Object
+                    ),
+                    "Not a class, object or generic inst!"
+                );
 
-            cpp_type.inherit.push(inherit_type);
-        } else {
-            panic!("NO PARENT! But valid index found: {}", t.parent_index);
+                // We have a parent, lets do something with it
+                let inherit_type =
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, usize::MAX);
+
+                if matches!(
+                    parent_type.ty,
+                    Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
+                ) {
+                    // TODO: Figure out why some generic insts don't work here
+                    let parent_tdi: TypeDefinitionIndex = parent_ty.into();
+
+                    let base_type_context = ctx_collection
+                                    .get_context(parent_ty)
+                                    .or_else(|| ctx_collection.get_context(parent_tdi.into()))
+                                    .unwrap_or_else(|| {
+                                        panic!(
+                                        "No CppContext for base type {inherit_type}. Using tag {parent_ty:?}"
+                                    )
+                                    });
+
+                    let base_type_cpp_type = ctx_collection
+                        .get_cpp_type(parent_ty)
+                        .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "No CppType for base type {inherit_type}. Using tag {parent_ty:?}"
+                            )
+                        });
+
+                    cpp_type.requirements.add_impl_include(
+                        Some(base_type_cpp_type),
+                        CppInclude::new_context_typeimpl(base_type_context),
+                    )
+                }
+
+                cpp_type.inherit.push(inherit_type);
+            }
         }
+    }
+
+    fn make_interfaces(
+        &mut self,
+        metadata: &Metadata<'_>,
+        ctx_collection: &CppContextCollection,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = &metadata.metadata.global_metadata.type_definitions[tdi];
 
         for &interface_index in t.interfaces(metadata.metadata) {
             let int_ty = &metadata.metadata_registration.types[interface_index as usize];
@@ -2696,7 +2738,6 @@ pub trait CSType: Sized {
                             _ => inst_t,
                         })
                         .map(|t| {
-
                             cpp_type.cppify_name_il2cpp_recurse(
                                 requirements,
                                 ctx_collection,
