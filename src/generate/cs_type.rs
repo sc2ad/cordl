@@ -752,10 +752,10 @@ pub trait CSType: Sized {
                     // Const if instance for now
                     is_const: is_instance,
                     is_constexpr: !f_type.is_static() || f_type.is_constant(),
+                    is_inline: true,
                     is_virtual: false,
                     is_operator: false,
                     is_no_except: false, // TODO:
-                    is_inline: true,
                     parameters: vec![],
                     prefix_modifiers: vec![],
                     suffix_modifiers: vec![],
@@ -771,10 +771,10 @@ pub trait CSType: Sized {
                     body: None,      //TODO:
                     is_const: false, // TODO: readonly fields?
                     is_constexpr: !f_type.is_static() || f_type.is_constant(),
+                    is_inline: true,
                     is_virtual: false,
                     is_operator: false,
                     is_no_except: false, // TODO:
-                    is_inline: true,
                     parameters: vec![CppParam {
                         def_value: None,
                         modifiers: "".to_string(),

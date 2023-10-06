@@ -209,7 +209,7 @@ impl Writable for CppMethodDecl {
 
         if self.is_constexpr {
             prefix_modifiers.push("constexpr")
-        } else if self.body.is_some() {
+        } else if self.is_inline {
             //implicitly inline
             prefix_modifiers.push("inline")
         }
@@ -292,11 +292,10 @@ impl Writable for CppMethodImpl {
             .map(|s| s.as_str())
             .collect_vec();
 
-        if self.is_inline {
-            prefix_modifiers.push("inline");
-        }
         if self.is_constexpr {
             prefix_modifiers.push("constexpr");
+        } else if self.is_inline {
+            prefix_modifiers.push("inline");
         }
 
         if self.is_virtual {
