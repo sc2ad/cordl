@@ -93,6 +93,10 @@ fn main() -> color_eyre::Result<()> {
     //     command: None,
     // };
 
+    std::fs::remove_dir_all(&STATIC_CONFIG.header_path)?;
+    std::fs::create_dir_all(&STATIC_CONFIG.header_path)?;
+
+
     info!(
         "Copying config to codegen folder {:?}",
         STATIC_CONFIG.dst_internals_path
