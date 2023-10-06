@@ -1930,9 +1930,8 @@ pub trait CSType: Sized {
             Some(template) => {
                 // generic
                 let template_names = template
-                    .names
-                    .iter()
-                    .map(|(_, t)| {
+                    .just_names()
+                    .map(|t| {
                         format!(
                             "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"
                         )
@@ -2673,7 +2672,7 @@ pub trait CSType: Sized {
                         // true if the type is intentionally a generic template type and not a specialization
                         let has_generic_template =
                             cpp_type.cpp_template.as_ref().is_some_and(|template| {
-                                template.names.iter().any(|(_, name)| name == gen_name)
+                                template.just_names().any(|name| name == gen_name)
                             });
 
                         return match has_generic_template {

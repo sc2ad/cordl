@@ -14,7 +14,7 @@ impl Writable for CppTemplate {
             self.names
                 .iter()
                 .map(|(constraint, t)| format!("{constraint} {t}"))
-                .collect::<Vec<_>>()
+                .collect_vec()
                 .join(",")
         )?;
 
