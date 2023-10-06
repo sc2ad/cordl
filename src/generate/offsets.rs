@@ -4,6 +4,7 @@ use brocolib::global_metadata::Il2CppTypeDefinition;
 use brocolib::runtime_metadata::Il2CppTypeDefinitionSizes;
 use brocolib::runtime_metadata::TypeData;
 use brocolib::runtime_metadata::{Il2CppType, Il2CppTypeEnum};
+use itertools::Itertools;
 use log::debug;
 use log::warn;
 
@@ -18,7 +19,7 @@ use super::type_extensions::TypeDefinitionExtensions;
 const IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS: u32 = 1;
 
 pub fn layout_fields_for_type<'a>(
-    ty_def: &'a Il2CppTypeDefinition,
+    declaring_ty_def: &'a Il2CppTypeDefinition,
     tdi: TypeDefinitionIndex,
     generic_inst_types: Option<&Vec<usize>>,
     metadata: &'a Metadata,
@@ -28,12 +29,13 @@ pub fn layout_fields_for_type<'a>(
     let mut alignment: u8 = metadata.object_size();
     let mut natural_alignment: u8 = metadata.object_size();
 
-    let mut instance_size: usize = if ty_def.parent_index == u32::MAX {
+    let mut instance_size: usize = if declaring_ty_def.parent_index == u32::MAX {
         // If our parent type doesn't exist, we should account for that by assuming object_size
         actual_size = metadata.object_size() as usize;
         metadata.object_size().into()
     } else {
-        let parent_ty = &metadata.metadata_registration.types[ty_def.parent_index as usize];
+        let parent_ty =
+            &metadata.metadata_registration.types[declaring_ty_def.parent_index as usize];
         let (parent_tdi, parent_generics) = match parent_ty.data {
             TypeData::TypeDefinitionIndex(parent_tdi) => (parent_tdi, None),
 
@@ -68,7 +70,7 @@ pub fn layout_fields_for_type<'a>(
             None,
         );
         actual_size = res.actual_size;
-        alignment = if ty_def.is_value_type() {
+        alignment = if declaring_ty_def.is_value_type() {
             // Alignment of a value type is always 1
             1
         } else {
@@ -80,10 +82,10 @@ pub fn layout_fields_for_type<'a>(
         res.size
     };
 
-    if ty_def.field_count > 0 {
+    if declaring_ty_def.field_count > 0 {
         // TODO: Consider moving packing to an Il2CppTypeDefinition extension method
         let packing = u8::pow(
-            ((ty_def.bitfield >> (metadata.packing_field_offset - 1)) & 0xF) as u8,
+            ((declaring_ty_def.bitfield >> (metadata.packing_field_offset - 1)) & 0xF) as u8,
             2,
         );
         assert!(
@@ -94,19 +96,57 @@ pub fn layout_fields_for_type<'a>(
         let mut field_offsets_option = field_offsets;
         // TODO: Try to layout our fields here.
         // The result will give us a bunch of fields with offsets and size/alignment info
-        for f in ty_def.fields(metadata.metadata) {
+        for f in declaring_ty_def.fields(metadata.metadata) {
             // First, make sure it's an instance field
             let field_ty = metadata
                 .metadata
                 .runtime_metadata
                 .metadata_registration
                 .types[f.type_index as usize];
-            if field_ty.is_static() {
+
+            let generic_args_str = generic_inst_types.as_ref().map(|t| {
+                t.iter()
+                    .map(|t| &metadata.metadata_registration.types[*t])
+                    .map(|t| t.full_name(metadata.metadata))
+                    .collect_vec()
+            });
+
+            let is_our_broken_generic = field_ty
+                .full_name(metadata.metadata)
+                .contains("KeyValuePair`2")
+                && (declaring_ty_def
+                    .full_name(metadata.metadata, true)
+                    .contains("Dictionary`2::Enumerator"))
+                && generic_args_str
+                    .as_ref()
+                    .is_some_and(|t| t.iter().all(|t| t.contains("XPathNodeRef")));
+
+            let f_name = f.name(metadata.metadata);
+            let ty_name = declaring_ty_def.full_name(metadata.metadata, true);
+
+            if is_our_broken_generic {
+                println!(
+                    "type {} field {} {} {}",
+                    declaring_ty_def.full_name(metadata.metadata, true),
+                    field_ty.full_name(metadata.metadata),
+                    f.name(metadata.metadata),
+                    generic_args_str.as_ref().unwrap().join(",")
+                );
+                println!();
+            }
+
+            if field_ty.is_static() || field_ty.is_constant() {
                 // TODO: We only support non-static instance field offset computation!
                 // This needs to match up with the instance fields as we write out our results
                 continue;
             }
             let sa = get_type_size_and_alignment(&field_ty, generic_inst_types, metadata);
+
+            if is_our_broken_generic {
+                println!("Size and alignment {sa:?}");
+                println!();
+            }
+
             // Il2cpp alignment logic from: FieldLayout.cpp: FieldLayout::LayoutFields
             let mut local_alignment = sa.alignment;
             if local_alignment < 4 && sa.natural_alignment != 0 {
@@ -131,14 +171,31 @@ pub fn layout_fields_for_type<'a>(
         // After we walk all of the fields, we need to align the class size
         // TODO: This assumes we are targeting an application compiled with clang
         instance_size = align_to(actual_size, alignment.into());
-        if ty_def.is_value_type() && instance_size == metadata.object_size() as usize {
+        if declaring_ty_def.is_value_type() && instance_size == metadata.object_size() as usize {
             instance_size = (IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS
                 + metadata.object_size() as u32) as usize;
             actual_size = (IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS
                 + metadata.object_size() as u32) as usize;
         }
     }
-    instance_size = update_instance_size_for_generic_class(ty_def, tdi, instance_size, metadata);
+    instance_size =
+        update_instance_size_for_generic_class(declaring_ty_def, tdi, instance_size, metadata);
+
+    // let s_types = generic_inst_types
+    //     .cloned()
+    //     .unwrap_or_default()
+    //     .into_iter()
+    //     .map(|t| metadata.metadata_registration.types[t].full_name(metadata.metadata))
+    //     .collect_vec();
+
+    // let s = ty_def.full_name(metadata.metadata, true);
+    // if s.contains("Dictionary`2")
+    //     && s.contains("::Enumerator")
+    //     && generic_inst_types.is_some()
+    //     && s_types.iter().all(|s| s.contains("XPathNodeRef"))
+    // {
+    //     panic!();
+    // }
 
     SizeAndAlignment {
         size: instance_size,
@@ -158,17 +215,17 @@ fn update_instance_size_for_generic_class(
     if !ty_def.generic_container_index.is_valid() {
         return instance_size;
     }
-    let size = get_size_of_type_table(metadata, tdi)
+    let generic_type_size = get_size_of_type_table(metadata, tdi)
         .map(|s| s.instance_size)
-        .unwrap_or(0);
+        .unwrap_or(0) as usize;
 
     // If the generic class has an instance size, it was explictly set
-    if size > 0 && size as usize > instance_size {
+    if generic_type_size > 0 && generic_type_size > instance_size {
         debug!(
             "Generic instance size overwrite! Old: {}, New: {}, for tdi: {:?}",
-            instance_size, size, tdi
+            instance_size, generic_type_size, tdi
         );
-        return size as usize;
+        return generic_type_size;
     }
 
     instance_size
@@ -222,6 +279,22 @@ fn get_type_size_and_alignment(
     generic_inst_types: Option<&Vec<usize>>,
     metadata: &Metadata,
 ) -> SizeAndAlignment {
+    // let s_types = generic_inst_types
+    //     .cloned()
+    //     .unwrap_or_default()
+    //     .into_iter()
+    //     .map(|t| metadata.metadata_registration.types[t].full_name(metadata.metadata))
+    //     .collect_vec();
+
+    // let s = ty.full_name(metadata.metadata);
+    // if s.contains("Dictionary")
+    //     && s.contains("Enumerator")
+    //     && generic_inst_types.is_some()
+    //     && s_types.iter().all(|s| s.contains("XPathNodeRef"))
+    // {
+    //     panic!();
+    // }
+
     let mut sa = SizeAndAlignment {
         alignment: 0,
         natural_alignment: 0,
@@ -316,15 +389,14 @@ fn get_type_size_and_alignment(
             if value_td.is_enum_type() {
                 let enum_base_type =
                     metadata.metadata_registration.types[value_td.element_type_index as usize];
-                return get_type_size_and_alignment(&enum_base_type, generic_inst_types, metadata);
+                return get_type_size_and_alignment(&enum_base_type, None, metadata);
             }
 
             // Size of the value type comes from the instance size - size of the wrapper object
             // The way we compute the instance size is by grabbing the TD and performing a full field walk over that type
             // Specifically, we call: layout_fields_for_type
             // TODO: We should cache this call
-            let res =
-                layout_fields_for_type(value_td, value_tdi, generic_inst_types, metadata, None);
+            let res = layout_fields_for_type(value_td, value_tdi, None, metadata, None);
             sa.actual_size = res.actual_size - metadata.object_size() as usize;
             sa.size = res.size - metadata.object_size() as usize;
             sa.alignment = res.alignment;
@@ -340,7 +412,7 @@ fn get_type_size_and_alignment(
             let mr = &metadata.metadata_registration;
             let generic_class = mr.generic_classes.get(gtype).unwrap();
 
-            let generic_inst = &mr.generic_insts[generic_class.context.class_inst_idx.unwrap()];
+            let new_generic_inst = &mr.generic_insts[generic_class.context.class_inst_idx.unwrap()];
 
             let generic_type_def = &mr.types[generic_class.type_index];
 
@@ -353,7 +425,7 @@ fn get_type_size_and_alignment(
             let td = &metadata.metadata.global_metadata.type_definitions[tdi];
 
             // reference type
-            if !td.is_value_type() {
+            if !td.is_value_type() && !td.is_enum_type() {
                 sa.size = metadata.pointer_size as usize;
                 sa.actual_size = metadata.pointer_size as usize;
                 sa.alignment = get_alignment_of_type(OffsetType::Pointer, metadata.pointer_size);
@@ -366,20 +438,44 @@ fn get_type_size_and_alignment(
                     metadata.metadata_registration.types[td.element_type_index as usize];
                 return get_type_size_and_alignment(
                     &enum_base_type,
-                    Some(&generic_inst.types),
+                    Some(&new_generic_inst.types),
                     metadata,
                 );
             }
+
+            // GenericInst fields can use generic args of their declaring type
+            // so we redirect Var to the declaring type args
+            let new_generic_inst_types = new_generic_inst
+                .types
+                .iter()
+                .map(|t_idx| {
+                    let t = &metadata.metadata_registration.types[*t_idx];
+
+                    if let TypeData::GenericParameterIndex(generic_param_idx) = t.data {
+                        let generic_param = &metadata.metadata.global_metadata.generic_parameters
+                            [generic_param_idx];
+
+                        generic_inst_types
+                            .map(|new_generic_inst| new_generic_inst[generic_param.num as usize])
+                            // fallback to Var because we may not pass generic types
+                            // when sizing a type def
+                            .unwrap_or(*t_idx)
+                    } else {
+                        *t_idx
+                    }
+                })
+                .collect_vec();
 
             // Size of the value type comes from the instance size
             // We compute the instance size by grabbing the TD and performing a full field walk over that type
             // by calling layout_fields_for_type
             // TODO: We should cache this call
-            let res = layout_fields_for_type(td, tdi, Some(&generic_inst.types), metadata, None);
+            let res =
+                layout_fields_for_type(td, tdi, Some(&new_generic_inst_types), metadata, None);
             sa.actual_size = res.actual_size - metadata.object_size() as usize;
             sa.size = res.size - metadata.object_size() as usize;
             sa.alignment = res.alignment;
-            sa.natural_alignment = res.natural_alignment;
+            // sa.natural_alignment = res.natural_alignment;
         }
         _ => {
             panic!(
@@ -400,6 +496,7 @@ fn align_to(size: usize, alignment: usize) -> usize {
     }
 }
 
+#[derive(Debug)]
 pub struct SizeAndAlignment {
     pub size: usize,
     actual_size: usize,
