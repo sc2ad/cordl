@@ -2493,20 +2493,21 @@ pub trait CSType: Sized {
                         return wrapper_type_for_tdi(td).to_string();
                     }
 
-                    if td.namespace(metadata.metadata) == "System"
-                        && td.name(metadata.metadata) == "ValueType"
-                    {
-                        requirements.needs_value_include();
-                        // FIXME: get the correct size!
-                        return format!("{VALUE_WRAPPER_TYPE}<0x{size:x}>");
-                    }
-                    if td.namespace(metadata.metadata) == "System"
-                        && td.name(metadata.metadata) == "Enum"
-                    {
-                        requirements.needs_enum_include();
-                        // FIXME: get the correct size!
-                        return format!("{ENUM_WRAPPER_TYPE}<0x{size:x}>");
-                    }
+                    // if td.namespace(metadata.metadata) == "System"
+                    //     && td.name(metadata.metadata) == "ValueType"
+                    // {
+                    //     requirements.needs_value_include();
+                    //     // FIXME: get the correct size!
+                    //     return format!("{VALUE_WRAPPER_TYPE}<0x{size:x}>");
+                    // }
+                    // TODO: Should System.Enum be a enum or ref type?
+                    // if td.namespace(metadata.metadata) == "System"
+                    //     && td.name(metadata.metadata) == "Enum"
+                    // {
+                    //     requirements.needs_enum_include();
+                    //     // FIXME: get the correct size!
+                    //     return format!("{ENUM_WRAPPER_TYPE}<0x{size:x}>");
+                    // }
                 }
 
                 if add_include {

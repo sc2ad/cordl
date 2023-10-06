@@ -39,7 +39,8 @@ fn register_value_type_object_handler(metadata: &mut Metadata) -> Result<()> {
 }
 
 fn unified_type_handler(cpp_type: &mut CppType, base_ctor: &str) {
-    cpp_type.inherit = vec![base_ctor.to_string()];
+    // We don't replace parent anymore
+    // cpp_type.inherit = vec![base_ctor.to_string()];
 
     // Fixup ctor call
     cpp_type
@@ -54,7 +55,8 @@ fn unified_type_handler(cpp_type: &mut CppType, base_ctor: &str) {
                 panic!()
             };
 
-            constructor.base_ctor = Some((base_ctor.to_string(), "".to_string()));
+            // We don't replace base ctor anymore
+            // constructor.base_ctor = Some((base_ctor.to_string(), "".to_string()));
             constructor.body = Some(vec![]);
             constructor.is_constexpr = true;
         });
@@ -73,9 +75,23 @@ fn unified_type_handler(cpp_type: &mut CppType, base_ctor: &str) {
 }
 fn value_type_handler(cpp_type: &mut CppType) {
     println!("Found System.ValueType, removing inheritance!");
-    unified_type_handler(cpp_type, format!("{VALUE_WRAPPER_TYPE}<0x{:x}>",  cpp_type.calculated_size.unwrap()).as_str());
+    unified_type_handler(
+        cpp_type,
+        format!(
+            "{VALUE_WRAPPER_TYPE}<0x{:x}>",
+            cpp_type.calculated_size.unwrap()
+        )
+        .as_str(),
+    );
 }
 fn enum_type_handler(cpp_type: &mut CppType) {
     println!("Found System.Enum type, removing inheritance!");
-    unified_type_handler(cpp_type, format!("{ENUM_WRAPPER_TYPE}<0x{:x}>",  cpp_type.calculated_size.unwrap()).as_str());
+    unified_type_handler(
+        cpp_type,
+        format!(
+            "{ENUM_WRAPPER_TYPE}<0x{:x}>",
+            cpp_type.calculated_size.unwrap()
+        )
+        .as_str(),
+    );
 }
