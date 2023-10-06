@@ -50,7 +50,7 @@ type Endian = LittleEndian;
 // negative
 const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
-const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "__instance";
+const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::ValueTypeWrapper::instance";
 const VALUE_TYPE_WRAPPER_SIZE: &str = "__CORDL_VALUE_TYPE_SIZE";
 const REFERENCE_TYPE_WRAPPER_SIZE: &str = "__CORDL_REFERENCE_TYPE_SIZE";
 const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
@@ -321,7 +321,6 @@ pub trait CSType: Sized {
         if t.is_value_type() || t.is_enum_type() {
             self.create_valuetype_constructor(metadata, ctx_collection, config, tdi);
             self.create_valuetype_field_wrapper();
-            self.create_valuetype_convert();
             if t.is_enum_type() {
                 self.create_enum_wrapper(metadata, ctx_collection, tdi);
                 self.create_enum_backing_type_constant(metadata, ctx_collection, tdi);
@@ -686,7 +685,7 @@ pub trait CSType: Sized {
                 }
             } else {
                 let instance = match t.is_value_type() || t.is_enum_type() {
-                    true => format!("this->{VALUE_TYPE_WRAPPER_INSTANCE_NAME}"),
+                    true => format!("this->{VALUE_WRAPPER_TYPE}<{VALUE_TYPE_WRAPPER_SIZE}>::instance"),
                     false => "*this".to_string(),
                 };
 
@@ -1215,8 +1214,9 @@ pub trait CSType: Sized {
             .declarations
             .push(CppMember::CppLine(CppLine::make(wrapper_declaration.join("\n"))).into());
 
+        let wrapper = format!("{VALUE_WRAPPER_TYPE}<{VALUE_TYPE_WRAPPER_SIZE}>::instance");
         let operator_body =
-            format!("return std::bit_cast<{unwrapped_name}>({VALUE_TYPE_WRAPPER_INSTANCE_NAME});");
+            format!("return std::bit_cast<{unwrapped_name}>(this->{wrapper});");
         let operator_decl = CppMethodDecl {
             cpp_name: Default::default(),
             instance: true,
@@ -1261,21 +1261,6 @@ pub trait CSType: Sized {
             })
             .into(),
         );
-        cpp_type.declarations.push(
-            CppMember::FieldDecl(CppFieldDecl {
-                cpp_name: VALUE_TYPE_WRAPPER_INSTANCE_NAME.to_string(),
-                field_ty: format!("std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>"),
-                instance: true,
-                readonly: false,
-                const_expr: false,
-                value: None,
-                brief_comment: Some("Holds the value type data".to_string()),
-            })
-            .into(),
-        );
-
-        let mut field_initializer: HashMap<String, String> = HashMap::new();
-        field_initializer.insert("__instance".into(), "std::move(instance)".into());
 
         cpp_type.declarations.push(
             CppMember::ConstructorDecl(CppConstructorDecl {
@@ -1291,8 +1276,8 @@ pub trait CSType: Sized {
                 is_explicit: true,
                 is_default: false,
                 is_no_except: true,
-                base_ctor: Some((cpp_type.inherit.get(0).unwrap().to_string(), "".to_string())),
-                initialized_values: field_initializer.clone(),
+                base_ctor: Some((cpp_type.inherit.get(0).unwrap().to_string(), "instance".to_string())),
+                initialized_values: Default::default(),
                 brief: Some(
                     "Constructor that lets you initialize the internal array explicitly".into(),
                 ),
@@ -1300,28 +1285,6 @@ pub trait CSType: Sized {
             })
             .into(),
         );
-    }
-
-    fn create_valuetype_convert(&mut self) {
-        let cpp_type = self.get_mut_cpp_type();
-        cpp_type.declarations.push(
-            CppMember::MethodDecl(CppMethodDecl {
-                body: Some(vec![Arc::new(CppLine::make(format!("return const_cast<void*>(static_cast<const void*>({VALUE_TYPE_WRAPPER_INSTANCE_NAME}.data()));")))]),
-                cpp_name: "convert".to_string(),
-                return_type: "void*".to_string(),
-                parameters: vec![],
-                instance: true,
-                template: None,
-                suffix_modifiers: vec![],
-                prefix_modifiers: vec![],
-                is_virtual: false,
-                is_constexpr: true,
-                is_const: true,
-                is_no_except: true,
-                is_operator: false,
-                is_inline: true,
-                brief: Some("conversion method for value type".into()),
-            }).into())
     }
 
     fn create_valuetype_constructor(
@@ -1445,6 +1408,7 @@ pub trait CSType: Sized {
 
         let cpp_name = cpp_type.cpp_name();
 
+        let wrapper = format!("{VALUE_WRAPPER_TYPE}<{VALUE_TYPE_WRAPPER_SIZE}>::instance");
         cpp_type.declarations.push(
             CppMember::CppLine(CppLine {
                 line: format!(
@@ -1452,11 +1416,11 @@ pub trait CSType: Sized {
                     constexpr {cpp_name}({cpp_name} const&) = default;
                     constexpr {cpp_name}({cpp_name}&&) = default;
                     constexpr {cpp_name}& operator=({cpp_name} const& o) {{
-                        __instance = o.__instance;
+                        this->{wrapper} = o.{wrapper};
                         return *this;
                     }};
                     constexpr {cpp_name}& operator=({cpp_name}&& o) noexcept {{
-                        __instance = std::move(o.__instance);
+                        this->{wrapper} = std::move(o.{wrapper});
                         return *this;
                     }};
                 "
@@ -1917,10 +1881,8 @@ pub trait CSType: Sized {
 
         let instance_ptr: String = if method.is_static_method() {
             "nullptr".into()
-        } else if cpp_type.is_value_type {
-            format!("const_cast<void*>(reinterpret_cast<const void*>({VALUE_TYPE_WRAPPER_INSTANCE_NAME}.data()))")
         } else {
-            format!("const_cast<void*>(this->{REFERENCE_WRAPPER_INSTANCE_NAME})")
+            "*this".into()
         };
 
         const METHOD_INFO_VAR_NAME: &str = "___internal_method";
@@ -2488,12 +2450,16 @@ pub trait CSType: Sized {
                     if td.namespace(metadata.metadata) == "System"
                         && td.name(metadata.metadata) == "ValueType"
                     {
-                        return VALUE_WRAPPER_TYPE.to_string();
+                        requirements.needs_value_include();
+                        // FIXME: get the correct size!
+                        return format!("{VALUE_WRAPPER_TYPE}<0x{:x}>", 0);
                     }
                     if td.namespace(metadata.metadata) == "System"
                         && td.name(metadata.metadata) == "Enum"
                     {
-                        return ENUM_WRAPPER_TYPE.to_string();
+                        requirements.needs_enum_include();
+                        // FIXME: get the correct size!
+                        return format!("{ENUM_WRAPPER_TYPE}<0x{:x}>", 0);
                     }
                 }
 

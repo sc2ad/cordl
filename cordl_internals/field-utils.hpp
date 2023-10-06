@@ -66,7 +66,7 @@ namespace cordl_internals {
   template<il2cpp_value_type T, std::size_t offset, std::size_t sz>
   CORDL_HIDDEN constexpr void setInstanceField(std::array<std::byte, sz>& instance, T&& v) {
     OFFSET_CHECK(sz, offset, T::__CORDL_VALUE_TYPE_SIZE, "offset is too large for the size of the instance to be assigned correctly!");
-    std::copy_n(v.__instance.begin(), T::__CORDL_VALUE_TYPE_SIZE, std::next(instance.begin(), offset));
+    std::copy_n(v.::bs_hook::ValueTypeWrapper<T::__CORDL_VALUE_TYPE_SIZE>::instance.begin(), T::__CORDL_VALUE_TYPE_SIZE, std::next(instance.begin(), offset));
   }
 
   /// @brief set trivial value @ offset on instance
@@ -101,7 +101,7 @@ namespace cordl_internals {
   template<il2cpp_value_type T, internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN void setStaticField(T&& v) {
     static auto* field = FindField<name, klass_resolver>();
-    ::il2cpp_functions::field_static_set_value(field, static_cast<void*>(v.__instance.data()));
+    ::il2cpp_functions::field_static_set_value(field, static_cast<void*>(v.::bs_hook::ValueTypeWrapper<T::__CORDL_VALUE_TYPE_SIZE>::instance.data()));
   }
 
   /// @brief method to set a field that's a trivial type

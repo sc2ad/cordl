@@ -73,9 +73,9 @@ fn unified_type_handler(cpp_type: &mut CppType, base_ctor: &str) {
 }
 fn value_type_handler(cpp_type: &mut CppType) {
     println!("Found System.ValueType, removing inheritance!");
-    unified_type_handler(cpp_type, VALUE_WRAPPER_TYPE);
+    unified_type_handler(cpp_type, format!("{VALUE_WRAPPER_TYPE}<0x{:x}>",  cpp_type.calculated_size.unwrap()).as_str());
 }
 fn enum_type_handler(cpp_type: &mut CppType) {
     println!("Found System.Enum type, removing inheritance!");
-    unified_type_handler(cpp_type, ENUM_WRAPPER_TYPE);
+    unified_type_handler(cpp_type, format!("{ENUM_WRAPPER_TYPE}<0x{:x}>",  cpp_type.calculated_size.unwrap()).as_str());
 }

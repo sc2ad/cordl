@@ -34,8 +34,8 @@ namespace cordl_internals {
 #pragma region val type
     template <typename T>
     concept il2cpp_value_type_requirements = requires(T const& t) {
-        { std::is_array_v<decltype(t.__instance)> };
-        requires(value_marker_check_v<T, true> || std::is_same_v<std::remove_const<T>, ::bs_hook::EnumTypeWrapper> || std::is_same_v<std::remove_const<T>, ::bs_hook::ValueTypeWrapper>);
+        { std::is_array_v<decltype(t.instance)> };
+        requires(value_marker_check_v<T, true>);
     };
 
     // value type type trait, allows us to explicitly mark something a value type if required
@@ -48,6 +48,16 @@ namespace cordl_internals {
 
     template<class T>
     concept il2cpp_value_type = ValueTypeTrait<T>::value;
+
+    template<std::size_t sz>
+    struct ValueTypeTrait<::bs_hook::ValueTypeWrapper<sz>> {
+        constexpr static bool value = true;
+    };
+
+    template<std::size_t sz>
+    struct ValueTypeTrait<::bs_hook::EnumTypeWrapper<sz>> {
+        constexpr static bool value = true;
+    };
 #pragma endregion // val type
 
 #pragma region ref type
@@ -120,22 +130,6 @@ namespace cordl_internals {
                                                                      // reference
                                                                      // type
                                                                      // always
-    static_assert(il2cpp_value_type<::bs_hook::ValueTypeWrapper>,
-                  "ValueTypeWrapper did not match the il2cpp_value_type "
-                  "concept!"); // wrappertype
-                               // should
-                               // match
-                               // reference
-                               // type
-                               // always
-    static_assert(il2cpp_value_type<::bs_hook::EnumTypeWrapper>,
-                  "EnumTypeWrapper did not match the il2cpp_value_type "
-                  "concept!"); // wrappertype
-                               // should
-                               // match
-                               // reference
-                               // type
-                               // always
 
     template <class T, class U>
     concept is_or_is_backed_by =

@@ -138,6 +138,20 @@ impl CppTypeRequirements {
             CppInclude::new_exact("beatsaber-hook/shared/utils/byref.hpp"),
         );
     }
+
+    pub fn needs_enum_include(&mut self) {
+        self.add_include(
+            None,
+            CppInclude::new_exact("beatsaber-hook/shared/utils/enum-wrapper-type.hpp"),
+        );
+    }
+
+    pub fn needs_value_include(&mut self) {
+        self.add_include(
+            None,
+            CppInclude::new_exact("beatsaber-hook/shared/utils/value-wrapper-type.hpp"),
+        );
+    }
 }
 
 impl CppType {
