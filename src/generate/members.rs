@@ -22,7 +22,7 @@ pub struct CppTemplate {
 }
 
 impl CppTemplate {
-    pub fn make_typenames(names: Vec<String>) -> Self {
+    pub fn make_typenames(names: impl Iterator<Item = String>) -> Self {
         CppTemplate {
             names: names
                 .into_iter()
@@ -30,7 +30,7 @@ impl CppTemplate {
                 .collect(),
         }
     }
-    pub fn make_ref_types(names: Vec<String>) -> Self {
+    pub fn make_ref_types(names: impl Iterator<Item = String>) -> Self {
         CppTemplate {
             names: names
                 .into_iter()
@@ -39,7 +39,7 @@ impl CppTemplate {
         }
     }
 
-    fn just_names(&self) -> impl Iterator<Item = &String> {
+    pub fn just_names(&self) -> impl Iterator<Item = &String> {
         self.names.iter().map(|(_constraint, t)| t)
     }
 }

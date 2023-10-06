@@ -153,20 +153,17 @@ pub trait CSType: Sized {
 
         // Generics
         // This is a generic type def
+        // TODO: Constraints!
         let generics = t.generic_container_index.is_valid().then(|| {
             t.generic_container(metadata.metadata)
                 .generic_parameters(metadata.metadata)
                 .iter()
-                .map(|param| (param, param.constraints(metadata.metadata)))
+                .map(|param| param)
                 .collect_vec()
         });
 
         let cpp_template = generics.as_ref().map(|g| {
-            CppTemplate::make_typenames(
-                g.iter()
-                    .map(|(g, _)| g.name(metadata.metadata).to_string())
-                    .collect(),
-            )
+            CppTemplate::make_typenames(g.iter().map(|g| g.name(metadata.metadata).to_string()))
         });
 
         let ns = t.namespace(metadata.metadata);
@@ -1794,8 +1791,7 @@ pub trait CSType: Sized {
                         .unwrap()
                         .generic_parameters(metadata.metadata)
                         .iter()
-                        .map(|param| param.name(metadata.metadata).to_string())
-                        .collect_vec();
+                        .map(|param| param.name(metadata.metadata).to_string());
 
                     Some(CppTemplate::make_typenames(generics))
                 }

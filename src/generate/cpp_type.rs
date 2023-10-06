@@ -408,7 +408,7 @@ impl CppType {
     }
 
     pub fn write_type_trait(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if let Some(template) = &self.cpp_template {
+        if let Some(ref_template) = &self.cpp_template {
             // generic
             // the existing macros don't work for generics, emit the structs directly
             let mut type_kinds = vec![];
@@ -424,17 +424,20 @@ impl CppType {
 
             let full_name = self.cpp_name_components.combine_all(true);
             // TODO: ensure this works correctly
-            template.write(writer)?;
+
+            // we convert the constraits to typenames since we don't care about those for the trait
+            let new_template = CppTemplate::make_typenames(ref_template.just_names().cloned());
+            new_template.write(writer)?;
             writeln!(
                 writer,
-                "struct ::cordl_internals::{}<{}> {{ constexpr static bool value = true; }};",
-                type_kinds[0], full_name
+                "struct ::cordl_internals::{}<{full_name}> {{ constexpr static bool value = true; }};",
+                type_kinds[0], 
             )?;
-            template.write(writer)?;
+            ref_template.write(writer)?;
             writeln!(
                 writer,
-                "struct ::cordl_internals::{}<{}> {{ constexpr static bool value = false; }};",
-                type_kinds[1], full_name
+                "struct ::cordl_internals::{}<{full_name}> {{ constexpr static bool value = false; }};",
+                type_kinds[1],
             )?;
         } else {
             // non-generic
