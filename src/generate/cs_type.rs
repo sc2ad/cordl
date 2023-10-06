@@ -569,8 +569,8 @@ pub trait CSType: Sized {
                     };
 
                     if offset < metadata.object_size() as u32 {
-                        warn!("Field {f_name} ({offset:x}) of {} is smaller than object size {:x} is value type {}", 
-                            t.full_name(metadata.metadata, true), 
+                        warn!("Field {f_name} ({offset:x}) of {} is smaller than object size {:x} is value type {}",
+                            t.full_name(metadata.metadata, true),
                             metadata.object_size(),
                             t.is_value_type() || t.is_enum_type()
                         );
@@ -628,9 +628,7 @@ pub trait CSType: Sized {
                             readonly: f_type.is_constant(),
                             value: None,
                             const_expr: false,
-                            brief_comment: Some(format!(
-                                "Field {f_name} value: {def_value}"
-                            )),
+                            brief_comment: Some(format!("Field {f_name} value: {def_value}")),
                         };
                         let field_impl = CppFieldImpl {
                             value: def_value,
@@ -731,14 +729,18 @@ pub trait CSType: Sized {
                             false => Some(t),
                         });
 
-
                 let is_instance = !f_type.is_static() && !f_type.is_constant();
 
                 let (getter_name, setter_name) = match is_instance {
-                    true => (format!("__get_{}", f_cpp_name), format!("__set_{}", f_cpp_name)),
-                    false => (format!("getStaticF_{}", f_cpp_name), format!("setStaticF_{}", f_cpp_name)),
+                    true => (
+                        format!("__get_{}", f_cpp_name),
+                        format!("__set_{}", f_cpp_name),
+                    ),
+                    false => (
+                        format!("getStaticF_{}", f_cpp_name),
+                        format!("setStaticF_{}", f_cpp_name),
+                    ),
                 };
-
 
                 let getter_decl = CppMethodDecl {
                     cpp_name: getter_name,
@@ -2624,19 +2626,19 @@ pub trait CSType: Sized {
                         .and_then(|args| args.get(generic_param.num as usize))
                         .cloned();
 
-                    // true if the type is intentionally a generic template type and not a specialization
-                    let has_generic_template = cpp_type
-                        .cpp_template
-                        .as_ref()
-                        .is_some_and(|template| !template.names.is_empty());
-
                     // if template arg is not found
                     if ty_idx_opt.is_none() {
                         let gen_name = generic_param.name(metadata.metadata);
 
+                        // true if the type is intentionally a generic template type and not a specialization
+                        let has_generic_template =
+                            cpp_type.cpp_template.as_ref().is_some_and(|template| {
+                                template.names.iter().any(|(_, name)| name == gen_name)
+                            });
+
                         return match has_generic_template {
                             true => gen_name.to_string(),
-                            false => format!("/* TODO: FIX THIS, THIS SHOULDN'T HAPPEN! NO GENERIC INST ARGS FOUND HERE */ {gen_name}"),
+                            false => panic!("/* TODO: FIX THIS, THIS SHOULDN'T HAPPEN! NO GENERIC INST ARGS FOUND HERE */ {gen_name}"),
                         };
                     }
 
