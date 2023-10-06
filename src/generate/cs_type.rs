@@ -2717,26 +2717,27 @@ pub trait CSType: Sized {
                     }
 
                     let generic_types_formatted = new_generic_inst_types
+                        // let generic_types_formatted = new_generic_inst_types
                         .iter()
                         .map(|t| mr.types.get(*t).unwrap())
                         // if t is a Var, we use the generic inst provided by the caller
-                        .map(|inst_t| match inst_t.data {
-                            TypeData::GenericParameterIndex(gen_param_idx) => {
-                                let gen_param =
-                                    &metadata.metadata.global_metadata.generic_parameters
-                                        [gen_param_idx];
-
-                                declaring_generic_inst_types
-                                    .and_then(|declaring_generic_inst_types| {
-                                        // TODO: Figure out why we this goes out of bounds
-                                        declaring_generic_inst_types.get(gen_param.num as usize)
-                                    })
-                                    .map(|t| &mr.types[*t])
-                                    // fallback to T since generic typedefs can be called
-                                    .unwrap_or(inst_t)
-                            }
-                            _ => inst_t,
-                        })
+                        // TODO: This commented code breaks generic params where we intentionally use the template name
+                        // .map(|inst_t| match inst_t.data {
+                        //     TypeData::GenericParameterIndex(gen_param_idx) => {
+                        //         let gen_param =
+                        //             &metadata.metadata.global_metadata.generic_parameters
+                        //                 [gen_param_idx];
+                        //         declaring_generic_inst_types
+                        //             .and_then(|declaring_generic_inst_types| {
+                        //                 // TODO: Figure out why we this goes out of bounds
+                        //                 declaring_generic_inst_types.get(gen_param.num as usize)
+                        //             })
+                        //             .map(|t| &mr.types[*t])
+                        //             // fallback to T since generic typedefs can be called
+                        //             .unwrap_or(inst_t)
+                        //     }
+                        //     _ => inst_t,
+                        // })
                         .map(|t| {
                             cpp_type.cppify_name_il2cpp_recurse(
                                 requirements,
