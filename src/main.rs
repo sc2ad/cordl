@@ -159,6 +159,7 @@ fn main() -> color_eyre::Result<()> {
         blacklist_type("UnityEngine.XR.XRInputSubsystemDescriptor");
         blacklist_type("UnityEngine.XR.XRMeshSubsystemDescriptor");
         blacklist_type("UnityEngine.XR.XRDisplaySubsystem");
+        blacklist_type("UIToolkitUtilities.Controls.Table");
         // blacklist_type("NetworkPacketSerializer`2::<>c__DisplayClass4_0`1");
         // blacklist_type("NetworkPacketSerializer`2::<>c__DisplayClass8_0`1");
         // blacklist_type("NetworkPacketSerializer`2::<>c__DisplayClass7_0`1");
