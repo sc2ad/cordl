@@ -60,6 +60,9 @@ pub const ENUM_WRAPPER_TYPE: &str = "::bs_hook::EnumTypeWrapper";
 pub const INTERFACE_WRAPPER_TYPE: &str = "::cordl_internals::InterfaceW";
 pub const OBJECT_WRAPPER_TYPE: &str = "::bs_hook::Il2CppWrapperType";
 
+pub const ENUM_PTR_TYPE: &str = "::bs_hook::EnumPtr";
+pub const VT_PTR_TYPE: &str = "::bs_hook::VTPtr";
+
 const SIZEOF_IL2CPP_OBJECT: u32 = 0x10;
 
 pub trait CSType: Sized {
@@ -1738,11 +1741,18 @@ pub trait CSType: Sized {
 
             let def_value = Self::param_default_value(metadata, param_index);
 
-            let make_param_cpp_type_name = |cpp_type: &mut CppType| {
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, 0)
+            let make_param_cpp_type_name = |cpp_type: &mut CppType| -> String {
+                let full_name = param_type.full_name(metadata.metadata);
+                if full_name == "System.Enum" {
+                    ENUM_PTR_TYPE.into()
+                } else if full_name == "System.ValueType" {
+                    VT_PTR_TYPE.into()
+                } else {
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, 0)
+                }
             };
 
-            let param_cpp_name = {
+            let mut param_cpp_name = {
                 let fixup_name = match is_generic_method_inst {
                     false => cpp_type.il2cpp_mvar_use_param_name(
                         metadata,
@@ -1822,8 +1832,15 @@ pub trait CSType: Sized {
         });
 
         // Lazy cppify
-        let make_ret_cpp_type_name = |cpp_type: &mut CppType| {
-            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, 0)
+        let make_ret_cpp_type_name = |cpp_type: &mut CppType| -> String {
+            let full_name = m_ret_type.full_name(metadata.metadata);
+            if full_name == "System.Enum" {
+                ENUM_PTR_TYPE.into()
+            } else if full_name == "System.ValueType" {
+                VT_PTR_TYPE.into()
+            } else {
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, 0)
+            }
         };
 
         let m_ret_cpp_type_name = {
