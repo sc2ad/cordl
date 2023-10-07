@@ -181,7 +181,15 @@ pub fn layout_fields_for_type<'a>(
                             .and_then(|offsets| offsets.get(i))
                             .cloned()
                     })
-                    .map(|o| o as usize);
+                    .map(|o| o as usize)
+                    // fixup for boxed value types
+                    .map(|o| {
+                        if declaring_ty_def.is_value_type() || declaring_ty_def.is_enum_type() {
+                            o - metadata.object_size() as usize
+                        } else {
+                            o
+                        }
+                    });
 
                 offset = special_offset.unwrap_or(offset);
             }
