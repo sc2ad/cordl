@@ -171,6 +171,7 @@ pub fn layout_fields_for_type<'a>(
 
             // the smart compiler will optimize my unreadable code!
             if declaring_ty_def.is_explicit_layout() {
+                // TODO: Fix offset for value types
                 let special_offset = metadata
                     .metadata_registration
                     .field_offsets
@@ -181,15 +182,7 @@ pub fn layout_fields_for_type<'a>(
                             .and_then(|offsets| offsets.get(i))
                             .cloned()
                     })
-                    .map(|o| o as usize)
-                    // fixup for boxed value types
-                    .map(|o| {
-                        if declaring_ty_def.is_value_type() || declaring_ty_def.is_enum_type() {
-                            o - metadata.object_size() as usize
-                        } else {
-                            o
-                        }
-                    });
+                    .map(|o| o as usize);
 
                 offset = special_offset.unwrap_or(offset);
             }
