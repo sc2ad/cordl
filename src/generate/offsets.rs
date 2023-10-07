@@ -65,11 +65,14 @@ pub fn layout_fields_for_type<'a>(
 ) -> SizeAndAlignment {
     let mut actual_size: usize = 0;
     let mut alignment: u8 = metadata.object_size();
-    let mut natural_alignment: u8 = metadata.object_size();
+    // TODO: overwritten by parent anyways
+    let mut natural_alignment: u8 = 0;
 
     let mut instance_size: usize = if declaring_ty_def.parent_index == u32::MAX {
         // If our parent type doesn't exist, we should account for that by assuming object_size
         actual_size = metadata.object_size() as usize;
+        natural_alignment = metadata.object_size();
+
         metadata.object_size().into()
     } else {
         let parent_ty =
@@ -134,7 +137,11 @@ pub fn layout_fields_for_type<'a>(
         let mut field_offsets_option = field_offsets;
         // TODO: Try to layout our fields here.
         // The result will give us a bunch of fields with offsets and size/alignment info
-        for f in declaring_ty_def.fields(metadata.metadata) {
+        for (i, f) in declaring_ty_def
+            .fields(metadata.metadata)
+            .iter()
+            .enumerate()
+        {
             // First, make sure it's an instance field
             let field_ty = metadata
                 .metadata
@@ -162,6 +169,23 @@ pub fn layout_fields_for_type<'a>(
             offset += (local_alignment - 1) as usize;
             offset &= !(local_alignment - 1) as usize;
 
+            // the smart compiler will optimize my unreadable code!
+            if declaring_ty_def.is_explicit_layout() {
+                let special_offset = metadata
+                    .metadata_registration
+                    .field_offsets
+                    .as_ref()
+                    .and_then(|type_field_offsets| {
+                        type_field_offsets
+                            .get(tdi.index() as usize)
+                            .and_then(|offsets| offsets.get(i))
+                            .cloned()
+                    })
+                    .map(|o| o as usize);
+
+                offset = special_offset.unwrap_or(offset);
+            }
+
             // Add the field offsets here
             if let Some(offsets) = field_offsets_option.as_mut() {
                 offsets.push(offset.try_into().unwrap());
@@ -182,6 +206,18 @@ pub fn layout_fields_for_type<'a>(
     }
     instance_size =
         update_instance_size_for_generic_class(declaring_ty_def, tdi, instance_size, metadata);
+
+    // This is here just in case we need to :) - Fern
+    // if declaring_ty_def.is_explicit_layout() {
+    //     let table_size = metadata
+    //         .metadata_registration
+    //         .type_definition_sizes
+    //         .as_ref()
+    //         .and_then(|sizes| sizes.get(tdi.index() as usize))
+    //         .map(|s| s.instance_size as usize);
+
+    //     instance_size = table_size.unwrap_or(instance_size);
+    // }
 
     SizeAndAlignment {
         size: instance_size,
