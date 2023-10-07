@@ -1101,7 +1101,7 @@ pub trait CSType: Sized {
             let p_getter = (prop.get != u32::MAX).then(|| prop.get_method(t, metadata.metadata));
 
             // if this is a static property, skip emitting a cpp property since those can't be static
-            if !p_getter.or(p_setter).unwrap().is_static_method() {
+            if p_getter.or(p_setter).unwrap().is_static_method() {
                 continue;
             }
 
