@@ -1,5 +1,5 @@
 use core::panic;
-use log::{debug, warn, error, info};
+use log::{debug, error, info, warn};
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
@@ -59,6 +59,7 @@ pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
 pub const ENUM_WRAPPER_TYPE: &str = "::bs_hook::EnumTypeWrapper";
 pub const INTERFACE_WRAPPER_TYPE: &str = "::cordl_internals::InterfaceW";
 pub const OBJECT_WRAPPER_TYPE: &str = "::bs_hook::Il2CppWrapperType";
+pub const CORDL_NO_INCLUDE_IMPL_DEFINE: &str = "CORDL_NO_IMPL_INCLUDE";
 
 pub const ENUM_PTR_TYPE: &str = "::bs_hook::EnumPtr";
 pub const VT_PTR_TYPE: &str = "::bs_hook::VTPtr";

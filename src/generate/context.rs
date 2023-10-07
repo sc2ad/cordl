@@ -11,9 +11,10 @@ use brocolib::global_metadata::TypeDefinitionIndex;
 use color_eyre::eyre::ContextCompat;
 
 use itertools::Itertools;
-use log::{trace, info};
+use log::{info, trace};
 use pathdiff::diff_paths;
 
+use crate::generate::cs_type::CORDL_NO_INCLUDE_IMPL_DEFINE;
 use crate::generate::members::CppForwardDeclare;
 use crate::generate::{members::CppInclude, type_extensions::TypeDefinitionExtensions};
 use crate::helpers::sorting::DependencyGraph;
@@ -361,7 +362,12 @@ impl CppContext {
                 .map(|(_fd, inc)| inc)
                 .unique()
                 // TODO: Check forward declare is not of own type
-                .try_for_each(|i| i.write(&mut typeimpl_writer))?;
+                .try_for_each(|i| -> color_eyre::Result<()> {
+                    writeln!(typeimpl_writer, "#ifndef {CORDL_NO_INCLUDE_IMPL_DEFINE}")?;
+                    i.write(&mut typeimpl_writer)?;
+                    writeln!(typeimpl_writer, "#endif")?;
+                    Ok(())
+                })?;
 
             forward_declare_and_includes()
                 .map(|(fd, _inc)| fd)
