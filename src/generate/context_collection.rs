@@ -98,7 +98,7 @@ impl CppContextCollection {
 
     fn alias_nested_types(&mut self, owner: &CppType, root_tag: CppTypeTag, context_check: bool) {
         for (tag, nested_type) in &owner.nested_types {
-            // println!(
+            // info!(
             //     "Aliasing {:?} to {:?}",
             //     nested_type.self_tag, owner.self_tag
             // );
@@ -291,7 +291,7 @@ impl CppContextCollection {
 
         if ty_def.is_interface() {
             // Skip interface
-            println!(
+            info!(
                 "Skipping make interface for generic instantiation {}",
                 ty_def.full_name(metadata.metadata, true)
             );
@@ -405,7 +405,7 @@ impl CppContextCollection {
 
         if ty_def.is_interface() {
             // Skip interface
-            println!(
+            info!(
                 "Skipping fill generic method interface for generic instantiation {}",
                 ty_def.full_name(metadata.metadata, true)
             );
@@ -467,7 +467,7 @@ impl CppContextCollection {
 
         if ty_def.is_interface() {
             // Skip interface
-            println!(
+            info!(
                 "Skipping fill class interface for generic instantiation {}",
                 ty_def.full_name(metadata.metadata, true)
             );
@@ -697,7 +697,7 @@ impl CppContextCollection {
 
                 let path = dir.unwrap().join(namespace).with_extension("hpp");
 
-                println!(
+                info!(
                     "Creating namespace glob include {path:?} for {} files",
                     contexts.len()
                 );

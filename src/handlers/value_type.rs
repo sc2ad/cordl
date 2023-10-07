@@ -9,15 +9,17 @@ use crate::generate::{
     metadata::{Il2cppFullName, Metadata},
 };
 
+use log::info;
+
 pub fn register_value_type(metadata: &mut Metadata) -> Result<()> {
-    println!("Registering unity handler!");
+    info!("Registering unity handler!");
     register_value_type_object_handler(metadata)?;
 
     Ok(())
 }
 
 fn register_value_type_object_handler(metadata: &mut Metadata) -> Result<()> {
-    println!("Registering System.ValueType handler!");
+    info!("Registering System.ValueType handler!");
 
     let value_type_tdi = metadata
         .name_to_tdi
@@ -74,7 +76,7 @@ fn unified_type_handler(cpp_type: &mut CppType, base_ctor: &str) {
     cpp_type.nonmember_implementations.clear();
 }
 fn value_type_handler(cpp_type: &mut CppType) {
-    println!("Found System.ValueType, removing inheritance!");
+    info!("Found System.ValueType, removing inheritance!");
     unified_type_handler(
         cpp_type,
         format!(
@@ -85,7 +87,7 @@ fn value_type_handler(cpp_type: &mut CppType) {
     );
 }
 fn enum_type_handler(cpp_type: &mut CppType) {
-    println!("Found System.Enum type, removing inheritance!");
+    info!("Found System.Enum type, removing inheritance!");
     unified_type_handler(
         cpp_type,
         format!(

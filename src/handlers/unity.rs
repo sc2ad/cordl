@@ -1,5 +1,5 @@
 use std::{path::PathBuf, rc::Rc};
-
+use log::info;
 use color_eyre::Result;
 
 use crate::generate::{
@@ -9,14 +9,14 @@ use crate::generate::{
 };
 
 pub fn register_unity(metadata: &mut Metadata) -> Result<()> {
-    println!("Registering unity handler!");
+    info!("Registering unity handler!");
     register_unity_object_type_handler(metadata)?;
 
     Ok(())
 }
 
 fn register_unity_object_type_handler(metadata: &mut Metadata) -> Result<()> {
-    println!("Registering UnityEngine.Object handler!");
+    info!("Registering UnityEngine.Object handler!");
 
     let unity_object_tdi = metadata
         .name_to_tdi
@@ -31,7 +31,7 @@ fn register_unity_object_type_handler(metadata: &mut Metadata) -> Result<()> {
 }
 
 fn unity_object_handler(cpp_type: &mut CppType) {
-    println!("Found UnityEngine.Object type, adding UnityW!");
+    info!("Found UnityEngine.Object type, adding UnityW!");
     cpp_type.inherit = vec!["bs_hook::UnityW".to_owned()];
 
     let path = PathBuf::from(r"beatsaber-hook/shared/utils/unityw.hpp");

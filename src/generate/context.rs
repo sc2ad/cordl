@@ -11,7 +11,7 @@ use brocolib::global_metadata::TypeDefinitionIndex;
 use color_eyre::eyre::ContextCompat;
 
 use itertools::Itertools;
-use log::trace;
+use log::{trace, info};
 use pathdiff::diff_paths;
 
 use crate::generate::members::CppForwardDeclare;
@@ -147,7 +147,7 @@ impl CppContext {
                 x.insert_cpp_type(cpptype);
             }
             None => {
-                println!(
+                info!(
                     "Unable to create valid CppContext for type: {}!",
                     t.full_name(metadata.metadata, true)
                 );

@@ -1,5 +1,5 @@
 use core::panic;
-use log::{debug, warn};
+use log::{debug, warn, error, info};
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
@@ -171,7 +171,7 @@ pub trait CSType: Sized {
         let full_name = t.full_name(metadata.metadata, false);
 
         if metadata.blacklisted_types.contains(&tdi) {
-            println!("Skipping {full_name} ({tdi:?}) because it's blacklisted");
+            info!("Skipping {full_name} ({tdi:?}) because it's blacklisted");
 
             return None;
         }
@@ -254,7 +254,7 @@ pub trait CSType: Sized {
 
         if t.parent_index == u32::MAX {
             if !t.is_interface() {
-                println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
+                info!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
                 return None;
             }
         } else if metadata
@@ -505,11 +505,11 @@ pub trait CSType: Sized {
                     "Computing offsets for TDI: {:?}, as it has a size of 0",
                     tdi
                 );
-                let _resulting_size = offsets::layout_fields_for_type(
+                let _resulting_size = offsets::layout_fields(
+                    metadata,
                     t,
                     tdi,
                     cpp_type.generic_instantiations_args_types.as_ref(),
-                    metadata,
                     Some(&mut offsets),
                 );
             }
@@ -840,7 +840,7 @@ pub trait CSType: Sized {
                     cpp_type.inherit.push(INTERFACE_WRAPPER_TYPE.to_string());
                 }
                 false => {
-                    println!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
+                    info!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
                 }
             }
             return;
@@ -1063,7 +1063,7 @@ pub trait CSType: Sized {
 
         //     match nested_type {
         //         Some(unwrapped) => nested_types.push(unwrapped),
-        //         None => println!("Failed to make nested CppType {nt_ty:?}"),
+        //         None => info!("Failed to make nested CppType {nt_ty:?}"),
         //     };
         // }
 
@@ -1715,7 +1715,7 @@ pub trait CSType: Sized {
         // TODO: sanitize method name for c++
         let m_name = method.name(metadata.metadata);
         if m_name == ".cctor" {
-            // println!("Skipping {}", m_name);
+            // info!("Skipping {}", m_name);
             return;
         }
 
@@ -2557,7 +2557,7 @@ pub trait CSType: Sized {
                     // Forward declare it
                     if to_incl_cpp_ty.nested {
                         // TODO: What should we do here?
-                        eprintln!("Can't forward declare nested type! Including!");
+                        error!("Can't forward declare nested type! Including!");
                         requirements.add_include(Some(to_incl_cpp_ty), inc);
                     } else {
                         requirements.add_forward_declare((

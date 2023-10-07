@@ -128,9 +128,9 @@ fn main() -> color_eyre::Result<()> {
         packing_field_offset: 7,
     };
     let t = time::Instant::now();
-    println!("Parsing metadata methods");
+    info!("Parsing metadata methods");
     metadata.parse();
-    println!("Finished in {}ms", t.elapsed().as_millis());
+    info!("Finished in {}ms", t.elapsed().as_millis());
     let mut cpp_context_collection = CppContextCollection::new();
 
     // blacklist types
@@ -390,7 +390,7 @@ fn main() -> color_eyre::Result<()> {
         // cpp_context_collection.get()[&make_td_tdi(534)].write()?;
         // cpp_context_collection.get()[&make_td_tdi(535)].write()?;
         // cpp_context_collection.get()[&make_td_tdi(1455)].write()?;
-        println!("Generic type");
+        info!("Generic type");
         cpp_context_collection
             .get()
             .iter()
@@ -398,7 +398,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("List Generic type");
+        info!("List Generic type");
         cpp_context_collection
             .get()
             .iter()
@@ -410,7 +410,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("Value type");
+        info!("Value type");
         cpp_context_collection
             .get()
             .iter()
@@ -422,7 +422,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        // println!("Nested type");
+        // info!("Nested type");
         // cpp_context_collection
         //     .get()
         //     .iter()
@@ -437,7 +437,7 @@ fn main() -> color_eyre::Result<()> {
         //     .1
         //     .write()?;
         // Doesn't exist anymore?
-        // println!("AlignmentUnion type");
+        // info!("AlignmentUnion type");
         // cpp_context_collection
         //     .get()
         //     .iter()
@@ -449,7 +449,7 @@ fn main() -> color_eyre::Result<()> {
         //     .unwrap()
         //     .1
         //     .write()?;
-        println!("Array type");
+        info!("Array type");
         cpp_context_collection
             .get()
             .iter()
@@ -461,7 +461,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("Default param");
+        info!("Default param");
         cpp_context_collection
             .get()
             .iter()
@@ -480,7 +480,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("Enum type");
+        info!("Enum type");
         cpp_context_collection
             .get()
             .iter()
@@ -488,7 +488,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("UnityEngine.Object");
+        info!("UnityEngine.Object");
         cpp_context_collection
             .get()
             .iter()
@@ -500,7 +500,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("BeatmapSaveDataHelpers");
+        info!("BeatmapSaveDataHelpers");
         cpp_context_collection
             .get()
             .iter()
@@ -512,7 +512,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("HMUI.ViewController");
+        info!("HMUI.ViewController");
         cpp_context_collection
             .get()
             .iter()
@@ -524,7 +524,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("UnityEngine.Component");
+        info!("UnityEngine.Component");
         cpp_context_collection
             .get()
             .iter()
@@ -536,7 +536,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("UnityEngine.GameObject");
+        info!("UnityEngine.GameObject");
         cpp_context_collection
             .get()
             .iter()
@@ -548,7 +548,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("MainFlowCoordinator");
+        info!("MainFlowCoordinator");
         cpp_context_collection
             .get()
             .iter()
@@ -560,7 +560,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("OVRPlugin");
+        info!("OVRPlugin");
         cpp_context_collection
             .get()
             .iter()
@@ -572,7 +572,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("HMUI.IValueChanger");
+        info!("HMUI.IValueChanger");
         cpp_context_collection
             .get()
             .iter()
@@ -584,7 +584,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("System.ValueType");
+        info!("System.ValueType");
         cpp_context_collection
             .get()
             .iter()
@@ -596,7 +596,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("System.ValueTuple_2");
+        info!("System.ValueTuple_2");
         cpp_context_collection
             .get()
             .iter()
@@ -608,7 +608,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("System.Decimal");
+        info!("System.Decimal");
         cpp_context_collection
             .get()
             .iter()
@@ -620,7 +620,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("System.Enum");
+        info!("System.Enum");
         cpp_context_collection
             .get()
             .iter()
@@ -632,7 +632,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("System.Multicast");
+        info!("System.Multicast");
         cpp_context_collection
             .get()
             .iter()
@@ -644,7 +644,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("System.Delegate");
+        info!("System.Delegate");
         cpp_context_collection
             .get()
             .iter()
@@ -656,7 +656,7 @@ fn main() -> color_eyre::Result<()> {
             .unwrap()
             .1
             .write(&STATIC_CONFIG)?;
-        println!("BeatmapSaveDataVersion3.BeatmapSaveData.EventBoxGroup`1");
+        info!("BeatmapSaveDataVersion3.BeatmapSaveData.EventBoxGroup`1");
         cpp_context_collection
             .get()
             .iter()
@@ -681,7 +681,7 @@ fn main() -> color_eyre::Result<()> {
 }
 
 fn format_files() -> Result<()> {
-    println!("Formatting!");
+    info!("Formatting!");
 
     use walkdir::WalkDir;
 
@@ -694,7 +694,7 @@ fn format_files() -> Result<()> {
     let thread_count = thread::available_parallelism()?;
     let chunks = file_count / thread_count;
 
-    println!("{chunks} per thread for {thread_count} threads");
+    info!("{chunks} per thread for {thread_count} threads");
 
     let file_chunks = files
         .into_iter()
@@ -722,6 +722,6 @@ fn format_files() -> Result<()> {
         Ok(())
     })?;
 
-    println!("Done formatting!");
+    info!("Done formatting!");
     Ok(())
 }

@@ -172,7 +172,7 @@ namespace cordl_internals {
     /// @tparam offset the offset of the field
     /// @tparam value_sz the size of the field
     template<std::size_t instance_sz, std::size_t offset, std::size_t value_sz>
-    requires(offset <= (instance_sz - value_sz))
+    requires(offset <= instance_sz && (offset + value_sz) <= instance_sz)
     struct offset_check {
         static constexpr bool value = true;
     };
