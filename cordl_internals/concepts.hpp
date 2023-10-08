@@ -185,9 +185,42 @@ namespace cordl_internals {
     constexpr bool offset_check_v = offset_check<instance_sz, offset, value_sz>::value;
 
     #ifdef COMPILE_TIME_OFFSET_CHECKS
-        #define OFFSET_CHECK(instance_size, offset, value_size, message) static_assert(offset_check_v<instance_size, offset, value_size>, message)
+        #define OFFSET_CHECK(instance_size, offset, value_size, message) static_assert(::cordl_internals::offset_check_v<instance_size, offset, value_size>, message)
     #else
         #define OFFSET_CHECK(instance_size, offset, value_size, message)
+    #endif
+
+    template<typename T>
+    struct il2cpp_size {
+        static constexpr auto value = sizeof(T);
+    };
+
+    template<il2cpp_reference_type T>
+    struct il2cpp_size<T> {
+        static constexpr auto value = sizeof(void*);
+    };
+
+    template<il2cpp_value_type T>
+    struct il2cpp_size<T> {
+        static constexpr auto value = T::__CORDL_VALUE_TYPE_SIZE;
+    };
+
+    template<typename T>
+    static constexpr auto il2cpp_size_v = il2cpp_size<T>::value;
+
+    template<typename T>
+    requires(sizeof(T) == il2cpp_size_v<T>)
+    struct size_check {
+        static constexpr bool value = true;
+    };
+
+    template<typename T>
+    constexpr bool size_check_v = size_check<T>::value;
+
+    #ifdef COMPILE_TIME_SIZE_CHECKS
+        #define SIZE_CHECK(t, message) static_assert(::cordl_internals::size_check_v<t>, message)
+    #else
+        #define SIZE_CHECK(t, message)
     #endif
 #pragma endregion // offset check
 }
