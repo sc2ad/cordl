@@ -716,10 +716,17 @@ pub trait CSType: Sized {
                     ),
                 };
 
+
+                let get_return_type = if is_instance && cpp_type.is_value_type {
+                     format!("{field_ty_cpp_name}&")
+                } else {
+                    field_ty_cpp_name.clone()
+                };
+
                 let getter_decl = CppMethodDecl {
                     cpp_name: getter_name,
                     instance: is_instance,
-                    return_type: format!("{field_ty_cpp_name}{}", if is_instance && cpp_type.is_value_type { "&" } else { "" }),
+                    return_type: get_return_type,
 
                     brief: None,
                     body: None, // TODO:
@@ -751,7 +758,7 @@ pub trait CSType: Sized {
                     is_no_except: false, // TODO:
                     parameters: vec![CppParam {
                         def_value: None,
-                        modifiers: "".to_string(),
+                        modifiers: "const&".to_string(),
                         name: setter_var_name.to_string(),
                         ty: field_ty_cpp_name.clone(),
                     }],
