@@ -1,5 +1,5 @@
 use core::panic;
-use log::{debug, error, info, warn, trace};
+use log::{debug, error, info, warn};
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
@@ -48,12 +48,12 @@ use super::{
 type Endian = LittleEndian;
 
 // negative
-const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
+pub const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
-const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::ValueTypeWrapper::instance";
-const VALUE_TYPE_WRAPPER_SIZE: &str = "__CORDL_VALUE_TYPE_SIZE";
-const REFERENCE_TYPE_WRAPPER_SIZE: &str = "__CORDL_REFERENCE_TYPE_SIZE";
-const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
+pub const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::ValueTypeWrapper::instance";
+pub const VALUE_TYPE_WRAPPER_SIZE: &str = "__CORDL_VALUE_TYPE_SIZE";
+pub const REFERENCE_TYPE_WRAPPER_SIZE: &str = "__CORDL_REFERENCE_TYPE_SIZE";
+pub const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
 
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
 pub const ENUM_WRAPPER_TYPE: &str = "::bs_hook::EnumTypeWrapper";
@@ -159,7 +159,6 @@ pub trait CSType: Sized {
             t.generic_container(metadata.metadata)
                 .generic_parameters(metadata.metadata)
                 .iter()
-                .map(|param| param)
                 .collect_vec()
         });
 
@@ -306,7 +305,6 @@ pub trait CSType: Sized {
             self.create_ref_default_operators();
         }
 
-        self.make_il2cpp_equivalents(metadata, config, tdi);
         self.make_nested_types(metadata, ctx_collection, config, tdi);
         self.make_fields(metadata, ctx_collection, config, tdi);
         self.make_properties(metadata, ctx_collection, config, tdi);
@@ -997,159 +995,6 @@ pub trait CSType: Sized {
             cpp_type
                 .implementations
                 .push(CppMember::MethodImpl(method_impl).into());
-        }
-    }
-
-    fn make_il2cpp_equivalents(
-        &mut self,
-        metadata: &Metadata,
-        _config: &GenerationConfig,
-        tdi: TypeDefinitionIndex,
-    ) {
-        let cpp_type = self.get_mut_cpp_type();
-        let cpp_name = cpp_type.cpp_name().clone();
-        let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
-        let full_name = ty_def.full_name(metadata.metadata, false);
-        trace!("Checking for il2cpp equivalent for type {}", full_name);
-
-        if let Some(equivalent) = _config.il2cpp_equivalents.get(full_name.as_str()) {
-            info!("Found an il2cpp equivalent for {full_name}: {equivalent}");
-
-            // there is an il2cpp api equivalent configured for this type, we should emit some conversion operators for that
-
-            if ty_def.is_value_type() {
-                let operator_body = format!("return *static_cast<{equivalent}*>(this->convert());");
-                let conversion_operator = CppMethodDecl{
-                    cpp_name: Default::default(),
-                    instance: true,
-                    return_type: format!("{equivalent}&"),
-
-                    brief: Some(format!("Conversion into il2cpp equivalent {equivalent}")),
-                    body: Some(vec![Arc::new(CppLine::make(operator_body))]), // TODO:
-                    is_const: false,
-                    is_constexpr: true,
-                    is_virtual: false,
-                    is_operator: true,
-                    is_inline: true,
-                    is_no_except: true,
-                    parameters: vec![],
-                    prefix_modifiers: vec![],
-                    suffix_modifiers: vec![],
-                    template: None,
-                };
-
-                let const_operator_body = format!("return *static_cast<{equivalent} const*>(this->convert());");
-                let const_conversion_operator = CppMethodDecl{
-                    cpp_name: Default::default(),
-                    instance: true,
-                    return_type: format!("{equivalent} const&"),
-
-                    brief: Some(format!("Conversion into il2cpp equivalent {equivalent}")),
-                    body: Some(vec![Arc::new(CppLine::make(const_operator_body))]), // TODO:
-                    is_const: true,
-                    is_constexpr: true,
-                    is_virtual: false,
-                    is_operator: true,
-                    is_inline: true,
-                    is_no_except: true,
-                    parameters: vec![],
-                    prefix_modifiers: vec![],
-                    suffix_modifiers: vec![],
-                    template: None,
-                };
-
-                cpp_type.declarations.push(CppMember::MethodDecl(conversion_operator).into());
-                cpp_type.declarations.push(CppMember::MethodDecl(const_conversion_operator).into());
-
-                let equivalent_constructor = CppConstructorDecl {
-                    cpp_name: cpp_name.clone(),
-                    parameters: vec![CppParam {
-                        name: "il2cpp_eq".to_string(),
-                        modifiers: "".to_string(),
-                        ty: format!("{equivalent} const&").to_string(),
-                        def_value: None,
-                    }],
-                    template: None,
-                    is_constexpr: true,
-                    is_explicit: false,
-                    is_default: false,
-                    is_no_except: true,
-
-                    // use the array<byte, sz> ctor overload
-                    base_ctor: Some((cpp_name.clone(), format!("std::bit_cast<std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>>(il2cpp_eq)"))),
-                    initialized_values: HashMap::new(),
-                    brief: None,
-                    body: Some(vec![]),
-                };
-
-                cpp_type.declarations.push(CppMember::ConstructorDecl(equivalent_constructor).into());
-            } else {
-                let operator_body = format!("return static_cast<{equivalent}*>(this->convert());");
-                let conversion_operator = CppMethodDecl{
-                    cpp_name: Default::default(),
-                    instance: true,
-                    return_type: format!("{equivalent}*"),
-
-                    brief: Some(format!("Conversion into il2cpp equivalent {equivalent}")),
-                    body: Some(vec![Arc::new(CppLine::make(operator_body))]), // TODO:
-                    is_const: false,
-                    is_constexpr: true,
-                    is_virtual: false,
-                    is_operator: true,
-                    is_inline: true,
-                    is_no_except: true,
-                    parameters: vec![],
-                    prefix_modifiers: vec![],
-                    suffix_modifiers: vec![],
-                    template: None,
-                };
-
-                let const_operator_body = format!("return static_cast<{equivalent} const*>(this->convert());");
-                let const_conversion_operator = CppMethodDecl{
-                    cpp_name: Default::default(),
-                    instance: true,
-                    return_type: format!("{equivalent} const*"),
-
-                    brief: Some(format!("Conversion into il2cpp equivalent {equivalent}")),
-                    body: Some(vec![Arc::new(CppLine::make(const_operator_body))]), // TODO:
-                    is_const: true,
-                    is_constexpr: true,
-                    is_virtual: false,
-                    is_operator: true,
-                    is_inline: true,
-                    is_no_except: true,
-                    parameters: vec![],
-                    prefix_modifiers: vec![],
-                    suffix_modifiers: vec![],
-                    template: None,
-                };
-
-                cpp_type.declarations.push(CppMember::MethodDecl(conversion_operator).into());
-                cpp_type.declarations.push(CppMember::MethodDecl(const_conversion_operator).into());
-
-                let equivalent_constructor = CppConstructorDecl {
-                    cpp_name: cpp_name.clone(),
-                    parameters: vec![CppParam {
-                        name: "il2cpp_ptr".to_string(),
-                        modifiers: "".to_string(),
-                        ty: format!("{equivalent}*").to_string(),
-                        def_value: None,
-                    }],
-                    template: None,
-                    is_constexpr: true,
-                    is_explicit: false,
-                    is_default: false,
-                    is_no_except: true,
-
-                    // use the void* ctor overload
-                    base_ctor: Some((cpp_name.clone(), "static_cast<void*>(il2cpp_ptr)".to_string())),
-                    initialized_values: HashMap::new(),
-                    brief: None,
-                    body: Some(vec![]),
-                };
-
-                cpp_type.declarations.push(CppMember::ConstructorDecl(equivalent_constructor).into());
-            }
         }
     }
 
@@ -1897,7 +1742,7 @@ pub trait CSType: Sized {
                 }
             };
 
-            let mut param_cpp_name = {
+            let param_cpp_name = {
                 let fixup_name = match is_generic_method_inst {
                     false => cpp_type.il2cpp_mvar_use_param_name(
                         metadata,
@@ -2647,7 +2492,7 @@ pub trait CSType: Sized {
                     let td = &metadata.metadata.global_metadata.type_definitions[tdi];
 
                     // TODO: Do we need generic inst types here? Hopefully not!
-                    let size = offsets::get_sizeof_type(td, tdi, None, metadata);
+                    let _size = offsets::get_sizeof_type(td, tdi, None, metadata);
 
                     if metadata.blacklisted_types.contains(&tdi) {
                         return wrapper_type_for_tdi(td).to_string();
