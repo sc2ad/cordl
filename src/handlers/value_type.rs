@@ -40,7 +40,7 @@ fn register_value_type_object_handler(metadata: &mut Metadata) -> Result<()> {
     Ok(())
 }
 
-fn unified_type_handler(cpp_type: &mut CppType, base_ctor: &str) {
+fn unified_type_handler(cpp_type: &mut CppType, _base_ctor: &str) {
     // We don't replace parent anymore
     // cpp_type.inherit = vec![base_ctor.to_string()];
 

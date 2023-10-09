@@ -58,9 +58,9 @@ pub fn get_sizeof_type<'a>(
 }
 
 /// Inspired by libil2cpp Class::LayoutFieldsLocked
-pub fn layout_fields<'a>(
+pub fn layout_fields(
     metadata: &Metadata<'_>,
-    declaring_ty_def: &'a Il2CppTypeDefinition,
+    declaring_ty_def: &Il2CppTypeDefinition,
     declaring_tdi: TypeDefinitionIndex,
     generic_inst_types: Option<&Vec<usize>>,
     offsets: Option<&mut Vec<u32>>,
@@ -95,35 +95,55 @@ pub fn layout_fields<'a>(
             ((declaring_ty_def.bitfield >> (metadata.packing_field_offset - 1)) & 0xF) as u8,
             2,
         );
-        assert!( packing <= 128,
+        assert!(
+            packing <= 128,
             "Packing must be valid! Actual: {:?}",
             packing
         );
 
         let mut local_offsets: Vec<u32> = vec![];
-        let sa = layout_instance_fields(metadata, declaring_ty_def, declaring_tdi, generic_inst_types, Some(&mut local_offsets), instance_size, actual_size, minimum_alignment, packing);
+        let sa = layout_instance_fields(
+            metadata,
+            declaring_ty_def,
+            declaring_tdi,
+            generic_inst_types,
+            Some(&mut local_offsets),
+            instance_size,
+            actual_size,
+            minimum_alignment,
+            packing,
+        );
 
         let mut offsets_opt = offsets;
         if let Some(offsets) = offsets_opt.as_mut() {
             offsets.append(&mut local_offsets);
         }
 
-        if declaring_ty_def.is_value_type() && local_offsets.len() == 0 {
+        if declaring_ty_def.is_value_type() && local_offsets.is_empty() {
             instance_size = (IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS
                 + metadata.object_size() as u32) as usize;
             actual_size = (IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS
                 + metadata.object_size() as u32) as usize;
         }
 
-        instance_size = update_instance_size_for_generic_class(declaring_ty_def, declaring_tdi, instance_size, metadata);
+        instance_size = update_instance_size_for_generic_class(
+            declaring_ty_def,
+            declaring_tdi,
+            instance_size,
+            metadata,
+        );
 
         instance_size = sa.size;
         actual_size = sa.actual_size;
         minimum_alignment = sa.alignment;
         natural_alignment = sa.natural_alignment;
-
     } else {
-        instance_size = update_instance_size_for_generic_class(declaring_ty_def, declaring_tdi, instance_size, metadata);
+        instance_size = update_instance_size_for_generic_class(
+            declaring_ty_def,
+            declaring_tdi,
+            instance_size,
+            metadata,
+        );
     }
 
     // if we have an explicit size, use that
@@ -133,16 +153,16 @@ pub fn layout_fields<'a>(
 
     SizeAndAlignment {
         size: instance_size,
-        actual_size: actual_size,
+        actual_size,
         alignment: minimum_alignment,
-        natural_alignment
+        natural_alignment,
     }
 }
 
 /// equivalent to libil2cpp FieldLayout::LayoutFields with the instance field filter
-fn layout_instance_fields<'a>(
+fn layout_instance_fields(
     metadata: &Metadata<'_>,
-    declaring_ty_def: &'a Il2CppTypeDefinition,
+    declaring_ty_def: &Il2CppTypeDefinition,
     declaring_tdi: TypeDefinitionIndex,
     generic_inst_types: Option<&Vec<usize>>,
     offsets: Option<&mut Vec<u32>>,
@@ -151,16 +171,25 @@ fn layout_instance_fields<'a>(
     parent_alignment: u8,
     packing: u8,
 ) -> SizeAndAlignment {
-    let mut instance_size = parent_size as usize;
-    let mut actual_size = actual_parent_size as usize;
+    let mut instance_size = parent_size;
+    let mut actual_size = actual_parent_size;
     let mut minimum_alignment = parent_alignment;
     let mut natural_alignment: u8 = 0;
 
     let mut offsets_opt = offsets;
-    for (i, f) in declaring_ty_def.fields(metadata.metadata).iter().enumerate() {
-        let field_ty = &metadata.metadata.runtime_metadata.metadata_registration.types[f.type_index as usize];
+    for (i, f) in declaring_ty_def
+        .fields(metadata.metadata)
+        .iter()
+        .enumerate()
+    {
+        let field_ty = &metadata
+            .metadata
+            .runtime_metadata
+            .metadata_registration
+            .types[f.type_index as usize];
 
-        if field_ty.is_static() || field_ty.is_constant() { // filter for instance fields
+        if field_ty.is_static() || field_ty.is_constant() {
+            // filter for instance fields
             continue;
         }
 
@@ -188,7 +217,10 @@ fn layout_instance_fields<'a>(
         }
         actual_size = offset + std::cmp::max(sa.size, 1);
         minimum_alignment = std::cmp::max(minimum_alignment, alignment);
-        natural_alignment = std::cmp::max(natural_alignment, std::cmp::max(sa.alignment, sa.natural_alignment));
+        natural_alignment = std::cmp::max(
+            natural_alignment,
+            std::cmp::max(sa.alignment, sa.natural_alignment),
+        );
     }
 
     instance_size = align_to(actual_size, minimum_alignment as usize);
@@ -197,7 +229,7 @@ fn layout_instance_fields<'a>(
         size: instance_size,
         actual_size,
         alignment: minimum_alignment,
-        natural_alignment
+        natural_alignment,
     }
 }
 
@@ -219,17 +251,19 @@ fn get_offset_of_type_table(
     }
 }
 
-fn get_parent_sa(
-    metadata: &Metadata<'_>,
-    parent_index: u32
-) -> SizeAndAlignment {
+fn get_parent_sa(metadata: &Metadata<'_>, parent_index: u32) -> SizeAndAlignment {
     let parent_ty = &metadata.metadata_registration.types[parent_index as usize];
     let (parent_tdi, parent_generics) = match parent_ty.data {
         TypeData::TypeDefinitionIndex(parent_tdi) => (parent_tdi, None),
         TypeData::GenericClassIndex(generic_index) => {
-            let generic_class = &metadata.metadata.runtime_metadata.metadata_registration.generic_classes[generic_index];
+            let generic_class = &metadata
+                .metadata
+                .runtime_metadata
+                .metadata_registration
+                .generic_classes[generic_index];
 
-            let generic_inst = &metadata.metadata_registration.generic_insts[generic_class.context.class_inst_idx.unwrap()];
+            let generic_inst = &metadata.metadata_registration.generic_insts
+                [generic_class.context.class_inst_idx.unwrap()];
 
             let generic_ty = &metadata.metadata_registration.types[generic_class.type_index];
             let TypeData::TypeDefinitionIndex(parent_tdi) = generic_ty.data else {
@@ -240,19 +274,19 @@ fn get_parent_sa(
             };
 
             (parent_tdi, Some(&generic_inst.types))
-        },
+        }
         _ => todo!("Not yet implemented: {:?}", parent_ty.data),
     };
 
-    let sa = layout_fields(
+    
+
+    layout_fields(
         metadata,
         &metadata.metadata.global_metadata.type_definitions[parent_tdi],
         parent_tdi,
         parent_generics,
         None,
-    );
-
-    sa
+    )
 }
 
 fn update_instance_size_for_generic_class(

@@ -74,11 +74,17 @@ impl Writable for CppCommentedString {
 
 impl Writable for CppInclude {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        let path = self.include.to_str().unwrap().replace("\\", "/");
-        if self.system {
-            writeln!(writer, "#include <{}>", path)?;
+        // this is so bad
+        let path = if cfg!(windows) {
+            self.include.to_string_lossy().replace('\\', "/")
         } else {
-            writeln!(writer, "#include \"{}\"", path)?;
+            self.include.to_string_lossy().to_string()
+        };
+
+        if self.system {
+            writeln!(writer, "#include <{path}>")?;
+        } else {
+            writeln!(writer, "#include \"{path}\"")?;
         }
         Ok(())
     }
