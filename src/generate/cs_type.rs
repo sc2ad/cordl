@@ -1,5 +1,5 @@
 use core::panic;
-use log::{debug, error, info, warn};
+use log::{debug, error, info, warn, trace};
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
@@ -306,6 +306,7 @@ pub trait CSType: Sized {
             self.create_ref_default_operators();
         }
 
+        self.make_il2cpp_equivalents(metadata, config, tdi);
         self.make_nested_types(metadata, ctx_collection, config, tdi);
         self.make_fields(metadata, ctx_collection, config, tdi);
         self.make_properties(metadata, ctx_collection, config, tdi);
@@ -996,6 +997,159 @@ pub trait CSType: Sized {
             cpp_type
                 .implementations
                 .push(CppMember::MethodImpl(method_impl).into());
+        }
+    }
+
+    fn make_il2cpp_equivalents(
+        &mut self,
+        metadata: &Metadata,
+        _config: &GenerationConfig,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let cpp_type = self.get_mut_cpp_type();
+        let cpp_name = cpp_type.cpp_name().clone();
+        let ty_def = &metadata.metadata.global_metadata.type_definitions[tdi];
+        let full_name = ty_def.full_name(metadata.metadata, false);
+        trace!("Checking for il2cpp equivalent for type {}", full_name);
+
+        if let Some(equivalent) = _config.il2cpp_equivalents.get(full_name.as_str()) {
+            info!("Found an il2cpp equivalent for {full_name}: {equivalent}");
+
+            // there is an il2cpp api equivalent configured for this type, we should emit some conversion operators for that
+
+            if ty_def.is_value_type() {
+                let operator_body = format!("return *static_cast<{equivalent}*>(this->convert());");
+                let conversion_operator = CppMethodDecl{
+                    cpp_name: Default::default(),
+                    instance: true,
+                    return_type: format!("{equivalent}&"),
+
+                    brief: Some(format!("Conversion into il2cpp equivalent {equivalent}")),
+                    body: Some(vec![Arc::new(CppLine::make(operator_body))]), // TODO:
+                    is_const: false,
+                    is_constexpr: true,
+                    is_virtual: false,
+                    is_operator: true,
+                    is_inline: true,
+                    is_no_except: true,
+                    parameters: vec![],
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                    template: None,
+                };
+
+                let const_operator_body = format!("return *static_cast<{equivalent} const*>(this->convert());");
+                let const_conversion_operator = CppMethodDecl{
+                    cpp_name: Default::default(),
+                    instance: true,
+                    return_type: format!("{equivalent} const&"),
+
+                    brief: Some(format!("Conversion into il2cpp equivalent {equivalent}")),
+                    body: Some(vec![Arc::new(CppLine::make(const_operator_body))]), // TODO:
+                    is_const: true,
+                    is_constexpr: true,
+                    is_virtual: false,
+                    is_operator: true,
+                    is_inline: true,
+                    is_no_except: true,
+                    parameters: vec![],
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                    template: None,
+                };
+
+                cpp_type.declarations.push(CppMember::MethodDecl(conversion_operator).into());
+                cpp_type.declarations.push(CppMember::MethodDecl(const_conversion_operator).into());
+
+                let equivalent_constructor = CppConstructorDecl {
+                    cpp_name: cpp_name.clone(),
+                    parameters: vec![CppParam {
+                        name: "il2cpp_eq".to_string(),
+                        modifiers: "".to_string(),
+                        ty: format!("{equivalent} const&").to_string(),
+                        def_value: None,
+                    }],
+                    template: None,
+                    is_constexpr: true,
+                    is_explicit: false,
+                    is_default: false,
+                    is_no_except: true,
+
+                    // use the array<byte, sz> ctor overload
+                    base_ctor: Some((cpp_name.clone(), format!("std::bit_cast<std::array<std::byte, {VALUE_TYPE_WRAPPER_SIZE}>>(il2cpp_eq)"))),
+                    initialized_values: HashMap::new(),
+                    brief: None,
+                    body: Some(vec![]),
+                };
+
+                cpp_type.declarations.push(CppMember::ConstructorDecl(equivalent_constructor).into());
+            } else {
+                let operator_body = format!("return static_cast<{equivalent}*>(this->convert());");
+                let conversion_operator = CppMethodDecl{
+                    cpp_name: Default::default(),
+                    instance: true,
+                    return_type: format!("{equivalent}*"),
+
+                    brief: Some(format!("Conversion into il2cpp equivalent {equivalent}")),
+                    body: Some(vec![Arc::new(CppLine::make(operator_body))]), // TODO:
+                    is_const: false,
+                    is_constexpr: true,
+                    is_virtual: false,
+                    is_operator: true,
+                    is_inline: true,
+                    is_no_except: true,
+                    parameters: vec![],
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                    template: None,
+                };
+
+                let const_operator_body = format!("return static_cast<{equivalent} const*>(this->convert());");
+                let const_conversion_operator = CppMethodDecl{
+                    cpp_name: Default::default(),
+                    instance: true,
+                    return_type: format!("{equivalent} const*"),
+
+                    brief: Some(format!("Conversion into il2cpp equivalent {equivalent}")),
+                    body: Some(vec![Arc::new(CppLine::make(const_operator_body))]), // TODO:
+                    is_const: true,
+                    is_constexpr: true,
+                    is_virtual: false,
+                    is_operator: true,
+                    is_inline: true,
+                    is_no_except: true,
+                    parameters: vec![],
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                    template: None,
+                };
+
+                cpp_type.declarations.push(CppMember::MethodDecl(conversion_operator).into());
+                cpp_type.declarations.push(CppMember::MethodDecl(const_conversion_operator).into());
+
+                let equivalent_constructor = CppConstructorDecl {
+                    cpp_name: cpp_name.clone(),
+                    parameters: vec![CppParam {
+                        name: "il2cpp_ptr".to_string(),
+                        modifiers: "".to_string(),
+                        ty: format!("{equivalent}*").to_string(),
+                        def_value: None,
+                    }],
+                    template: None,
+                    is_constexpr: true,
+                    is_explicit: false,
+                    is_default: false,
+                    is_no_except: true,
+
+                    // use the void* ctor overload
+                    base_ctor: Some((cpp_name.clone(), "static_cast<void*>(il2cpp_ptr)".to_string())),
+                    initialized_values: HashMap::new(),
+                    brief: None,
+                    body: Some(vec![]),
+                };
+
+                cpp_type.declarations.push(CppMember::ConstructorDecl(equivalent_constructor).into());
+            }
         }
     }
 

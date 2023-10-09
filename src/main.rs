@@ -23,7 +23,7 @@ use std::{
     path::PathBuf,
     process::{Child, Command},
     sync::LazyLock,
-    thread, time,
+    thread, time, collections::HashMap,
 };
 
 use clap::{Parser, Subcommand};
@@ -65,14 +65,61 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {}
 
-pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| GenerationConfig {
-    header_path: PathBuf::from("./codegen/include"),
-    source_path: PathBuf::from("./codegen/src"),
-    dst_internals_path: PathBuf::from("./codegen/include/cordl_internals"),
-    dst_header_internals_file: PathBuf::from(
-        "./codegen/include/cordl_internals/cordl_internals.hpp",
-    ),
-    use_anonymous_namespace: false,
+pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| {
+    let mut equivalents = HashMap::new();
+    // push il2cpp equivalents into hashmap
+    equivalents.insert("System.RuntimeType".into(), "Il2CppReflectionRuntimeType".into());
+    equivalents.insert("System.MonoType".into(), "Il2CppReflectionMonoType".into());
+    equivalents.insert("System.Reflection.EventInfo".into(), "Il2CppReflectionEvent".into());
+    equivalents.insert("System.Reflection.MonoEvent".into(), "Il2CppReflectionMonoEvent".into());
+    equivalents.insert("System.Reflection.MonoEventInfo".into(), "Il2CppReflectionMonoEventInfo".into());
+    equivalents.insert("System.Reflection.MonoField".into(), "Il2CppReflectionField".into());
+    equivalents.insert("System.Reflection.MonoProperty".into(), "Il2CppReflectionProperty".into());
+    equivalents.insert("System.Reflection.MonoMethod".into(), "Il2CppReflectionMethod".into());
+    equivalents.insert("System.Reflection.MonoGenericMethod".into(), "Il2CppReflectionGenericMethod".into());
+    equivalents.insert("System.Reflection.MonoMethodInfo".into(), "Il2CppMethodInfo".into());
+    equivalents.insert("System.Reflection.MonoPropertyInfo".into(), "Il2CppPropertyInfo".into());
+    equivalents.insert("System.Reflection.ParameterInfo".into(), "Il2CppReflectionParameter".into());
+    equivalents.insert("System.Reflection.Module".into(), "Il2CppReflectionModule".into());
+    equivalents.insert("System.Reflection.AssemblyName".into(), "Il2CppReflectionAssemblyName".into());
+    equivalents.insert("System.Reflection.Assembly".into(), "Il2CppReflectionAssembly".into());
+    equivalents.insert("System.Reflection.Emit.UnmanagedMarshal".into(), "Il2CppReflectionMarshal".into());
+    equivalents.insert("System.Reflection.Pointer".into(), "Il2CppReflectionPointer".into());
+    equivalents.insert("System.Threading.InternalThread".into(), "Il2CppInternalThread".into());
+    equivalents.insert("System.Threading.Thread".into(), "Il2CppThread".into());
+    equivalents.insert("System.Exception".into(), "Il2CppException".into());
+    equivalents.insert("System.SystemException".into(), "Il2CppSystemException".into());
+    equivalents.insert("System.ArgumentException".into(), "Il2CppArgumentException".into());
+    equivalents.insert("System.TypedReference".into(), "Il2CppTypedRef".into());
+    equivalents.insert("System.Delegate".into(), "Il2CppDelegate".into());
+    equivalents.insert("System.MarshalByRefObject".into(), "Il2CppMarshalByRefObject".into());
+    equivalents.insert("System.__Il2CppComObject".into(), "Il2CppComObject".into());
+    equivalents.insert("System.AppDomain".into(), "Il2CppAppDomain".into());
+    equivalents.insert("System.Diagnostics.StackFrame".into(), "Il2CppStackFrame".into());
+    equivalents.insert("System.Globalization.DateTimeFormatInfo".into(), "Il2CppDateTimeFormatInfo".into());
+    equivalents.insert("System.Globalization.NumberFormatInfo".into(), "Il2CppNumberFormatInfo".into());
+    equivalents.insert("System.Globalization.CultureInfo".into(), "Il2CppCultureInfo".into());
+    equivalents.insert("System.Globalization.RegionInfo".into(), "Il2CppRegionInfo".into());
+    equivalents.insert("System.Runtime.InteropServices.SafeHandle".into(), "Il2CppSafeHandle".into());
+    equivalents.insert("System.Text.StringBuilder".into(), "Il2CppStringBuilder".into());
+    equivalents.insert("System.Net.SocketAddress".into(), "Il2CppSocketAddress".into());
+    equivalents.insert("System.Globalization.SortKey".into(), "Il2CppSortKey".into());
+    equivalents.insert("System.Runtime.InteropServices.ErrorWrapper".into(), "Il2CppErrorWrapper".into());
+    equivalents.insert("System.Runtime.Remoting.Messaging.AsyncResult".into(), "Il2CppAsyncResult".into());
+    equivalents.insert("System.MonoAsyncCall".into(), "Il2CppAsyncCall".into());
+    equivalents.insert("System.Reflection.ManifestResourceInfo".into(), "Il2CppManifestResourceInfo".into());
+    equivalents.insert("System.Runtime.Remoting.Contexts.Context".into(), "Il2CppAppContext".into());
+
+    GenerationConfig {
+        header_path: PathBuf::from("./codegen/include"),
+        source_path: PathBuf::from("./codegen/src"),
+        dst_internals_path: PathBuf::from("./codegen/include/cordl_internals"),
+        dst_header_internals_file: PathBuf::from(
+            "./codegen/include/cordl_internals/cordl_internals.hpp",
+        ),
+        use_anonymous_namespace: false,
+        il2cpp_equivalents: equivalents,
+    }
 });
 
 static INTERNALS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/cordl_internals");
