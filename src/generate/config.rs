@@ -1,4 +1,4 @@
-use std::{path::PathBuf, collections::HashMap};
+use std::path::PathBuf;
 
 pub struct GenerationConfig {
     pub source_path: PathBuf,
@@ -6,7 +6,6 @@ pub struct GenerationConfig {
     pub dst_internals_path: PathBuf,
     pub dst_header_internals_file: PathBuf,
     pub use_anonymous_namespace: bool,
-    pub il2cpp_equivalents: HashMap<String, String>,
 }
 
 impl GenerationConfig {

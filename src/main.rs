@@ -23,7 +23,7 @@ use std::{
     path::PathBuf,
     process::{Child, Command},
     sync::LazyLock,
-    thread, time, collections::HashMap,
+    thread, time,
 };
 
 use clap::{Parser, Subcommand};
@@ -33,7 +33,7 @@ use crate::{
         context_collection::CppContextCollection, cpp_type_tag::CppTypeTag,
         cs_context_collection::CsContextCollection, members::CppMember,
     },
-    handlers::{unity, value_type, il2cpp_internals},
+    handlers::{il2cpp_internals, unity, value_type},
 };
 mod data;
 mod generate;
@@ -65,19 +65,14 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {}
 
-pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| {
-    let equivalents = HashMap::new();
-
-    GenerationConfig {
-        header_path: PathBuf::from("./codegen/include"),
-        source_path: PathBuf::from("./codegen/src"),
-        dst_internals_path: PathBuf::from("./codegen/include/cordl_internals"),
-        dst_header_internals_file: PathBuf::from(
-            "./codegen/include/cordl_internals/cordl_internals.hpp",
-        ),
-        use_anonymous_namespace: false,
-        il2cpp_equivalents: equivalents,
-    }
+pub static STATIC_CONFIG: LazyLock<GenerationConfig> = LazyLock::new(|| GenerationConfig {
+    header_path: PathBuf::from("./codegen/include"),
+    source_path: PathBuf::from("./codegen/src"),
+    dst_internals_path: PathBuf::from("./codegen/include/cordl_internals"),
+    dst_header_internals_file: PathBuf::from(
+        "./codegen/include/cordl_internals/cordl_internals.hpp",
+    ),
+    use_anonymous_namespace: false,
 });
 
 static INTERNALS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/cordl_internals");
