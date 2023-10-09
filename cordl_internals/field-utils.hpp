@@ -125,7 +125,7 @@ namespace cordl_internals {
   /// @tparam T field type
   /// @tparam offset field offset
   template <typename T, std::size_t offset, il2cpp_reference_type InstT>
-  [[nodiscard]] CORDL_HIDDEN T& getInstanceField(InstT const& instance);
+  [[nodiscard]] CORDL_HIDDEN T& getInstanceField(InstT&& instance);
 
   /// @brief template for field getter method on value types
   /// @tparam T field type
@@ -136,7 +136,7 @@ namespace cordl_internals {
 
   /// @brief get reference type value @ offset on instance
   template <il2cpp_reference_type T, std::size_t offset, il2cpp_reference_type InstT>
-  [[nodiscard]] CORDL_HIDDEN T getInstanceField(InstT const& instance) {
+  [[nodiscard]] CORDL_HIDDEN T getInstanceField(InstT&& instance) {
     OFFSET_CHECK(InstT::__CORDL_REFERENCE_TYPE_SIZE, offset, sizeof(void*), "offset is too large for the size of the instance to be retreived correctly!");
 
     return T(*getAtOffset<offset>(instance.convert()));
@@ -152,7 +152,7 @@ namespace cordl_internals {
 
   /// @brief get value type value @ offset on instance
   template <il2cpp_value_type T, std::size_t offset, il2cpp_reference_type InstT>
-  [[nodiscard]] CORDL_HIDDEN T& getInstanceField(InstT const& instance) {
+  [[nodiscard]] CORDL_HIDDEN T& getInstanceField(InstT&& instance) {
     OFFSET_CHECK(InstT::__CORDL_REFERENCE_TYPE_SIZE, offset, T::__CORDL_VALUE_TYPE_SIZE, "offset is too large for the size of the instance to be retreived correctly!");
     SIZE_CHECK(T, "wrapper size was different from the type it wraps!");
 
@@ -170,7 +170,7 @@ namespace cordl_internals {
 
   /// @brief get trivial type value @ offset on instance
   template <typename T, std::size_t offset, il2cpp_reference_type InstT>
-  [[nodiscard]] CORDL_HIDDEN T& getInstanceField(InstT const& instance) {
+  [[nodiscard]] CORDL_HIDDEN T& getInstanceField(InstT&& instance) {
     OFFSET_CHECK(InstT::__CORDL_REFERENCE_TYPE_SIZE, offset, sizeof(T), "offset is too large for the size of the instance to be retreived correctly!");
 
     return *static_cast<T*>(static_cast<void*>(getAtOffset<offset>(instance.convert())));
