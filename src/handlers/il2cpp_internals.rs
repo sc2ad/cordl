@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use log::{info, trace};
+use log::{info, trace, warn};
 use std::{
     collections::HashMap,
     sync::{Arc, LazyLock},
@@ -95,20 +95,27 @@ static EQUIVALENTS: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
 });
 
 pub fn register_il2cpp_types(metadata: &mut Metadata) -> Result<()> {
-    info!("Registering unity handler!");
+    info!("Registering il2cpp type handler!");
 
     for (cordl_t, il2cpp_t) in EQUIVALENTS.iter() {
-        println!("Registering type handler {cordl_t} to {il2cpp_t}");
+        info!("Registering il2cpp type handler {cordl_t} to {il2cpp_t}");
 
         let (cordl_t_ns, cordl_t_name) = cordl_t.rsplit_once('.').expect("No namespace?");
         let il2cpp_name = Il2cppFullName(cordl_t_ns, cordl_t_name);
 
-        let cordl_tdi = metadata.name_to_tdi[&il2cpp_name];
+        let cordl_tdi = metadata.name_to_tdi.get(&il2cpp_name);
 
-        metadata.custom_type_handler.insert(
-            cordl_tdi,
-            Box::new(|cpp_type| il2cpp_alias_handler(cpp_type, cordl_t, il2cpp_t)),
-        );
+        match cordl_tdi {
+            Some(cordl_tdi) => {
+                metadata.custom_type_handler.insert(
+                    *cordl_tdi,
+                    Box::new(|cpp_type| il2cpp_alias_handler(cpp_type, cordl_t, il2cpp_t)),
+                );
+            }
+            None => {
+                warn!("Could not find TDI for {cordl_t}");
+            }
+        }
     }
 
     Ok(())

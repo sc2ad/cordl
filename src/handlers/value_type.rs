@@ -12,7 +12,7 @@ use crate::generate::{
 use log::info;
 
 pub fn register_value_type(metadata: &mut Metadata) -> Result<()> {
-    info!("Registering unity handler!");
+    info!("Registering value type handler!");
     register_value_type_object_handler(metadata)?;
 
     Ok(())
@@ -20,6 +20,7 @@ pub fn register_value_type(metadata: &mut Metadata) -> Result<()> {
 
 fn register_value_type_object_handler(metadata: &mut Metadata) -> Result<()> {
     info!("Registering System.ValueType handler!");
+    info!("Registering System.Enum handler!");
 
     let value_type_tdi = metadata
         .name_to_tdi
