@@ -394,13 +394,13 @@ impl CppParam {
     pub fn params_as_args(params: &[CppParam]) -> impl Iterator<Item = String> + '_ {
         params.iter().map(|p| match &p.def_value {
             Some(val) => format!("{}{} {} = {val}", p.ty, p.modifiers, p.name),
-            None => format!("{}{} {}", p.ty, p.modifiers, p.name),
+            None => format!("{} {} {}", p.ty, p.modifiers, p.name),
         })
     }
     pub fn params_as_args_no_default(params: &[CppParam]) -> impl Iterator<Item = String> + '_ {
         params
             .iter()
-            .map(|p| format!("{}{} {}", p.ty, p.modifiers, p.name))
+            .map(|p| format!("{} {} {}", p.ty, p.modifiers, p.name))
     }
     pub fn params_names(params: &[CppParam]) -> impl Iterator<Item = &String> {
         params.iter().map(|p| &p.name)

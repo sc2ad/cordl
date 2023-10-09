@@ -683,12 +683,12 @@ pub trait CSType: Sized {
                 let setter_call = match f_type.is_static() {
                     true => {
                         format!(
-                        "{CORDL_METHOD_HELPER_NAMESPACE}::setStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                        "{CORDL_METHOD_HELPER_NAMESPACE}::setStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>({setter_var_name});"
                     )
                     }
                     false => {
                         format!(
-                            "{CORDL_METHOD_HELPER_NAMESPACE}::setInstanceField<{field_ty_cpp_name}, 0x{f_offset:x}>({instance}, std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                            "{CORDL_METHOD_HELPER_NAMESPACE}::setInstanceField<{field_ty_cpp_name}, 0x{f_offset:x}>({instance}, {setter_var_name});"
                         )
                     }
                 };
@@ -717,7 +717,7 @@ pub trait CSType: Sized {
                 };
 
 
-                let get_return_type = if is_instance && cpp_type.is_value_type {
+                let get_return_type = if is_instance && f_type.valuetype {
                      format!("{field_ty_cpp_name}&")
                 } else {
                     field_ty_cpp_name.clone()
