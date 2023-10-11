@@ -327,7 +327,7 @@ impl CppContext {
         // Write includes for typedef
         typedef_types
             .iter()
-            .flat_map(|t| &t.requirements.required_includes)
+            .flat_map(|t| &t.requirements.required_def_includes)
             .unique()
             .sorted()
             .try_for_each(|i| i.write(&mut typedef_writer))?;

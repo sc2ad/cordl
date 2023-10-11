@@ -715,9 +715,8 @@ pub trait CSType: Sized {
                     ),
                 };
 
-
                 let get_return_type = if is_instance && f_type.valuetype {
-                     format!("{field_ty_cpp_name}&")
+                    format!("{field_ty_cpp_name}&")
                 } else {
                     field_ty_cpp_name.clone()
                 };
@@ -2544,19 +2543,26 @@ pub trait CSType: Sized {
 
                 // - Include it
                 // Skip including the context if we're already in it
-                if add_include && !own_context {
-                    requirements.add_include(Some(to_incl_cpp_ty), inc.clone());
-                } else if !add_include && !own_context {
-                    // Forward declare it
-                    if to_incl_cpp_ty.nested {
-                        // TODO: What should we do here?
-                        error!("Can't forward declare nested type! Including!");
-                        requirements.add_include(Some(to_incl_cpp_ty), inc);
-                    } else {
-                        requirements.add_forward_declare((
-                            CppForwardDeclare::from_cpp_type(to_incl_cpp_ty),
-                            inc,
-                        ));
+                if !own_context {
+                    match add_include {
+                        // add def include
+                        true => {
+                            requirements.add_def_include(Some(to_incl_cpp_ty), inc.clone());
+                        }
+                        // TODO: Remove?
+                        // ignore nested types
+                        // false if to_incl_cpp_ty.nested => {
+                            // TODO: What should we do here?
+                            // error!("Can't forward declare nested type! Including!");
+                            // requirements.add_include(Some(to_incl_cpp_ty), inc);
+                        // }
+                        // forward declare
+                        false => {
+                            requirements.add_forward_declare((
+                                CppForwardDeclare::from_cpp_type(to_incl_cpp_ty),
+                                inc,
+                            ));
+                        }
                     }
                 }
 

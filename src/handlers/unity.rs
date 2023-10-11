@@ -1,6 +1,6 @@
-use std::{path::PathBuf, rc::Rc};
-use log::info;
 use color_eyre::Result;
+use log::info;
+use std::{path::PathBuf, rc::Rc};
 
 use crate::generate::{
     cpp_type::CppType,
@@ -38,7 +38,7 @@ fn unity_object_handler(cpp_type: &mut CppType) {
 
     cpp_type
         .requirements
-        .add_include(None, CppInclude::new_exact(path));
+        .add_def_include(None, CppInclude::new_exact(path));
 
     // Fixup ctor call declarations
     cpp_type

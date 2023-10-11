@@ -31,7 +31,7 @@ pub struct CppTypeRequirements {
     pub forward_declares: HashSet<(CppForwardDeclare, CppInclude)>,
 
     // Only value types or classes
-    pub required_includes: HashSet<CppInclude>,
+    pub required_def_includes: HashSet<CppInclude>,
     pub required_impl_includes: HashSet<CppInclude>,
 
     // Lists both types we forward declare or include
@@ -44,11 +44,11 @@ impl CppTypeRequirements {
         self.forward_declares.insert(cpp_data);
     }
 
-    pub fn add_include(&mut self, cpp_type: Option<&CppType>, cpp_include: CppInclude) {
+    pub fn add_def_include(&mut self, cpp_type: Option<&CppType>, cpp_include: CppInclude) {
         if let Some(cpp_type) = cpp_type {
             self.depending_types.insert(cpp_type.self_tag);
         }
-        self.required_includes.insert(cpp_include);
+        self.required_def_includes.insert(cpp_include);
     }
     pub fn add_impl_include(&mut self, cpp_type: Option<&CppType>, cpp_include: CppInclude) {
         if let Some(cpp_type) = cpp_type {
@@ -105,49 +105,49 @@ pub struct CppType {
 
 impl CppTypeRequirements {
     pub fn need_wrapper(&mut self) {
-        self.add_include(
+        self.add_def_include(
             None,
             CppInclude::new_exact("beatsaber-hook/shared/utils/base-wrapper-type.hpp"),
         );
     }
     pub fn needs_int_include(&mut self) {
-        self.add_include(None, CppInclude::new_system("cstdint"));
+        self.add_def_include(None, CppInclude::new_system("cstdint"));
     }
     pub fn needs_byte_include(&mut self) {
-        self.add_include(None, CppInclude::new_system("cstddef"));
+        self.add_def_include(None, CppInclude::new_system("cstddef"));
     }
     pub fn needs_math_include(&mut self) {
-        self.add_include(None, CppInclude::new_system("cmath"));
+        self.add_def_include(None, CppInclude::new_system("cmath"));
     }
     pub fn needs_stringw_include(&mut self) {
-        self.add_include(
+        self.add_def_include(
             None,
             CppInclude::new_exact("beatsaber-hook/shared/utils/typedefs-string.hpp"),
         );
     }
     pub fn needs_arrayw_include(&mut self) {
-        self.add_include(
+        self.add_def_include(
             None,
             CppInclude::new_exact("beatsaber-hook/shared/utils/typedefs-array.hpp"),
         );
     }
 
     pub fn needs_byref_include(&mut self) {
-        self.add_include(
+        self.add_def_include(
             None,
             CppInclude::new_exact("beatsaber-hook/shared/utils/byref.hpp"),
         );
     }
 
     pub fn needs_enum_include(&mut self) {
-        self.add_include(
+        self.add_def_include(
             None,
             CppInclude::new_exact("beatsaber-hook/shared/utils/enum-wrapper-type.hpp"),
         );
     }
 
     pub fn needs_value_include(&mut self) {
-        self.add_include(
+        self.add_def_include(
             None,
             CppInclude::new_exact("beatsaber-hook/shared/utils/value-wrapper-type.hpp"),
         );
@@ -417,7 +417,11 @@ impl CppType {
                 "CORDL_GEN_REF_TYPE"
             };
 
-            writeln!(writer, "{type_trait_macro}({});", self.cpp_name_components.combine_all(false))?;
+            writeln!(
+                writer,
+                "{type_trait_macro}({});",
+                self.cpp_name_components.combine_all(false)
+            )?;
         } else {
             // non-generic
             // use existing macros for non generics, this way we can emit less lines
@@ -427,7 +431,11 @@ impl CppType {
                 "CORDL_REF_TYPE"
             };
 
-            writeln!(writer, "{type_trait_macro}({});", self.cpp_name_components.combine_all(true))?;
+            writeln!(
+                writer,
+                "{type_trait_macro}({});",
+                self.cpp_name_components.combine_all(true)
+            )?;
         }
 
         Ok(())
