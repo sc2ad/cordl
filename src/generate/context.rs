@@ -363,9 +363,7 @@ impl CppContext {
                 .unique()
                 // TODO: Check forward declare is not of own type
                 .try_for_each(|i| -> color_eyre::Result<()> {
-                    writeln!(typeimpl_writer, "#ifndef {CORDL_NO_INCLUDE_IMPL_DEFINE}")?;
                     i.write(&mut typeimpl_writer)?;
-                    writeln!(typeimpl_writer, "#endif")?;
                     Ok(())
                 })?;
 
@@ -439,8 +437,12 @@ impl CppContext {
         {
             CppInclude::new_exact(diff_paths(&self.typedef_path, base_path).unwrap())
                 .write(&mut fundamental_writer)?;
+
+            // if guard for intellisense
+            writeln!(typeimpl_writer, "#ifndef {CORDL_NO_INCLUDE_IMPL_DEFINE}")?;
             CppInclude::new_exact(diff_paths(&self.type_impl_path, base_path).unwrap())
                 .write(&mut fundamental_writer)?;
+            writeln!(typeimpl_writer, "#endif")?;
         }
 
         // TODO: Write type impl and fundamental files here
