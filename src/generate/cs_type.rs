@@ -2727,10 +2727,11 @@ pub trait CSType: Sized {
                     };
 
                     if add_include {
-                        requirements.add_dependency_tag(tdi.into());
-
+                        
                         let generic_tag = CppTypeTag::from_type_data(typ.data, metadata.metadata);
-
+                        
+                        // depend on both tdi and generic instantiation
+                        requirements.add_dependency_tag(tdi.into());
                         requirements.add_dependency_tag(generic_tag);
                     }
 
