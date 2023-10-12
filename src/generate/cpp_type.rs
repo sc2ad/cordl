@@ -19,10 +19,10 @@ use super::{
 };
 
 pub const CORDL_TYPE_MACRO: &str = "CORDL_TYPE";
-pub const __CORDL_IS_VALUE_TYPE: &str = "__CORDL_IS_VALUE_TYPE";
+pub const __CORDL_IS_VALUE_TYPE: &str = "__IL2CPP_IS_VALUE_TYPE";
 pub const __CORDL_BACKING_ENUM_TYPE: &str = "__CORDL_BACKING_ENUM_TYPE";
 
-pub const CORDL_REFERENCE_TYPE_CONSTRAINT: &str = "::cordl_internals::il2cpp_reference_type";
+pub const CORDL_REFERENCE_TYPE_CONSTRAINT: &str = "::il2cpp_utils::il2cpp_reference_type";
 pub const CORDL_NUM_ENUM_TYPE_CONSTRAINT: &str = "::cordl_internals::is_or_is_backed_by";
 pub const CORDL_METHOD_HELPER_NAMESPACE: &str = "::cordl_internals";
 
@@ -408,13 +408,12 @@ impl CppType {
     }
 
     pub fn write_type_trait(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if self.cpp_template.is_some() {
-            // generic
-            // the existing macros don't work for generics, emit the structs directly
+        if self.cpp_template.is_some() { // generic
+            // macros from bs hook
             let type_trait_macro = if self.is_enum_type || self.is_value_type {
-                "CORDL_GEN_VAL_TYPE"
+                "MARK_GEN_VAL_T"
             } else {
-                "CORDL_GEN_REF_TYPE"
+                "MARK_GEN_REF_T"
             };
 
             writeln!(
@@ -422,13 +421,12 @@ impl CppType {
                 "{type_trait_macro}({});",
                 self.cpp_name_components.combine_all(false)
             )?;
-        } else {
-            // non-generic
-            // use existing macros for non generics, this way we can emit less lines
+        } else { // non-generic
+            // macros from bs hook
             let type_trait_macro = if self.is_enum_type || self.is_value_type {
-                "CORDL_VAL_TYPE"
+                "MARK_VAL_T"
             } else {
-                "CORDL_REF_TYPE"
+                "MARK_REF_T"
             };
 
             writeln!(

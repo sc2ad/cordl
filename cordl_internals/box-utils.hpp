@@ -37,10 +37,10 @@ namespace cordl_internals {
         return *reinterpret_cast<T*>(il2cpp_functions::object_unbox(t));
     }
 
-    template<il2cpp_reference_type T>
+    template<::il2cpp_utils::il2cpp_reference_type T>
     CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) { return T(t.convert()); }
 
-    template<il2cpp_value_type T>
+    template<::il2cpp_utils::il2cpp_value_type T>
     CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) {
         std::array<std::byte, T::__CORDL_VALUE_TYPE_SIZE> data;
         std::memcpy(data.data(), il2cpp_functions::object_unbox(t), T::__CORDL_VALUE_TYPE_SIZE);

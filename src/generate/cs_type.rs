@@ -682,12 +682,12 @@ pub trait CSType: Sized {
                 let setter_call = match f_type.is_static() {
                     true => {
                         format!(
-                        "{CORDL_METHOD_HELPER_NAMESPACE}::setStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>({setter_var_name});"
+                        "{CORDL_METHOD_HELPER_NAMESPACE}::setStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
                     )
                     }
                     false => {
                         format!(
-                            "{CORDL_METHOD_HELPER_NAMESPACE}::setInstanceField<{field_ty_cpp_name}, 0x{f_offset:x}>({instance}, {setter_var_name});"
+                            "{CORDL_METHOD_HELPER_NAMESPACE}::setInstanceField<{field_ty_cpp_name}, 0x{f_offset:x}>({instance}, std::forward<{field_ty_cpp_name}>({setter_var_name}));"
                         )
                     }
                 };
@@ -756,7 +756,7 @@ pub trait CSType: Sized {
                     is_no_except: false, // TODO:
                     parameters: vec![CppParam {
                         def_value: None,
-                        modifiers: "const&".to_string(),
+                        modifiers: "".to_string(),
                         name: setter_var_name.to_string(),
                         ty: field_ty_cpp_name.clone(),
                     }],
@@ -869,6 +869,12 @@ pub trait CSType: Sized {
                 let size = cpp_type
                     .calculated_size
                     .expect("No size for value/enum type!");
+
+                if t.is_enum_type() {
+                    cpp_type.requirements.needs_enum_include();
+                } else if t.is_value_type() {
+                    cpp_type.requirements.needs_value_include();
+                }
 
                 let wrapper = wrapper_type_for_tdi(t);
 

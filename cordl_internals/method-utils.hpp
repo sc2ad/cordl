@@ -159,7 +159,7 @@ template<typename T>
                                        TArgs&&... params) {
         CRASH_UNLESS(method);
 
-        if constexpr (il2cpp_reference_type<T>) {
+        if constexpr (::il2cpp_utils::il2cpp_reference_type<T>) {
             if ((method->flags & METHOD_ATTRIBUTE_STATIC) == 0) { // method is instance method
                 if (!instance.convert()) {
                     // if instance.convert() is false, we are dealing with a nullptr instance, and the instance method call is a bad idea
