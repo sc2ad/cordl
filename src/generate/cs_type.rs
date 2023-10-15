@@ -253,7 +253,7 @@ pub trait CSType: Sized {
         }
 
         if t.parent_index == u32::MAX {
-            if !t.is_interface() {
+            if !t.is_interface() && t.full_name(metadata.metadata, true) != "System.Object" {
                 info!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
                 return None;
             }
@@ -879,6 +879,11 @@ pub trait CSType: Sized {
                 let wrapper = wrapper_type_for_tdi(t);
 
                 cpp_type.inherit.push(format!("{wrapper}<0x{size:x}>"));
+            }
+            // Handle System.Object
+            false if t.full_name(metadata.metadata, true) == "System.Object" => {
+                cpp_type.requirements.need_wrapper();
+                cpp_type.inherit.push(OBJECT_WRAPPER_TYPE.to_string());
             }
             // handle as reference type
             false => {
@@ -2483,11 +2488,14 @@ pub trait CSType: Sized {
         };
 
         let ret = match typ.ty {
-            Il2CppTypeEnum::Object => {
-                requirements.need_wrapper();
-                OBJECT_WRAPPER_TYPE.to_string()
-            }
-            Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class | Il2CppTypeEnum::Typedbyref => {
+            // Commented so types use System.Object
+            // might revert
+
+            // Il2CppTypeEnum::Object => {
+            //     requirements.need_wrapper();
+            //     OBJECT_WRAPPER_TYPE.to_string()
+            // }
+            Il2CppTypeEnum::Object | Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class | Il2CppTypeEnum::Typedbyref => {
                 let typ_cpp_tag: CppTypeTag = typ_tag.into();
                 // Self
 
