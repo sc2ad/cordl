@@ -1739,8 +1739,10 @@ pub trait CSType: Sized {
             let make_param_cpp_type_name = |cpp_type: &mut CppType| -> String {
                 let full_name = param_type.full_name(metadata.metadata);
                 if full_name == "System.Enum" {
+                    cpp_type.requirements.needs_enum_include();
                     ENUM_PTR_TYPE.into()
                 } else if full_name == "System.ValueType" {
+                    cpp_type.requirements.needs_value_include();
                     VT_PTR_TYPE.into()
                 } else {
                     cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, 0)
@@ -1829,8 +1831,10 @@ pub trait CSType: Sized {
         let make_ret_cpp_type_name = |cpp_type: &mut CppType| -> String {
             let full_name = m_ret_type.full_name(metadata.metadata);
             if full_name == "System.Enum" {
+                cpp_type.requirements.needs_enum_include();
                 ENUM_PTR_TYPE.into()
             } else if full_name == "System.ValueType" {
+                cpp_type.requirements.needs_value_include();
                 VT_PTR_TYPE.into()
             } else {
                 cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, 0)
