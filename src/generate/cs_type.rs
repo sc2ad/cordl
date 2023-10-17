@@ -1012,8 +1012,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata,
         ctx_collection: &CppContextCollection,
-        _config: &GenerationConfig,
-
+        config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
@@ -1030,6 +1029,7 @@ pub trait CSType: Sized {
             .iter()
             .filter(|t| !metadata.blacklisted_types.contains(t))
             .map(|nested_tdi| {
+                let nested_td = &metadata.metadata.global_metadata.type_definitions[*nested_tdi];
                 let nested_tag = CppTypeTag::TypeDefinitionIndex(*nested_tdi);
 
                 let nested_context = ctx_collection
@@ -1040,7 +1040,7 @@ pub trait CSType: Sized {
                     .expect("Unable to find nested CppType");
 
                 let alias = CppUsingAlias::from_cpp_type(
-                    nested.cpp_name().clone(),
+                    config.name_cpp(nested_td.name(metadata.metadata)),
                     nested,
                     generic_instantiation_args.clone(),
                     // if no generic args are made, we can do the generic fixup
@@ -2495,7 +2495,10 @@ pub trait CSType: Sized {
             //     requirements.need_wrapper();
             //     OBJECT_WRAPPER_TYPE.to_string()
             // }
-            Il2CppTypeEnum::Object | Il2CppTypeEnum::Valuetype | Il2CppTypeEnum::Class | Il2CppTypeEnum::Typedbyref => {
+            Il2CppTypeEnum::Object
+            | Il2CppTypeEnum::Valuetype
+            | Il2CppTypeEnum::Class
+            | Il2CppTypeEnum::Typedbyref => {
                 let typ_cpp_tag: CppTypeTag = typ_tag.into();
                 // Self
 
@@ -2570,9 +2573,9 @@ pub trait CSType: Sized {
                         // TODO: Remove?
                         // ignore nested types
                         // false if to_incl_cpp_ty.nested => {
-                            // TODO: What should we do here?
-                            // error!("Can't forward declare nested type! Including!");
-                            // requirements.add_include(Some(to_incl_cpp_ty), inc);
+                        // TODO: What should we do here?
+                        // error!("Can't forward declare nested type! Including!");
+                        // requirements.add_include(Some(to_incl_cpp_ty), inc);
                         // }
                         // forward declare
                         false => {
@@ -2739,9 +2742,8 @@ pub trait CSType: Sized {
                     };
 
                     if add_include {
-                        
                         let generic_tag = CppTypeTag::from_type_data(typ.data, metadata.metadata);
-                        
+
                         // depend on both tdi and generic instantiation
                         requirements.add_dependency_tag(tdi.into());
                         requirements.add_dependency_tag(generic_tag);
