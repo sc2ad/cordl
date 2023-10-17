@@ -1475,6 +1475,20 @@ pub trait CSType: Sized {
             return;
         }
 
+        let default_ctor = CppConstructorDecl {
+            cpp_name: cpp_name.clone(),
+            parameters: vec![],
+            template: None,
+            is_constexpr: true,
+            is_explicit: false,
+            is_default: true,
+            is_no_except: true,
+
+            base_ctor: None,
+            initialized_values: HashMap::new(),
+            brief: None,
+            body: None,
+        };
         let copy_ctor = CppConstructorDecl {
             cpp_name: cpp_name.clone(),
             parameters: vec![CppParam {
@@ -1492,7 +1506,7 @@ pub trait CSType: Sized {
             base_ctor: None,
             initialized_values: HashMap::new(),
             brief: None,
-            body: Some(vec![]),
+            body: None,
         };
         let move_ctor = CppConstructorDecl {
             cpp_name: cpp_name.clone(),
@@ -1510,9 +1524,12 @@ pub trait CSType: Sized {
             base_ctor: None,
             initialized_values: HashMap::new(),
             brief: None,
-            body: Some(vec![]),
+            body: None,
         };
 
+        cpp_type
+            .declarations
+            .push(CppMember::ConstructorDecl(default_ctor).into());
         cpp_type
             .declarations
             .push(CppMember::ConstructorDecl(copy_ctor).into());
