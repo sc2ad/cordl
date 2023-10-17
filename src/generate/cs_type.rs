@@ -1,5 +1,5 @@
 use core::panic;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use std::{
     collections::HashMap,
     io::{Cursor, Read},

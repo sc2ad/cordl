@@ -33,7 +33,7 @@ use crate::{
         context_collection::CppContextCollection, cpp_type_tag::CppTypeTag,
         cs_context_collection::CsContextCollection, members::CppMember,
     },
-    handlers::{il2cpp_internals, unity, value_type},
+    handlers::{il2cpp_internals, unity, value_type, object},
 };
 mod data;
 mod generate;
@@ -339,6 +339,7 @@ fn main() -> color_eyre::Result<()> {
     info!("Registering handlers!");
     il2cpp_internals::register_il2cpp_types(&mut metadata)?;
     unity::register_unity(&mut metadata)?;
+    object::register_system(&mut metadata)?;
     value_type::register_value_type(&mut metadata)?;
     info!("Handlers registered!");
 
