@@ -1,11 +1,12 @@
 use color_eyre::Result;
 use log::info;
-use std::{rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::generate::{
     cpp_type::CppType,
-    members::{CppMember},
-    metadata::{Il2cppFullName, Metadata}, cs_type::OBJECT_WRAPPER_TYPE,
+    cs_type::{CSType, OBJECT_WRAPPER_TYPE},
+    members::{CppConstructorDecl, CppMember, CppParam},
+    metadata::{Il2cppFullName, Metadata},
 };
 
 pub fn register_system(metadata: &mut Metadata) -> Result<()> {
@@ -33,10 +34,8 @@ fn register_system_object_type_handler(metadata: &mut Metadata) -> Result<()> {
 fn system_object_handler(cpp_type: &mut CppType) {
     info!("Found System.Object type, adding systemW!");
     cpp_type.inherit = vec![OBJECT_WRAPPER_TYPE.to_string()];
-    
-    cpp_type
-        .requirements
-        .need_wrapper();
+
+    cpp_type.requirements.need_wrapper();
 
     // Fixup ctor call declarations
     cpp_type
@@ -66,4 +65,50 @@ fn system_object_handler(cpp_type: &mut CppType) {
                 base_ctor.0 = OBJECT_WRAPPER_TYPE.to_string();
             }
         });
+
+    cpp_type.declarations.push(
+        CppMember::ConstructorDecl(CppConstructorDecl {
+            cpp_name: cpp_type.cpp_name().clone(),
+            parameters: vec![CppParam {
+                name: "ptr".into(),
+                ty: "void*".into(),
+                modifiers: "".into(),
+                def_value: None,
+            }],
+            template: None,
+            is_constexpr: true,
+            is_explicit: true,
+            is_default: false,
+            is_no_except: true,
+            base_ctor: Some((OBJECT_WRAPPER_TYPE.into(), "ptr".into())),
+            initialized_values: HashMap::new(),
+            brief: None,
+            body: Some(vec![]),
+        })
+        .into(),
+    );
+    cpp_type.declarations.push(
+        CppMember::ConstructorDecl(CppConstructorDecl {
+            cpp_name: cpp_type.cpp_name().clone(),
+            parameters: vec![CppParam {
+                name: "ptr".into(),
+                ty: OBJECT_WRAPPER_TYPE.into(),
+                modifiers: "".into(),
+                def_value: None,
+            }],
+            template: None,
+            is_constexpr: true,
+            is_explicit: true,
+            is_default: false,
+            is_no_except: true,
+            base_ctor: Some((OBJECT_WRAPPER_TYPE.into(), "ptr".into())),
+            initialized_values: HashMap::new(),
+            brief: None,
+            body: Some(vec![]),
+        })
+        .into(),
+    );
+
+    // cpp_type.create_ref_default_constructor();
+    cpp_type.create_ref_default_operators();
 }
