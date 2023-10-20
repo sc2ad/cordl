@@ -209,6 +209,9 @@ impl CppContext {
         writeln!(typeimpl_writer, "#pragma once")?;
         writeln!(fundamental_writer, "#pragma once")?;
 
+        // macro module init
+        writeln!(typedef_writer, "CORDL_MODULE_INIT")?;
+
         // Include cordl config
         // this is so confusing but basically gets the relative folder
         // navigation for `_config.hpp`
@@ -340,10 +343,17 @@ impl CppContext {
             .sorted()
             .try_for_each(|i| i.write(&mut typeimpl_writer))?;
 
+        // add module declarations
+        writeln!(
+            typedef_writer,
+            "CORDL_MODULE_EXPORT {}",
+            self.fundamental_path.file_stem().unwrap().to_string_lossy()
+        )?;
+
         // anonymous namespace
         if STATIC_CONFIG.use_anonymous_namespace {
-            writeln!(typedef_writer, "namespace {{")?;
-            writeln!(typeimpl_writer, "namespace {{")?;
+            writeln!(typedef_writer, "CORDL_MODULE_EXPORT_STRUCT namespace {{")?;
+            writeln!(typeimpl_writer, "CORDL_MODULE_EXPORT_STRUCT namespace {{")?;
         }
 
         // write forward declares

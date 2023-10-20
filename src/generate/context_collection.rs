@@ -704,8 +704,20 @@ impl CppContextCollection {
 
                 let mut file = File::create(path)?;
 
+                writeln!(
+                    file,
+                    "#ifdef __cpp_modules
+                    module;
+                    #endif
+                ")?;
                 writeln!(file, "#pragma once")?;
                 file.write_all(str.as_bytes())?;
+                writeln!(
+                    file,
+                    "#ifdef __cpp_modules
+                    export module {namespace};
+                    #endif
+                ")?;
 
                 Ok(())
             })?;
