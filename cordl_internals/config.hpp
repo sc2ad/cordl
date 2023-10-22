@@ -11,13 +11,13 @@
 
 #if defined(__cpp_modules) && CORDL_COMPILE_MODULES
 #define CORDL_MODULE_EXPORT_STRUCT export
-#define CORDL_MODULE_EXPORT export module 
-#define CORDL_MODULE_INIT module 
+#define CORDL_MODULE_EXPORT(m) export module m;
+#define CORDL_MODULE_INIT module;
 
 #else
 
 #define CORDL_MODULE_EXPORT_STRUCT
-#define CORDL_MODULE_EXPORT
+#define CORDL_MODULE_EXPORT(m)
 #define CORDL_MODULE_INIT
 
 #endif

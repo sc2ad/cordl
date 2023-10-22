@@ -209,9 +209,6 @@ impl CppContext {
         writeln!(typeimpl_writer, "#pragma once")?;
         writeln!(fundamental_writer, "#pragma once")?;
 
-        // macro module init
-        writeln!(typedef_writer, "CORDL_MODULE_INIT")?;
-
         // Include cordl config
         // this is so confusing but basically gets the relative folder
         // navigation for `_config.hpp`
@@ -222,6 +219,10 @@ impl CppContext {
         .unwrap();
 
         CppInclude::new_exact(dest_path).write(&mut typedef_writer)?;
+
+        // after including cordl internals
+        // macro module init
+        writeln!(typedef_writer, "CORDL_MODULE_INIT")?;
 
         // alphabetical sorted
         let typedef_types = self
@@ -346,7 +347,7 @@ impl CppContext {
         // add module declarations
         writeln!(
             typedef_writer,
-            "CORDL_MODULE_EXPORT {}",
+            "CORDL_MODULE_EXPORT({})",
             self.fundamental_path.file_stem().unwrap().to_string_lossy()
         )?;
 
