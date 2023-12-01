@@ -51,8 +51,8 @@ type Endian = LittleEndian;
 pub const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
 pub const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::ValueTypeWrapper::instance";
-pub const VALUE_TYPE_WRAPPER_SIZE: &str = "__CORDL_VALUE_TYPE_SIZE";
-pub const REFERENCE_TYPE_WRAPPER_SIZE: &str = "__CORDL_REFERENCE_TYPE_SIZE";
+pub const VALUE_TYPE_WRAPPER_SIZE: &str = "__IL2CPP_VALUE_TYPE_SIZE";
+pub const REFERENCE_TYPE_WRAPPER_SIZE: &str = "__IL2CPP_REFERENCE_TYPE_SIZE";
 pub const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
 
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
