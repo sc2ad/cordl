@@ -1199,6 +1199,19 @@ pub trait CSType: Sized {
                 })
                 .into(),
             );
+
+            cpp_type.declarations.push(
+                CppMember::FieldDecl(CppFieldDecl {
+                    cpp_name: format!("{REFERENCE_TYPE_FIELD_SIZE}[{size:x}]").to_string(),
+                    field_ty: "uint8_t".to_string(),
+                    instance: true,
+                    readonly: false,
+                    const_expr: false,
+                    value: Some(format!("0x{size:x}")),
+                    brief_comment: Some("The size of the true reference type".to_string()),
+                })
+                .into(),
+            );
         } else {
             todo!("Why does this type not have a valid size??? {:?}", cpp_type);
         }
