@@ -495,7 +495,7 @@ impl Writable for CppPropertyDecl {
 
         writeln!(
             writer,
-            "{prefixes} {ty} __declspec(property({property})) {suffixes} {name};"
+            "{prefixes} __declspec(property({property})) {ty} {suffixes} {name};"
         )?;
 
         Ok(())
