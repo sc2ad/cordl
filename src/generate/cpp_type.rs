@@ -89,11 +89,13 @@ pub struct CppType {
 
     pub is_value_type: bool,
     pub is_enum_type: bool,
+    pub is_reference_type: bool,
     pub requirements: CppTypeRequirements,
 
     pub inherit: Vec<String>,
     pub cpp_template: Option<CppTemplate>, // Names of templates e.g T, TKey etc.
 
+    /// contains the array of generic Il2CppType indexes
     pub generic_instantiations_args_types: Option<Vec<usize>>, // GenericArg -> Instantiation Arg
     pub method_generic_instantiation_map: HashMap<MethodIndex, Vec<TypeIndex>>, // MethodIndex -> Generic Args
     pub is_stub: bool,

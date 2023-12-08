@@ -24,6 +24,16 @@ impl NameComponents {
         }
     }
 
+    pub fn ref_generics(self) -> Self {
+        Self {
+            generics: self
+                .generics
+                .map(|opt| opt.into_iter().map(|_| "void*".to_string()).collect()),
+            ..self
+        }
+    }
+
+    /// just cpp name with generics
     pub fn formatted_name(&self, include_generics: bool) -> String {
         if let Some(generics) = &self.generics && include_generics {
             format!("{}<{}>", self.name, generics.join(", "))

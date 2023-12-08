@@ -51,6 +51,10 @@ fn system_object_handler(cpp_type: &mut CppType) {
                 base_ctor.0 = OBJECT_WRAPPER_TYPE.to_string();
             }
         });
+    // Remove field because it does not size properly and is not necessary
+    cpp_type
+        .declarations
+        .retain(|t| !matches!(t.as_ref(), CppMember::FieldDecl(_)));
     // Fixup ctor call implementations
     cpp_type
         .implementations
