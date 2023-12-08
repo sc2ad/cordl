@@ -1,6 +1,6 @@
 use super::{
     members::*,
-    writer::{CppWriter, Writable, SortLevel, Sortable},
+    writer::{CppWriter, SortLevel, Sortable, Writable},
 };
 
 use itertools::Itertools;
@@ -363,7 +363,6 @@ impl Sortable for CppMethodImpl {
     }
 }
 
-
 impl Writable for CppConstructorDecl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -633,6 +632,7 @@ impl Writable for CppMember {
             CppMember::ConstructorImpl(ci) => ci.write(writer),
             CppMember::CppUsingAlias(alias) => alias.write(writer),
             CppMember::CppLine(line) => line.write(writer),
+            CppMember::CppStaticAssert(sa) => sa.write(writer),
         }
     }
 }
@@ -648,6 +648,7 @@ impl Sortable for CppMember {
             CppMember::ConstructorDecl(t) => t.sort_level(),
             CppMember::ConstructorImpl(t) => t.sort_level(),
             CppMember::CppUsingAlias(t) => t.sort_level(),
+            CppMember::CppStaticAssert(t) => SortLevel::Unknown,
             CppMember::Comment(_) => SortLevel::Unknown,
             CppMember::CppLine(_) => SortLevel::Unknown,
         }

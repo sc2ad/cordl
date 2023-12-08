@@ -35,7 +35,8 @@ use super::{
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
-        CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl, CppTemplate,
+        CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl, CppStaticAssert,
+        CppTemplate,
     },
     metadata::Metadata,
     type_extensions::{
@@ -53,12 +54,13 @@ pub const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 pub const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::ValueTypeWrapper::instance";
 pub const VALUE_TYPE_WRAPPER_SIZE: &str = "__IL2CPP_VALUE_TYPE_SIZE";
 pub const REFERENCE_TYPE_WRAPPER_SIZE: &str = "__IL2CPP_REFERENCE_TYPE_SIZE";
+pub const REFERENCE_TYPE_FIELD_SIZE: &str = "__fields";
 pub const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType::instance";
 
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
 pub const ENUM_WRAPPER_TYPE: &str = "::bs_hook::EnumTypeWrapper";
 pub const INTERFACE_WRAPPER_TYPE: &str = "::cordl_internals::InterfaceW";
-pub const OBJECT_WRAPPER_TYPE: &str = "::bs_hook::Il2CppWrapperType";
+pub const OBJECT_WRAPPER_TYPE: &str = "Il2CppObject";
 pub const CORDL_NO_INCLUDE_IMPL_DEFINE: &str = "CORDL_NO_IMPL_INCLUDE";
 
 pub const ENUM_PTR_TYPE: &str = "::bs_hook::EnumPtr";
@@ -303,6 +305,10 @@ pub trait CSType: Sized {
             self.create_ref_size();
             self.create_ref_default_constructor();
             self.create_ref_default_operators();
+        }
+
+        if !t.is_interface() {
+            self.create_size_assert();
         }
 
         self.make_nested_types(metadata, ctx_collection, config, tdi);
@@ -1158,6 +1164,23 @@ pub trait CSType: Sized {
                 })
                 .into(),
             );
+        }
+    }
+
+    fn create_size_assert(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        if let Some(size) = cpp_type.calculated_size {
+            let cpp_name = cpp_type.cpp_name_components.combine_all(true);
+
+            let assert = CppStaticAssert {
+                condition: format!("cordl_internals::size_check_v<{cpp_name}, 0x{size:x}>"),
+                message: Some("Size mismatch!".to_string()),
+            };
+            cpp_type
+                .declarations
+                .push(CppMember::CppStaticAssert(assert).into());
+        } else {
+            todo!("Why does this type not have a valid size??? {cpp_type:?}");
         }
     }
 

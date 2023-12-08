@@ -122,6 +122,7 @@ pub enum CppMember {
     ConstructorImpl(CppConstructorImpl),
     CppUsingAlias(CppUsingAlias),
     Comment(CppCommentedString),
+    CppStaticAssert(CppStaticAssert),
     CppLine(CppLine),
 }
 
