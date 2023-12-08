@@ -40,3 +40,28 @@ impl Write for CppWriter {
 pub trait Writable: std::fmt::Debug {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()>;
 }
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub enum SortLevel {
+    UsingAlias,
+    Fields,
+    Properties,
+    Constructors,
+    Methods,
+    Unknown,
+}
+
+pub trait Sortable {
+    fn sort_level(&self) -> SortLevel;
+}
+
+// impl PartialEq for dyn Sortable {
+//     fn eq(&self, other: &Self) -> bool {
+//         todo!()
+//     }
+// }
+//  impl PartialOrd for dyn Sortable {
+//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+//         self.sort_level().partial_cmp(&other.sort_level())
+//     }
+// }

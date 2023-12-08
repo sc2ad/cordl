@@ -1,6 +1,6 @@
 use super::{
     members::*,
-    writer::{CppWriter, Writable},
+    writer::{CppWriter, Writable, SortLevel, Sortable},
 };
 
 use itertools::Itertools;
@@ -105,6 +105,11 @@ impl Writable for CppUsingAlias {
         Ok(())
     }
 }
+impl Sortable for CppUsingAlias {
+    fn sort_level(&self) -> SortLevel {
+        SortLevel::UsingAlias
+    }
+}
 
 impl Writable for CppFieldDecl {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -139,6 +144,11 @@ impl Writable for CppFieldDecl {
         Ok(())
     }
 }
+impl Sortable for CppFieldDecl {
+    fn sort_level(&self) -> SortLevel {
+        SortLevel::Fields
+    }
+}
 
 impl Writable for CppFieldImpl {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -168,6 +178,11 @@ impl Writable for CppFieldImpl {
         )?;
 
         Ok(())
+    }
+}
+impl Sortable for CppFieldImpl {
+    fn sort_level(&self) -> SortLevel {
+        SortLevel::Fields
     }
 }
 
@@ -258,6 +273,11 @@ impl Writable for CppMethodDecl {
         Ok(())
     }
 }
+impl Sortable for CppMethodDecl {
+    fn sort_level(&self) -> SortLevel {
+        SortLevel::Methods
+    }
+}
 
 impl Writable for CppMethodImpl {
     // declaration
@@ -337,6 +357,12 @@ impl Writable for CppMethodImpl {
         Ok(())
     }
 }
+impl Sortable for CppMethodImpl {
+    fn sort_level(&self) -> SortLevel {
+        SortLevel::Methods
+    }
+}
+
 
 impl Writable for CppConstructorDecl {
     // declaration
@@ -406,6 +432,11 @@ impl Writable for CppConstructorDecl {
         Ok(())
     }
 }
+impl Sortable for CppConstructorDecl {
+    fn sort_level(&self) -> SortLevel {
+        SortLevel::Constructors
+    }
+}
 
 impl Writable for CppConstructorImpl {
     // declaration
@@ -463,6 +494,11 @@ impl Writable for CppConstructorImpl {
         Ok(())
     }
 }
+impl Sortable for CppConstructorImpl {
+    fn sort_level(&self) -> SortLevel {
+        SortLevel::Constructors
+    }
+}
 
 impl Writable for CppPropertyDecl {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
@@ -499,6 +535,11 @@ impl Writable for CppPropertyDecl {
         )?;
 
         Ok(())
+    }
+}
+impl Sortable for CppPropertyDecl {
+    fn sort_level(&self) -> SortLevel {
+        SortLevel::Properties
     }
 }
 
@@ -592,6 +633,23 @@ impl Writable for CppMember {
             CppMember::ConstructorImpl(ci) => ci.write(writer),
             CppMember::CppUsingAlias(alias) => alias.write(writer),
             CppMember::CppLine(line) => line.write(writer),
+        }
+    }
+}
+
+impl Sortable for CppMember {
+    fn sort_level(&self) -> SortLevel {
+        match self {
+            CppMember::FieldDecl(t) => t.sort_level(),
+            CppMember::FieldImpl(t) => t.sort_level(),
+            CppMember::MethodDecl(t) => t.sort_level(),
+            CppMember::MethodImpl(t) => t.sort_level(),
+            CppMember::Property(t) => t.sort_level(),
+            CppMember::ConstructorDecl(t) => t.sort_level(),
+            CppMember::ConstructorImpl(t) => t.sort_level(),
+            CppMember::CppUsingAlias(t) => t.sort_level(),
+            CppMember::Comment(_) => SortLevel::Unknown,
+            CppMember::CppLine(_) => SortLevel::Unknown,
         }
     }
 }

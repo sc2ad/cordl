@@ -15,7 +15,7 @@ use super::{
     context_collection::CppContextCollection,
     cpp_type_tag::CppTypeTag,
     members::{CppForwardDeclare, CppInclude, CppMember, CppTemplate},
-    writer::{CppWriter, Writable},
+    writer::{CppWriter, Sortable, Writable},
 };
 
 pub const CORDL_TYPE_MACRO: &str = "CORDL_TYPE";
@@ -253,6 +253,7 @@ impl CppType {
         // Write all declarations within the type here
         self.implementations
             .iter()
+            .sorted_by(|a, b| a.sort_level().cmp(&b.sort_level()))
             .try_for_each(|d| d.write(writer))?;
 
         // TODO: Figure out
@@ -370,6 +371,7 @@ impl CppType {
             // Write all declarations within the type here
             self.declarations
                 .iter()
+                .sorted_by(|a, b| a.sort_level().cmp(&b.sort_level()))
                 .try_for_each(|d| -> color_eyre::Result<()> {
                     d.write(writer)?;
                     writeln!(writer)?;
@@ -408,7 +410,8 @@ impl CppType {
     }
 
     pub fn write_type_trait(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
-        if self.cpp_template.is_some() { // generic
+        if self.cpp_template.is_some() {
+            // generic
             // macros from bs hook
             let type_trait_macro = if self.is_enum_type || self.is_value_type {
                 "MARK_GEN_VAL_T"
@@ -421,7 +424,8 @@ impl CppType {
                 "{type_trait_macro}({});",
                 self.cpp_name_components.combine_all(false)
             )?;
-        } else { // non-generic
+        } else {
+            // non-generic
             // macros from bs hook
             let type_trait_macro = if self.is_enum_type || self.is_value_type {
                 "MARK_VAL_T"

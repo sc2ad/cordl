@@ -118,10 +118,10 @@ pub enum CppMember {
     MethodDecl(CppMethodDecl),
     MethodImpl(CppMethodImpl),
     Property(CppPropertyDecl),
-    Comment(CppCommentedString),
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
     CppUsingAlias(CppUsingAlias),
+    Comment(CppCommentedString),
     CppLine(CppLine),
 }
 
