@@ -367,6 +367,9 @@ impl Writable for CppConstructorDecl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
+        if let Some(brief) = &self.brief {
+            writeln!(writer, "// @brief {brief}")?;
+        }
 
         if let Some(template) = &self.template {
             template.write(writer)?;
@@ -377,6 +380,13 @@ impl Writable for CppConstructorDecl {
 
         let name = &self.cpp_name;
         let params = CppParam::params_as_args(&self.parameters).join(", ");
+
+        // if the ctor is deleted, we don't need to
+        if self.is_delete {
+            writeln!(writer, "{name}({params}) = delete;")?;
+
+            return Ok(())
+        }
 
         let mut prefix_modifiers = vec![];
         let mut suffix_modifiers = vec![];
@@ -397,6 +407,7 @@ impl Writable for CppConstructorDecl {
 
         let prefixes = prefix_modifiers.join(" ");
         let suffixes = suffix_modifiers.join(" ");
+
 
         if let Some(body) = &body && !self.is_default {
             let initializers = match self.initialized_values.is_empty() && self.base_ctor.is_none()
@@ -552,6 +563,7 @@ impl Writable for CppMethodSizeStruct {
         let template = self.template.clone().unwrap_or_default();
 
         let complete_type_name = &self.declaring_type_name;
+        let classof_call = &self.declaring_classof_call;
         let cpp_method_name = &self.cpp_method_name;
         let ret_type = &self.ret_ty;
         let size = &self.method_data.estimated_size;
@@ -567,7 +579,7 @@ impl Writable for CppMethodSizeStruct {
             vec![
                 format!("
                             static auto* {method_info_var} = THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(
-                                classof({complete_type_name}),
+                                {classof_call},
                                  {interface_klass_of}(),
                                   {slot}
                                 ));")

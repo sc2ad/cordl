@@ -503,6 +503,14 @@ impl CppContext {
                 }
         };
 
+        let ptr = match template_container_type {
+            true => "",
+            false => match ty.is_value_type {
+                true => "",
+                false => "*",
+            },
+        };
+
         // Essentially splits namespace.foo/nested_foo into (namespace, foo/nested_foo)
 
         let namespace = &ty.cs_name_components.namespace;
@@ -517,7 +525,7 @@ impl CppContext {
 
         writeln!(
             writer,
-            "{macro_arg_define}({}, \"{namespace}\", \"{combined_name}\");",
+            "{macro_arg_define}({}{ptr}, \"{namespace}\", \"{combined_name}\");",
             ty.cpp_name_components.combine_all(false)
         )?;
 

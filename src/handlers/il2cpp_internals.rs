@@ -190,6 +190,7 @@ fn reference_type_convert(cpp_type: &mut CppType, il2cpp_t: &str) {
         is_explicit: false,
         is_default: false,
         is_no_except: true,
+        is_delete: false,
 
         // use the void* ctor overload
         base_ctor: Some((
@@ -269,6 +270,7 @@ fn value_type_convert(cpp_type: &mut CppType, il2cpp_t: &str) {
         is_explicit: false,
         is_default: false,
         is_no_except: true,
+        is_delete: false,
         // use the array<byte, sz> ctor overload
         base_ctor: Some((
             cpp_name.clone(),

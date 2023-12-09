@@ -338,7 +338,7 @@ fn main() -> color_eyre::Result<()> {
 
     info!("Registering handlers!");
     il2cpp_internals::register_il2cpp_types(&mut metadata)?;
-    unity::register_unity(&mut metadata)?;
+    // unity::register_unity(&mut metadata)?;
     object::register_system(&mut metadata)?;
     value_type::register_value_type(&mut metadata)?;
     info!("Handlers registered!");

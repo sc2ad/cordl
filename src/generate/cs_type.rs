@@ -302,10 +302,12 @@ pub trait CSType: Sized {
             }
         } else if t.is_interface() {
             self.make_interface_constructors();
-        } else {
+            self.delete_move_ctor();
+            self.delete_copy_ctor();
+        } else { // ref type
             self.create_ref_size();
-            self.create_ref_default_constructor();
-            self.create_ref_default_operators();
+            self.delete_move_ctor();
+            self.delete_copy_ctor();
         }
 
         if !t.is_interface() {
@@ -668,7 +670,7 @@ pub trait CSType: Sized {
                     true => {
                         format!("this->{VALUE_WRAPPER_TYPE}<{VALUE_TYPE_WRAPPER_SIZE}>::instance")
                     }
-                    false => "*this".to_string(),
+                    false => "this".to_string(),
                 };
 
                 let klass_resolver = cpp_type.classof_cpp_name();
@@ -1181,12 +1183,13 @@ pub trait CSType: Sized {
             let cpp_name = cpp_type.cpp_name_components.combine_all(true);
 
             let assert = CppStaticAssert {
-                condition: format!("cordl_internals::size_check_v<{cpp_name}, 0x{size:x}>"),
+                condition: format!("::cordl_internals::size_check_v<{cpp_name}, 0x{size:x}>"),
                 message: Some("Size mismatch!".to_string()),
             };
+
             cpp_type
-                .declarations
-                .push(CppMember::CppStaticAssert(assert).into());
+                .nonmember_declarations
+                .push(Rc::new(assert));
         } else {
             todo!("Why does this type not have a valid size??? {cpp_type:?}");
         }
@@ -1208,6 +1211,7 @@ pub trait CSType: Sized {
                 .into(),
             );
 
+            // here we push an instance field like uint8_t __fields[total_size - base_size] to make sure ref types are the exact size they should be
             let fixup_size = match cpp_type.inherit.first() {
                 Some(base_type) => format!("0x{size:x} - sizeof({base_type})"),
                 None => format!("0x{size:x}"),
@@ -1221,7 +1225,7 @@ pub trait CSType: Sized {
                     readonly: false,
                     const_expr: false,
                     value: None,
-                    brief_comment: Some("The size of the true reference type".to_string()),
+                    brief_comment: Some("The size this ref type adds onto its base type, may evaluate to 0".to_string()),
                 })
                 .into(),
             );
@@ -1358,6 +1362,7 @@ pub trait CSType: Sized {
                 is_explicit: true,
                 is_default: false,
                 is_no_except: true,
+                is_delete: false,
                 base_ctor: Some((
                     cpp_type.inherit.get(0).unwrap().to_string(),
                     "instance".to_string(),
@@ -1452,6 +1457,7 @@ pub trait CSType: Sized {
                 is_explicit: false,
                 is_default: false,
                 is_no_except: true,
+                is_delete: false,
 
                 base_ctor,
                 initialized_values: HashMap::new(),
@@ -1491,28 +1497,116 @@ pub trait CSType: Sized {
                 .push(CppMember::ConstructorImpl(constructor_impl).into());
         }
 
+        // create the various copy and move ctors and operators
         let cpp_name = cpp_type.cpp_name();
-
         let wrapper = format!("{VALUE_WRAPPER_TYPE}<{VALUE_TYPE_WRAPPER_SIZE}>::instance");
-        cpp_type.declarations.push(
-            CppMember::CppLine(CppLine {
-                line: format!(
-                    "
-                    constexpr {cpp_name}({cpp_name} const&) = default;
-                    constexpr {cpp_name}({cpp_name}&&) = default;
-                    constexpr {cpp_name}& operator=({cpp_name} const& o) {{
-                        this->{wrapper} = o.{wrapper};
-                        return *this;
-                    }};
-                    constexpr {cpp_name}& operator=({cpp_name}&& o) noexcept {{
-                        this->{wrapper} = std::move(o.{wrapper});
-                        return *this;
-                    }};
-                "
-                ),
-            })
-            .into(),
-        );
+
+        let move_ctor = CppConstructorDecl {
+            cpp_name: cpp_name.clone(),
+            parameters: vec![
+                CppParam {
+                    ty: cpp_name.clone(),
+                    name: "".to_string(),
+                    modifiers: "&&".to_string(),
+                    def_value: None,
+                }
+            ],
+            template: None,
+            is_constexpr: true,
+            is_explicit: false,
+            is_default: true,
+            is_no_except: false,
+            is_delete: false,
+            base_ctor: None,
+            initialized_values: Default::default(),
+            brief: None,
+            body: None,
+        };
+
+        let copy_ctor = CppConstructorDecl {
+            cpp_name: cpp_name.clone(),
+            parameters: vec![
+                CppParam {
+                    ty: cpp_name.clone(),
+                    name: "".to_string(),
+                    modifiers: "const &".to_string(),
+                    def_value: None,
+                }
+            ],
+            template: None,
+            is_constexpr: true,
+            is_explicit: false,
+            is_default: true,
+            is_no_except: false,
+            is_delete: false,
+            base_ctor: None,
+            initialized_values: Default::default(),
+            brief: None,
+            body: None,
+        };
+
+        let move_operator_eq = CppMethodDecl {
+            cpp_name: "operator=".to_string(),
+            return_type: format!("{cpp_name}&"),
+            parameters: vec![
+                CppParam {
+                    ty: cpp_name.clone(),
+                    name: "o".to_string(),
+                    modifiers: "&&".to_string(),
+                    def_value: None,
+                }
+            ],
+            instance: true,
+            template: None,
+            suffix_modifiers: vec![],
+            prefix_modifiers: vec![],
+            is_virtual: false,
+            is_constexpr: true,
+            is_const: false,
+            is_no_except: true,
+            is_operator: false,
+            is_inline: false,
+            brief: None,
+            body: Some(vec![
+                Arc::new(CppLine::make(format!("this->{wrapper} = std::move(o.{wrapper});"))),
+                Arc::new(CppLine::make("return *this;".to_string()))
+                ],
+            ),
+        };
+
+        let copy_operator_eq = CppMethodDecl {
+            cpp_name: "operator=".to_string(),
+            return_type: format!("{cpp_name}&"),
+            parameters: vec![
+                CppParam {
+                    ty: cpp_name.clone(),
+                    name: "o".to_string(),
+                    modifiers: "const &".to_string(),
+                    def_value: None,
+                }
+            ],
+            instance: true,
+            template: None,
+            suffix_modifiers: vec![],
+            prefix_modifiers: vec![],
+            is_virtual: false,
+            is_constexpr: true,
+            is_const: false,
+            is_no_except: true,
+            is_operator: false,
+            is_inline: false,
+            brief: None,
+            body: Some(vec![
+                Arc::new(CppLine::make(format!("this->{wrapper} = o.{wrapper};"))),
+                Arc::new(CppLine::make("return *this;".to_string()))
+                ],
+            ),
+        };
+
+        cpp_type.declarations.push(CppMember::ConstructorDecl(move_ctor).into());
+        cpp_type.declarations.push(CppMember::ConstructorDecl(copy_ctor).into());
+        cpp_type.declarations.push(CppMember::MethodDecl(move_operator_eq).into());
+        cpp_type.declarations.push(CppMember::MethodDecl(copy_operator_eq).into());
     }
 
     fn create_ref_default_constructor(&mut self) {
@@ -1534,6 +1628,7 @@ pub trait CSType: Sized {
             is_explicit: false,
             is_default: true,
             is_no_except: true,
+            is_delete: false,
 
             base_ctor: None,
             initialized_values: HashMap::new(),
@@ -1553,6 +1648,7 @@ pub trait CSType: Sized {
             is_explicit: false,
             is_default: true,
             is_no_except: true,
+            is_delete: false,
 
             base_ctor: None,
             initialized_values: HashMap::new(),
@@ -1572,6 +1668,8 @@ pub trait CSType: Sized {
             is_explicit: false,
             is_default: true,
             is_no_except: true,
+            is_delete: false,
+
             base_ctor: None,
             initialized_values: HashMap::new(),
             brief: None,
@@ -1612,6 +1710,7 @@ pub trait CSType: Sized {
                 is_explicit: true,
                 is_default: false,
                 is_no_except: true,
+                is_delete: false,
 
                 base_ctor: Some((base_type.clone(), "ptr".to_string())),
                 initialized_values: HashMap::new(),
@@ -1644,6 +1743,7 @@ pub trait CSType: Sized {
                 is_explicit: true,
                 is_default: false,
                 is_no_except: true,
+                is_delete: false,
 
                 base_ctor: Some((base_type.clone(), "ptr".to_string())),
                 initialized_values: HashMap::new(),
@@ -1691,6 +1791,69 @@ pub trait CSType: Sized {
             .into(),
         );
     }
+
+    fn delete_move_ctor(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = &cpp_type.cpp_name_components.name;
+
+        let move_ctor = CppConstructorDecl {
+            cpp_name: t.clone(),
+            parameters: vec![
+                CppParam {
+                    def_value: None,
+                    modifiers: "&&".to_string(),
+                    name: "".to_string(),
+                    ty: t.clone(),
+                }
+            ],
+            template: None,
+            is_constexpr: false,
+            is_explicit: false,
+            is_default: false,
+            is_no_except: false,
+            is_delete: true,
+            base_ctor: None,
+            initialized_values: Default::default(),
+            brief: Some("delete move ctor to prevent accidental deref moves".to_string()),
+            body: None,
+        };
+
+        cpp_type.declarations.push(
+            CppMember::ConstructorDecl(move_ctor).into()
+        );
+    }
+
+    fn delete_copy_ctor(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = &cpp_type.cpp_name_components.name;
+
+        let move_ctor = CppConstructorDecl {
+            cpp_name: t.clone(),
+            parameters: vec![
+                CppParam {
+                    def_value: None,
+                    modifiers: "const&".to_string(),
+                    name: "".to_string(),
+                    ty: t.clone(),
+                }
+            ],
+            template: None,
+            is_constexpr: false,
+            is_explicit: false,
+            is_default: false,
+            is_no_except: false,
+            is_delete: true,
+            base_ctor: None,
+            initialized_values: Default::default(),
+            brief: Some("delete copy ctor to prevent accidental deref copies".to_string()),
+            body: None,
+        };
+
+        cpp_type.declarations.push(
+            CppMember::ConstructorDecl(move_ctor).into()
+        );
+    }
+
 
     fn create_ref_constructor(
         cpp_type: &mut CppType,
@@ -1995,7 +2158,13 @@ pub trait CSType: Sized {
         let method_invoke_params = vec![instance_ptr.as_str(), METHOD_INFO_VAR_NAME];
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
         let declaring_type_cpp_full_name = cpp_type.cpp_name_components.combine_all(true);
-        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{declaring_type_cpp_full_name}>::get()");
+        let ptr = if cpp_type.is_value_type {
+            ""
+        } else {
+            "*"
+        };
+
+        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{declaring_type_cpp_full_name}{ptr}>::get()");
 
         let params_types_format: String = CppParam::params_types(&method_decl.parameters)
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
@@ -2099,6 +2268,7 @@ pub trait CSType: Sized {
                     cpp_method_name: method_decl.cpp_name.clone(),
                     method_name: m_name.to_string(),
                     declaring_type_name: method_impl.declaring_cpp_full_name.clone(),
+                    declaring_classof_call: declaring_classof_call,
                     method_info_lines,
                     method_info_var: METHOD_INFO_VAR_NAME.to_string(),
                     instance: method_decl.instance,
@@ -2963,8 +3133,14 @@ pub trait CSType: Sized {
     }
 
     fn classof_cpp_name(&self) -> String {
+        let ptr = if self.get_cpp_type().is_value_type {
+            ""
+        } else {
+            "*"
+        };
+
         format!(
-            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{}>::get",
+            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{}{ptr}>::get",
             self.get_cpp_type().cpp_name_components.combine_all(true)
         )
     }

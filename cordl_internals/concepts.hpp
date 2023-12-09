@@ -39,17 +39,25 @@ namespace cordl_internals {
     template<std::size_t instance_sz, std::size_t offset, std::size_t value_sz>
     constexpr bool offset_check_v = offset_check<instance_sz, offset, value_sz>::value;
 
+    // if you compile with the define COMPILE_TIME_OFFSET_CHECKS cordl will evaluate each field access to check whether you are going out of bounds for the field access, and if so it will not compile
+    // this shouldn't happen ever, but it helps as a sanity check. can be disabled to save on compile time
     #ifdef COMPILE_TIME_OFFSET_CHECKS
         #define OFFSET_CHECK(instance_size, offset, value_size, message) static_assert(::cordl_internals::offset_check_v<instance_size, offset, value_size>, message)
     #else
         #define OFFSET_CHECK(instance_size, offset, value_size, message)
     #endif
 
+    // if you compile with the define COMPILE_TIME_SIZE_CHECKS cordl will evaluate all sizes of objects to see whether they match what il2cpp says they should be
+    // this should always be fine, but it helps as a sanity check. can be disabled to save on compile time
     #ifdef COMPILE_TIME_SIZE_CHECKS
         #define SIZE_CHECK(t, message) static_assert(il2cpp_safe(t), message)
     #else
         #define SIZE_CHECK(t, message)
     #endif
 #pragma endregion // offset check
+
+    template<typename T>
+    concept cordl_pointer = std::is_pointer_v<T> && il2cpp_utils::value_marker_check_v<std::remove_pointer_t<T>, false>;
+
 }
 } // end anonymous namespace

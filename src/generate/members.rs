@@ -137,6 +137,7 @@ pub struct CppMethodSizeStruct {
     pub cpp_method_name: String,
     pub method_name: String,
     pub declaring_type_name: String,
+    pub declaring_classof_call: String,
     pub ret_ty: String,
     pub instance: bool,
     pub params: Vec<CppParam>,
@@ -317,6 +318,7 @@ pub struct CppConstructorDecl {
     pub is_explicit: bool,
     pub is_default: bool,
     pub is_no_except: bool,
+    pub is_delete: bool,
 
     // call base ctor
     pub base_ctor: Option<(String, String)>,
