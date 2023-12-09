@@ -120,6 +120,7 @@ pub enum CppMember {
     Property(CppPropertyDecl),
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
+    UnwrappedEnum(CppUnwrappedEnum),
     CppUsingAlias(CppUsingAlias),
     Comment(CppCommentedString),
     CppStaticAssert(CppStaticAssert),
@@ -342,6 +343,14 @@ pub struct CppConstructorImpl {
     pub template: Option<CppTemplate>,
 
     pub body: Vec<Arc<dyn Writable>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CppUnwrappedEnum {
+    pub declaring_name: String,
+    pub unwrapped_name: String,
+    pub backing_ty: Option<String>,
+    pub values: Vec<(String, String)>,
 }
 
 impl From<CppConstructorDecl> for CppConstructorImpl {

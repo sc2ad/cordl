@@ -36,7 +36,7 @@ use super::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
         CppMethodImpl, CppMethodSizeStruct, CppParam, CppPropertyDecl, CppStaticAssert,
-        CppTemplate,
+        CppTemplate, CppUnwrappedEnum,
     },
     metadata::Metadata,
     type_extensions::{
@@ -1267,7 +1267,6 @@ pub trait CSType: Sized {
     ) {
         let cpp_type = self.get_mut_cpp_type();
         let t = Self::get_type_definition(metadata, tdi);
-        let mut wrapper_declaration = vec![];
         let unwrapped_name = format!("__{}_Unwrapped", cpp_type.cpp_name());
         let backing_field_idx = t.element_type_index as usize;
         let backing_field_ty = &metadata.metadata_registration.types[backing_field_idx];
@@ -1275,8 +1274,9 @@ pub trait CSType: Sized {
         let enum_base =
             cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field_ty, 0, false);
 
-        wrapper_declaration.push(format!("enum class {unwrapped_name} : {enum_base} {{"));
+        let mut enum_values = vec![];
 
+        // gather all values
         for (i, field) in t.fields(metadata.metadata).iter().enumerate() {
             let f_type = metadata
                 .metadata_registration
@@ -1291,15 +1291,21 @@ pub trait CSType: Sized {
                 let value =
                     Self::field_default_value(metadata, field_index).expect("Enum without value!");
 
-                wrapper_declaration.push(format!("__E_{f_name} = {value},"));
+                    enum_values.push((f_name.to_string(), value));
             }
         }
 
-        wrapper_declaration.push("};".into());
+        // push enum onto the declarations
+        let unwrapped_enum = CppUnwrappedEnum {
+            backing_ty: Some(enum_base),
+            declaring_name: cpp_type.cpp_name().clone(),
+            unwrapped_name: unwrapped_name.clone(),
+            values: enum_values
+        };
 
         cpp_type
             .declarations
-            .push(CppMember::CppLine(CppLine::make(wrapper_declaration.join("\n"))).into());
+            .push(CppMember::UnwrappedEnum(unwrapped_enum).into());
 
         let wrapper = format!("{VALUE_WRAPPER_TYPE}<{VALUE_TYPE_WRAPPER_SIZE}>::instance");
         let operator_body = format!("return std::bit_cast<{unwrapped_name}>(this->{wrapper});");
@@ -1321,6 +1327,7 @@ pub trait CSType: Sized {
             suffix_modifiers: vec![],
             template: None,
         };
+
         cpp_type
             .declarations
             .push(CppMember::MethodDecl(operator_decl).into());
@@ -1874,7 +1881,7 @@ pub trait CSType: Sized {
             })
             .collect_vec();
 
-        let ty_full_cpp_name = format!("::{}", cpp_type.cpp_name_components.combine_all(true));
+        let ty_full_cpp_name = format!("::{}*", cpp_type.cpp_name_components.combine_all(true));
 
         let decl: CppMethodDecl = CppMethodDecl {
             cpp_name: "New_ctor".into(),
@@ -1912,10 +1919,7 @@ pub trait CSType: Sized {
 
         let cpp_constructor_impl = CppMethodImpl {
             body: vec![
-                Arc::new(CppLine::make(format!(
-                    "{ty_full_cpp_name} _cordl_instantiated_o{{{allocate_call}}};"
-                ))),
-                Arc::new(CppLine::make("return _cordl_instantiated_o;".into())),
+                Arc::new(CppLine::make(format!("return {allocate_call};"))),
             ],
 
             declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
