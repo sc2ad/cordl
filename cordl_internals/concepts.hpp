@@ -4,7 +4,12 @@
 #include <type_traits>
 #include "beatsaber-hook/shared/utils/type-concepts.hpp"
 #include "beatsaber-hook/shared/utils/size-concepts.hpp"
-#include "beatsaber-hook/shared/utils/typedefs-string.hpp"
+
+struct StringW;
+
+template <typename T> struct ArrayW;
+
+struct Il2CppObject;
 
 namespace {
 namespace cordl_internals {
@@ -60,8 +65,8 @@ namespace cordl_internals {
     template<typename T>
     concept cordl_pointer = std::is_pointer_v<T> && il2cpp_utils::value_marker_check_v<std::remove_pointer_t<T>, false>;
 
-    template<typename T>
-    concept cordl_ref_type = cordl_pointer<T> || std::is_same_v<T, ::StringW> || std::is_same_v<T, Il2CppObject*>;
-
+    template <typename T>
+    concept cordl_ref_type =
+        cordl_pointer<T> || std::is_same_v<T, ::StringW> || std::is_same_v<T, ::ArrayW<T>> || std::is_same_v<T, Il2CppObject *>;
 }
 } // end anonymous namespace
