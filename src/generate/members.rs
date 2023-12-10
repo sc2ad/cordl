@@ -197,6 +197,7 @@ pub struct CppPropertyDecl {
     pub instance: bool,
     pub getter: Option<String>,
     pub setter: Option<String>,
+    pub brackets: bool,
     pub brief_comment: Option<String>,
 }
 

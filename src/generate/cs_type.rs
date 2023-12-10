@@ -301,7 +301,7 @@ pub trait CSType: Sized {
                 self.create_enum_backing_type_constant(metadata, ctx_collection, tdi);
             }
         } else if t.is_interface() {
-            self.make_interface_constructors();
+            // self.make_interface_constructors();
             self.delete_move_ctor();
             self.delete_copy_ctor();
         } else { // ref type
@@ -799,6 +799,7 @@ pub trait CSType: Sized {
                         instance: !f_type.is_static() && !f_type.is_constant(),
                         getter: getter_decl.cpp_name.clone().into(),
                         setter: setter_decl.cpp_name.clone().into(),
+                        brackets: false,
                         brief_comment: Some(format!("Field {f_name} offset 0x{f_offset:x}")),
                     };
 
@@ -853,7 +854,8 @@ pub trait CSType: Sized {
             // TYPE_ATTRIBUTE_INTERFACE = 0x00000020
             match t.is_interface() {
                 true => {
-                    cpp_type.inherit.push(INTERFACE_WRAPPER_TYPE.to_string());
+                    // FIXME: should interfaces have a base type? I don't think they need to
+                    // cpp_type.inherit.push(INTERFACE_WRAPPER_TYPE.to_string());
                 }
                 false => {
                     info!("Skipping type: {ns}::{name} because it has parent index: {} and is not an interface!", t.parent_index);
@@ -967,14 +969,14 @@ pub trait CSType: Sized {
 
             // We have an interface, lets do something with it
             let interface_cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, 0, false);
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, 0, true);
 
             let convert_line = match t.is_value_type() || t.is_enum_type() {
                 true => {
                     // box
-                    "::cordl_internals::Box(this).convert()".to_string()
+                    "static_cast<void*>(::cordl_internals::Box(this))".to_string()
                 }
-                false => REFERENCE_WRAPPER_INSTANCE_NAME.to_string(),
+                false => "static_cast<void*>(this)".to_string(),
             };
 
             let method_decl = CppMethodDecl {
@@ -983,7 +985,7 @@ pub trait CSType: Sized {
                 cpp_name: interface_cpp_name.clone(),
                 return_type: "".to_string(),
                 instance: true,
-                is_const: true,
+                is_const: false,
                 is_constexpr: true,
                 is_no_except: !t.is_value_type() && !t.is_enum_type(),
                 is_operator: true,
@@ -1007,7 +1009,7 @@ pub trait CSType: Sized {
 
             let method_impl = CppMethodImpl {
                 body: vec![Arc::new(CppLine::make(format!(
-                    "return {interface_cpp_name}({convert_line});"
+                    "return static_cast<{interface_cpp_name}>({convert_line});"
                 )))],
                 declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
                 template: method_impl_template,
@@ -1161,6 +1163,8 @@ pub trait CSType: Sized {
             let _abstr = p_getter.is_some_and(|p| p.is_abstract_method())
                 || p_setter.is_some_and(|p| p.is_abstract_method());
 
+            let index = p_getter.is_some_and(|p| p.parameter_count > 0);
+
             // Need to include this type
             cpp_type.declarations.push(
                 CppMember::Property(CppPropertyDecl {
@@ -1169,6 +1173,7 @@ pub trait CSType: Sized {
                     // methods generated in make_methods
                     setter: p_setter.map(|m| config.name_cpp(m.name(metadata.metadata))),
                     getter: p_getter.map(|m| config.name_cpp(m.name(metadata.metadata))),
+                    brackets: index,
                     brief_comment: None,
                     instance: true,
                 })
@@ -1179,6 +1184,13 @@ pub trait CSType: Sized {
 
     fn create_size_assert(&mut self) {
         let cpp_type = self.get_mut_cpp_type();
+
+        // FIXME: make this work with templated types that either: have a full template (complete instantiation), or only require a pointer (size should be stable)
+        // for now, skip templated types
+        if cpp_type.cpp_template.is_some() {
+            return;
+        }
+
         if let Some(size) = cpp_type.calculated_size {
             let cpp_name = cpp_type.cpp_name_components.combine_all(true);
 

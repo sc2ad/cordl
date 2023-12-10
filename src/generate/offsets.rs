@@ -7,6 +7,7 @@ use brocolib::runtime_metadata::{Il2CppType, Il2CppTypeEnum};
 use itertools::Itertools;
 use log::debug;
 use log::warn;
+use log::info;
 
 use crate::generate::type_extensions::TypeExtentions;
 use core::mem;
@@ -75,7 +76,7 @@ pub fn layout_fields(
     if declaring_ty_def.parent_index == u32::MAX {
         instance_size = metadata.object_size() as usize;
         actual_size = metadata.object_size() as usize;
-        minimum_alignment = metadata.object_size();
+        minimum_alignment = metadata.pointer_size as u8;
     } else {
         let parent_sa = get_parent_sa(metadata, declaring_ty_def.parent_index);
 
@@ -278,7 +279,7 @@ fn get_parent_sa(metadata: &Metadata<'_>, parent_index: u32) -> SizeAndAlignment
         _ => todo!("Not yet implemented: {:?}", parent_ty.data),
     };
 
-    
+
 
     layout_fields(
         metadata,

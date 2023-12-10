@@ -47,8 +47,9 @@ pub enum SortLevel {
     UnwrappedEnum,
     Fields,
     Properties,
-    Constructors,
     Methods,
+    Constructors,
+    FieldsImpl,
     Unknown,
 }
 

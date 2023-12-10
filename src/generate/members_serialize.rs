@@ -182,7 +182,7 @@ impl Writable for CppFieldImpl {
 }
 impl Sortable for CppFieldImpl {
     fn sort_level(&self) -> SortLevel {
-        SortLevel::Fields
+        SortLevel::FieldsImpl
     }
 }
 
@@ -535,13 +535,18 @@ impl Writable for CppPropertyDecl {
         let prefixes = prefix_modifiers.join(" ");
         let suffixes = suffix_modifiers.join(" ");
 
+        let brackets = match self.brackets {
+            true => "[]",
+            false => "",
+        };
+
         if let Some(comment) = &self.brief_comment {
             writeln!(writer, "/// @brief {comment}")?;
         }
 
         writeln!(
             writer,
-            "{prefixes} __declspec(property({property})) {ty} {suffixes} {name};"
+            "{prefixes} __declspec(property({property})) {ty} {suffixes} {name}{brackets};"
         )?;
 
         Ok(())
