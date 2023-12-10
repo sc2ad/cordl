@@ -4,6 +4,7 @@
 #include <type_traits>
 #include "beatsaber-hook/shared/utils/type-concepts.hpp"
 #include "beatsaber-hook/shared/utils/size-concepts.hpp"
+#include "beatsaber-hook/shared/utils/typedefs-string.hpp"
 
 namespace {
 namespace cordl_internals {
