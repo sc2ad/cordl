@@ -645,14 +645,16 @@ impl Writable for CppNestedStruct {
         }
         .to_string();
 
+        let mut base_type_fixed = self.base_type.clone().map(|s| format!("public {s}"));
         if self.is_enum {
+            base_type_fixed = self.base_type.clone();
             struct_declaration = format!("enum {struct_declaration}");
         }
 
-        match &self.base_type {
+        match &base_type_fixed {
             Some(base_type) => writeln!(
                 writer,
-                "{struct_declaration} {} : public {base_type} {{",
+                "{struct_declaration} {} : {base_type} {{",
                 self.declaring_name
             )?,
             None => writeln!(writer, "{struct_declaration} {} {{", self.declaring_name)?,

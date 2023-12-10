@@ -51,7 +51,6 @@ type Endian = LittleEndian;
 // negative
 pub const VALUE_TYPE_SIZE_OFFSET: u32 = 0x10;
 
-pub const VALUE_TYPE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::ValueTypeWrapper::instance";
 pub const VALUE_TYPE_WRAPPER_SIZE: &str = "__IL2CPP_VALUE_TYPE_SIZE";
 pub const REFERENCE_TYPE_WRAPPER_SIZE: &str = "__IL2CPP_REFERENCE_TYPE_SIZE";
 pub const REFERENCE_TYPE_FIELD_SIZE: &str = "__fields";
@@ -1318,12 +1317,25 @@ pub trait CSType: Sized {
             })
             .map(|s| -> CppMember { CppMember::CppLine(s.into()) });
 
-        let operator_body =
-            format!("return std::bit_cast<{unwrapped_name}>({VALUE_TYPE_WRAPPER_INSTANCE_NAME});");
+        let nested_struct = CppNestedStruct {
+            base_type: Some(enum_base),
+            declaring_name: unwrapped_name.clone(),
+            is_class: false,
+            is_enum: true,
+            declarations: enum_entries.map(Rc::new).collect(),
+        };
+        cpp_type
+            .declarations
+            .push(CppMember::NestedStruct(nested_struct).into());
+
+        let operator_body = format!(
+            "return std::bit_cast<{unwrapped_name}>(this->{}::instance);",
+            cpp_type.inherit.first().unwrap()
+        );
         let operator_decl = CppMethodDecl {
             cpp_name: Default::default(),
             instance: true,
-            return_type: unwrapped_name.clone(),
+            return_type: unwrapped_name,
 
             brief: Some("Conversion into unwrapped enum value".to_string()),
             body: Some(vec![Arc::new(CppLine::make(operator_body))]), // TODO:
@@ -1338,22 +1350,9 @@ pub trait CSType: Sized {
             template: None,
             is_inline: true,
         };
-
-        let declarations = enum_entries
-            .chain(vec![CppMember::MethodDecl(operator_decl)])
-            .map(Rc::new)
-            .collect_vec();
-
-        let nested_struct = CppNestedStruct {
-            base_type: Some(enum_base),
-            declaring_name: unwrapped_name,
-            is_class: false,
-            is_enum: true,
-            declarations,
-        };
         cpp_type
             .declarations
-            .push(CppMember::NestedStruct(nested_struct).into());
+            .push(CppMember::MethodDecl(operator_decl).into());
     }
 
     fn create_valuetype_field_wrapper(&mut self) {
