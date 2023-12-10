@@ -120,6 +120,7 @@ pub enum CppMember {
     Property(CppPropertyDecl),
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
+    UnwrappedEnum(CppUnwrappedEnum),
     CppUsingAlias(CppUsingAlias),
     Comment(CppCommentedString),
     CppStaticAssert(CppStaticAssert),
@@ -137,6 +138,7 @@ pub struct CppMethodSizeStruct {
     pub cpp_method_name: String,
     pub method_name: String,
     pub declaring_type_name: String,
+    pub declaring_classof_call: String,
     pub ret_ty: String,
     pub instance: bool,
     pub params: Vec<CppParam>,
@@ -195,6 +197,7 @@ pub struct CppPropertyDecl {
     pub instance: bool,
     pub getter: Option<String>,
     pub setter: Option<String>,
+    pub brackets: bool,
     pub brief_comment: Option<String>,
 }
 
@@ -317,6 +320,7 @@ pub struct CppConstructorDecl {
     pub is_explicit: bool,
     pub is_default: bool,
     pub is_no_except: bool,
+    pub is_delete: bool,
 
     // call base ctor
     pub base_ctor: Option<(String, String)>,
@@ -340,6 +344,14 @@ pub struct CppConstructorImpl {
     pub template: Option<CppTemplate>,
 
     pub body: Vec<Arc<dyn Writable>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CppUnwrappedEnum {
+    pub declaring_name: String,
+    pub unwrapped_name: String,
+    pub backing_ty: Option<String>,
+    pub values: Vec<(String, String)>,
 }
 
 impl From<CppConstructorDecl> for CppConstructorImpl {

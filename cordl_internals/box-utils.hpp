@@ -10,38 +10,37 @@ namespace {
 namespace cordl_internals {
 #pragma region boxing
     template<typename T>
-    CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T);
+    CORDL_HIDDEN Il2CppObject* Box(T);
 
     template<typename T>
-    CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T*);
+    CORDL_HIDDEN Il2CppObject* Box(T*);
 
     template<>
-    CORDL_HIDDEN constexpr ::bs_hook::Il2CppWrapperType Box<::bs_hook::Il2CppWrapperType>(::bs_hook::Il2CppWrapperType t) { return t; }
+    CORDL_HIDDEN constexpr Il2CppObject* Box<Il2CppObject*>(Il2CppObject* t) { return t; }
 
     template<il2cpp_convertible T>
-    requires(!std::is_base_of_v<::bs_hook::Il2CppWrapperType, T>)
-    CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T t) {
-        return ::bs_hook::Il2CppWrapperType(il2cpp_functions::value_box(classof(T), t.convert()));
+    requires(!std::is_base_of_v<Il2CppObject*, T>)
+    CORDL_HIDDEN Il2CppObject* Box(T t) {
+        return il2cpp_functions::value_box(classof(T), t.convert());
     }
     template <il2cpp_convertible T>
-      requires(!std::is_base_of_v<::bs_hook::Il2CppWrapperType, T>)
-    CORDL_HIDDEN ::bs_hook::Il2CppWrapperType Box(T* t) {
-        return ::bs_hook::Il2CppWrapperType(
-            il2cpp_functions::value_box(classof(T), t->convert()));
+    requires(!std::is_base_of_v<Il2CppObject*, T>)
+    CORDL_HIDDEN Il2CppObject* Box(T* t) {
+        return il2cpp_functions::value_box(classof(T), t->convert());
     }
 #pragma endregion // boxing
 
 #pragma region unboxing
     template<typename T>
-    CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) {
+    CORDL_HIDDEN T Unbox(Il2CppObject* t) {
         return *reinterpret_cast<T*>(il2cpp_functions::object_unbox(t));
     }
 
-    template<::il2cpp_utils::il2cpp_reference_type T>
-    CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) { return T(t.convert()); }
+    template<::cordl_internals::cordl_ref_type T>
+    CORDL_HIDDEN T Unbox(Il2CppObject* t) { return reinterpret_cast<T>(t); }
 
     template<::il2cpp_utils::il2cpp_value_type T>
-    CORDL_HIDDEN T Unbox(::bs_hook::Il2CppWrapperType t) {
+    CORDL_HIDDEN T Unbox(Il2CppObject* t) {
         std::array<std::byte, il2cpp_instance_sizeof(T)> data;
         std::memcpy(data.data(), il2cpp_functions::object_unbox(t), il2cpp_instance_sizeof(T));
         return T(std::move(data));

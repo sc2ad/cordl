@@ -44,10 +44,12 @@ pub trait Writable: std::fmt::Debug {
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum SortLevel {
     UsingAlias,
+    UnwrappedEnum,
     Fields,
     Properties,
-    Constructors,
     Methods,
+    Constructors,
+    FieldsImpl,
     Unknown,
 }
 

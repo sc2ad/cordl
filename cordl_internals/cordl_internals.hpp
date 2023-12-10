@@ -6,6 +6,7 @@
 #include "box-utils.hpp"
 #include "method-utils.hpp"
 #include "ptr-utils.hpp"
+#include "size-utils.hpp"
 #include "beatsaber-hook/shared/utils/base-wrapper-type.hpp"
 #include "beatsaber-hook/shared/utils/typedefs-string.hpp"
 #include "beatsaber-hook/shared/utils/typedefs-array.hpp"
