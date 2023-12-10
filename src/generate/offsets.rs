@@ -7,7 +7,7 @@ use brocolib::runtime_metadata::{Il2CppType, Il2CppTypeEnum};
 use itertools::Itertools;
 use log::debug;
 use log::warn;
-use log::info;
+
 
 use crate::generate::type_extensions::TypeExtentions;
 use core::mem;

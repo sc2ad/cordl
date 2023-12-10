@@ -13,7 +13,7 @@ use std::{
     collections::HashMap,
     hash::Hash,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::Arc, rc::Rc,
 };
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]
@@ -120,7 +120,7 @@ pub enum CppMember {
     Property(CppPropertyDecl),
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
-    UnwrappedEnum(CppUnwrappedEnum),
+    NestedStruct(CppNestedStruct),
     CppUsingAlias(CppUsingAlias),
     Comment(CppCommentedString),
     CppStaticAssert(CppStaticAssert),
@@ -197,6 +197,7 @@ pub struct CppPropertyDecl {
     pub instance: bool,
     pub getter: Option<String>,
     pub setter: Option<String>,
+    // why
     pub brackets: bool,
     pub brief_comment: Option<String>,
 }
@@ -347,11 +348,12 @@ pub struct CppConstructorImpl {
 }
 
 #[derive(Clone, Debug)]
-pub struct CppUnwrappedEnum {
+pub struct CppNestedStruct {
     pub declaring_name: String,
-    pub unwrapped_name: String,
-    pub backing_ty: Option<String>,
-    pub values: Vec<(String, String)>,
+    pub base_type: Option<String>,
+    pub declarations: Vec<Rc<CppMember>>,
+    pub is_enum: bool,
+    pub is_class: bool,
 }
 
 impl From<CppConstructorDecl> for CppConstructorImpl {

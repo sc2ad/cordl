@@ -1,11 +1,11 @@
 use color_eyre::Result;
 use log::info;
-use std::{collections::HashMap, rc::Rc};
+
 
 use crate::generate::{
     cpp_type::CppType,
-    cs_type::{CSType, OBJECT_WRAPPER_TYPE},
-    members::{CppConstructorDecl, CppMember, CppParam},
+    cs_type::{OBJECT_WRAPPER_TYPE},
+    members::{CppMember},
     metadata::{Il2cppFullName, Metadata},
 };
 
