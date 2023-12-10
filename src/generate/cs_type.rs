@@ -1229,8 +1229,8 @@ pub trait CSType: Sized {
 
             cpp_type.declarations.push(
                 CppMember::FieldDecl(CppFieldDecl {
-                    cpp_name: format!("{REFERENCE_TYPE_FIELD_SIZE}[{fixup_size}]").to_string(),
-                    field_ty: "uint8_t".to_string(),
+                    cpp_name: REFERENCE_TYPE_FIELD_SIZE.to_string(),
+                    field_ty: format!("std::array<uint8_t, {fixup_size}>"),
                     instance: true,
                     readonly: false,
                     const_expr: false,
@@ -2121,7 +2121,7 @@ pub trait CSType: Sized {
             // different ret types can exist
             // so we add their ret types
             let fixup_name = match cpp_m_name == "op_Implicit" || cpp_m_name == "op_Explicit" {
-                true => cpp_m_name + "_" + &config.generic_nested_name(&m_ret_cpp_type_name),
+                true => cpp_m_name + "_" + &config.generic_nested_name(&m_ret_cpp_type_name).replace('*', "_"),
                 false => cpp_m_name,
             };
 
