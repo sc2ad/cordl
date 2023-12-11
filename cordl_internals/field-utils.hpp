@@ -153,7 +153,8 @@ namespace cordl_internals {
   template<typename T, internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN void setStaticField(T&& v) {
     static auto* field = FindField<name, klass_resolver>();
-    ::il2cpp_functions::field_static_set_value(field, const_cast<void*>(static_cast<const void*>(&v)));
+    ::il2cpp_functions::field_static_set_value(
+        field, const_cast<void*>(static_cast<void const*>(&v)));
   }
 
 #pragma endregion // field setters
@@ -162,15 +163,31 @@ namespace cordl_internals {
   /// @brief template for field getter method on ref types
   /// @tparam T field type
   /// @tparam offset field offset
-  template <typename T, std::size_t offset, ::cordl_internals::cordl_ref_type InstT>
-  [[nodiscard]] CORDL_HIDDEN T& getInstanceField(InstT const& instance);
+  template <typename T, std::size_t offset,
+            ::cordl_internals::cordl_ref_type InstT>
+  [[nodiscard]] CORDL_HIDDEN T const& getInstanceField(InstT const& instance);
+
+  /// @brief template for field getter method on ref types
+  /// @tparam T field type
+  /// @tparam offset field offset
+  template <typename T, std::size_t offset,
+            ::cordl_internals::cordl_ref_type InstT>
+  [[nodiscard]] CORDL_HIDDEN T& getInstanceField(InstT& instance);
 
   /// @brief template for field getter method on value types
   /// @tparam T field type
   /// @tparam offset field offset
   /// @tparam sz wrapper array size
   template <typename T, std::size_t offset, std::size_t sz>
-  [[nodiscard]] CORDL_HIDDEN constexpr T& getInstanceField(std::array<std::byte, sz> const& instance);
+  [[nodiscard]] CORDL_HIDDEN constexpr T const&
+  getInstanceField(std::array<std::byte, sz> const& instance);
+
+  /// @brief template for field getter method on value types
+  /// @tparam T field type
+  /// @tparam offset field offset
+  /// @tparam sz wrapper array size
+  template <typename T, std::size_t offset, std::size_t sz>
+  [[nodiscard]] CORDL_HIDDEN constexpr T& getInstanceField(std::array<std::byte, sz>& instance);
 
   /// @brief get reference type value @ offset on instance
   template <::cordl_internals::cordl_ref_type T, std::size_t offset, ::cordl_internals::cordl_ref_type InstT>
@@ -178,7 +195,8 @@ namespace cordl_internals {
     OFFSET_CHECK(sizeof(std::remove_pointer_t<InstT>), offset, sizeof(void*), "offset is too large for the size of the instance to be retreived correctly!");
     NULL_CHECK(instance);
 
-    return *static_cast<T*>(const_cast<void*>(static_cast<const void*>(getAtOffset<offset>(instance))));
+    return *static_cast<T*>(const_cast<void*>(
+        static_cast<void const*>(getAtOffset<offset>(instance))));
   }
 
   /// @brief get reference type value @ offset on instance of size sz
@@ -196,7 +214,8 @@ namespace cordl_internals {
     SIZE_CHECK(T, "wrapper size was different from the type it wraps!");
     NULL_CHECK(instance);
 
-    return *static_cast<T*>(const_cast<void*>(static_cast<const void*>(getAtOffset<offset>(instance))));
+    return *static_cast<T*>(const_cast<void*>(
+        static_cast<void const*>(getAtOffset<offset>(instance))));
   }
 
   /// @brief get value type value @ offset on instance of size sz
@@ -205,7 +224,8 @@ namespace cordl_internals {
     OFFSET_CHECK(sz, offset, il2cpp_instance_sizeof(T), "offset is too large for the size of the instance to be retreived correctly!");
     SIZE_CHECK(T, "wrapper size was different from the type it wraps!");
 
-    return *const_cast<T*>(static_cast<const T*>(static_cast<const void*>(instance.data() + offset)));
+    return *const_cast<T*>(static_cast<T const*>(
+        static_cast<void const*>(instance.data() + offset)));
   }
 
   /// @brief get trivial type value @ offset on instance
@@ -214,7 +234,8 @@ namespace cordl_internals {
     OFFSET_CHECK(sizeof(std::remove_pointer_t<InstT>), offset, sizeof(T), "offset is too large for the size of the instance to be retreived correctly!");
     NULL_CHECK(instance);
 
-    return *static_cast<T*>(const_cast<void*>(static_cast<const void*>(getAtOffset<offset>(instance))));
+    return *static_cast<T*>(const_cast<void*>(
+        static_cast<void const*>(getAtOffset<offset>(instance))));
   }
 
   /// @brief get trivial type value @ offset on instance of size sz
@@ -222,7 +243,8 @@ namespace cordl_internals {
   [[nodiscard]] CORDL_HIDDEN constexpr T& getInstanceField(std::array<std::byte, sz> const& instance) {
     OFFSET_CHECK(sz, offset, sizeof(T), "offset is too large for the size of the instance to be retreived correctly!");
 
-    return *const_cast<T*>(static_cast<const T*>(static_cast<const void*>(instance.data() + offset)));
+    return *const_cast<T*>(static_cast<T const*>(
+        static_cast<void const*>(instance.data() + offset)));
   }
 
   /// @brief template for getting a static field on a class

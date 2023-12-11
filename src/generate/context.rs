@@ -503,13 +503,6 @@ impl CppContext {
                 }
         };
 
-        let ptr = match template_container_type {
-            true => "",
-            false => match ty.is_value_type {
-                true => "",
-                false => "*",
-            },
-        };
 
         // Essentially splits namespace.foo/nested_foo into (namespace, foo/nested_foo)
 

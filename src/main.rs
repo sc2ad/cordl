@@ -33,7 +33,7 @@ use crate::{
         context_collection::CppContextCollection, cpp_type_tag::CppTypeTag,
         cs_context_collection::CsContextCollection, members::CppMember,
     },
-    handlers::{il2cpp_internals, unity, value_type, object},
+    handlers::{value_type, object},
 };
 mod data;
 mod generate;

@@ -385,7 +385,7 @@ impl Writable for CppConstructorDecl {
         if self.is_delete {
             writeln!(writer, "{name}({params}) = delete;")?;
 
-            return Ok(())
+            return Ok(());
         }
 
         let mut prefix_modifiers = vec![];
@@ -636,29 +636,41 @@ impl Writable for CppLine {
     }
 }
 
-impl Writable for CppUnwrappedEnum {
+impl Writable for CppNestedStruct {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        writeln!(writer, "/// @brief Unwrapped enum {}", self.declaring_name)?;
-        let unwrapped_name = &self.unwrapped_name;
+        writeln!(writer, "/// @brief Nested struct {}", self.declaring_name)?;
 
-        if let Some(backing_ty) = &self.backing_ty {
-            writeln!(writer, "enum class {unwrapped_name} : {backing_ty} {{")?;
-        } else {
-            writeln!(writer, "enum class {unwrapped_name} {{")?;
+        let mut struct_declaration = match self.is_class {
+            true => "class",
+            false => "struct",
+        }
+        .to_string();
+
+        let mut base_type_fixed = self.base_type.clone().map(|s| format!("public {s}"));
+        if self.is_enum {
+            base_type_fixed = self.base_type.clone();
+            struct_declaration = format!("enum {struct_declaration}");
         }
 
-        for (name, value) in &self.values {
-            writeln!(writer, "__E_{name} = {value},")?;
+        match &base_type_fixed {
+            Some(base_type) => writeln!(
+                writer,
+                "{struct_declaration} {} : {base_type} {{",
+                self.declaring_name
+            )?,
+            None => writeln!(writer, "{struct_declaration} {} {{", self.declaring_name)?,
         }
+
+        self.declarations.iter().try_for_each(|d| d.write(writer))?;
 
         writeln!(writer, "}};")?;
         Ok(())
     }
 }
 
-impl Sortable for CppUnwrappedEnum {
+impl Sortable for CppNestedStruct {
     fn sort_level(&self) -> SortLevel {
-        SortLevel::UnwrappedEnum
+        SortLevel::NestedStruct
     }
 }
 
@@ -673,7 +685,7 @@ impl Writable for CppMember {
             CppMember::MethodImpl(i) => i.write(writer),
             CppMember::ConstructorDecl(c) => c.write(writer),
             CppMember::ConstructorImpl(ci) => ci.write(writer),
-            CppMember::UnwrappedEnum(e) => e.write(writer),
+            CppMember::NestedStruct(e) => e.write(writer),
             CppMember::CppUsingAlias(alias) => alias.write(writer),
             CppMember::CppLine(line) => line.write(writer),
             CppMember::CppStaticAssert(sa) => sa.write(writer),
@@ -691,7 +703,7 @@ impl Sortable for CppMember {
             CppMember::Property(t) => t.sort_level(),
             CppMember::ConstructorDecl(t) => t.sort_level(),
             CppMember::ConstructorImpl(t) => t.sort_level(),
-            CppMember::UnwrappedEnum(t) => t.sort_level(),
+            CppMember::NestedStruct(t) => t.sort_level(),
             CppMember::CppUsingAlias(t) => t.sort_level(),
             CppMember::CppStaticAssert(_) => SortLevel::Unknown,
             CppMember::Comment(_) => SortLevel::Unknown,
