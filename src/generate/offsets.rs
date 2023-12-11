@@ -67,10 +67,10 @@ pub fn layout_fields(
     generic_inst_types: Option<&Vec<usize>>,
     offsets: Option<&mut Vec<u32>>,
 ) -> SizeAndAlignment {
-    let mut instance_size: usize = 0;
-    let mut actual_size: usize = 0;
+    let mut instance_size: usize;
+    let mut actual_size: usize;
 
-    let mut minimum_alignment: u8 = 0;
+    let mut minimum_alignment: u8;
     let mut natural_alignment: u8 = 0;
 
     // assign base size values based on parent type (or no parent type)
@@ -79,7 +79,7 @@ pub fn layout_fields(
         actual_size = metadata.object_size() as usize;
         minimum_alignment = metadata.pointer_size as u8;
     } else {
-        let parent_sa = get_parent_sa(metadata, declaring_ty_def.parent_index);
+        let parent_sa = get_parent_sa(metadata, declaring_ty_def.parent_index, generic_inst_types);
 
         instance_size = parent_sa.size;
         actual_size = parent_sa.actual_size;
@@ -253,7 +253,11 @@ fn get_offset_of_type_table(
     }
 }
 
-fn get_parent_sa(metadata: &Metadata<'_>, parent_index: u32) -> SizeAndAlignment {
+fn get_parent_sa(
+    metadata: &Metadata<'_>,
+    parent_index: u32,
+    generic_inst_types: Option<&Vec<usize>>
+) -> SizeAndAlignment {
     let parent_ty = &metadata.metadata_registration.types[parent_index as usize];
     let (parent_tdi, parent_generics) = match parent_ty.data {
         TypeData::TypeDefinitionIndex(parent_tdi) => (parent_tdi, None),
@@ -280,15 +284,43 @@ fn get_parent_sa(metadata: &Metadata<'_>, parent_index: u32) -> SizeAndAlignment
         _ => todo!("Not yet implemented: {:?}", parent_ty.data),
     };
 
+    // replace all Var with the parent generic args
+    if let Some(parent_generics) = &parent_generics {
+        let true_generics = parent_generics.iter().map(|t_index| {
+            let ty = &metadata
+                .metadata
+                .runtime_metadata
+                .metadata_registration
+                .types[t_index.clone()];
+            if ty.ty == Il2CppTypeEnum::Var && let TypeData::GenericParameterIndex(generic_param_index) = ty.data &&
+                let Some(generic_args) = &generic_inst_types {
+                let generic_param =
+                    &metadata.metadata.global_metadata.generic_parameters[generic_param_index];
+
+                generic_args[generic_param.num as usize]
+            } else {
+                t_index.clone()
+            }
+        }).collect_vec();
+
+        layout_fields(
+            metadata,
+            &metadata.metadata.global_metadata.type_definitions[parent_tdi],
+            parent_tdi,
+            Some(&true_generics),
+            None,
+        )
+    } else {
+        layout_fields(
+            metadata,
+            &metadata.metadata.global_metadata.type_definitions[parent_tdi],
+            parent_tdi,
+            None,
+            None,
+        )
+    }
 
 
-    layout_fields(
-        metadata,
-        &metadata.metadata.global_metadata.type_definitions[parent_tdi],
-        parent_tdi,
-        parent_generics,
-        None,
-    )
 }
 
 fn update_instance_size_for_generic_class(
@@ -381,7 +413,7 @@ fn get_type_size_and_alignment(
     // only handle if generic inst, otherwise let the rest handle it as before
     // aka a pointer size
     if ty.ty == Il2CppTypeEnum::Var && let TypeData::GenericParameterIndex(generic_param_index) = ty.data &&
-         let Some(generic_args) = &generic_inst_types {
+        let Some(generic_args) = &generic_inst_types {
 
         let generic_param =
             &metadata.metadata.global_metadata.generic_parameters[generic_param_index];

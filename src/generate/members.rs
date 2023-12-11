@@ -197,8 +197,8 @@ pub struct CppPropertyDecl {
     pub instance: bool,
     pub getter: Option<String>,
     pub setter: Option<String>,
-    // why
-    pub brackets: bool,
+    /// Whether this property is one that's indexable (accessor methods take an index argument)
+    pub indexable: bool,
     pub brief_comment: Option<String>,
 }
 

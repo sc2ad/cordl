@@ -530,12 +530,13 @@ impl Writable for CppPropertyDecl {
 
         let property = property_vec.join(", ");
         let ty = &self.prop_ty;
-        let name = &self.cpp_name;
+        let identifier = &self.cpp_name;
 
         let prefixes = prefix_modifiers.join(" ");
         let suffixes = suffix_modifiers.join(" ");
 
-        let brackets = match self.brackets {
+        // i.e. list->get_Item(int32_t index) takes an index argument, this way you can go list->Item[t]
+        let brackets = match self.indexable {
             true => "[]",
             false => "",
         };
@@ -546,7 +547,7 @@ impl Writable for CppPropertyDecl {
 
         writeln!(
             writer,
-            "{prefixes} __declspec(property({property})) {ty} {suffixes} {name}{brackets};"
+            "{prefixes} __declspec(property({property})) {ty} {suffixes} {identifier}{brackets};"
         )?;
 
         Ok(())

@@ -725,21 +725,41 @@ pub trait CSType: Sized {
                     ),
                 };
 
-                let get_return_type = if is_instance && f_type.valuetype {
-                    format!("{field_ty_cpp_name}&")
+                let (get_return_type, const_get_return_type) = if is_instance && f_type.valuetype {
+                    (format!("{field_ty_cpp_name}&"), format!("{field_ty_cpp_name} const&"))
                 } else {
-                    field_ty_cpp_name.clone()
+                    (field_ty_cpp_name.clone(), format!("{} const", field_ty_cpp_name.clone()))
                 };
 
                 let getter_decl = CppMethodDecl {
-                    cpp_name: getter_name,
+                    cpp_name: getter_name.clone(),
                     instance: is_instance,
                     return_type: get_return_type,
 
                     brief: None,
                     body: None, // TODO:
                     // Const if instance for now
-                    is_const: is_instance,
+                    is_const: false,
+                    is_constexpr: !f_type.is_static() || f_type.is_constant(),
+                    is_inline: true,
+                    is_virtual: false,
+                    is_operator: false,
+                    is_no_except: false, // TODO:
+                    parameters: vec![],
+                    prefix_modifiers: vec![],
+                    suffix_modifiers: vec![],
+                    template: None,
+                };
+
+                let const_getter_decl = CppMethodDecl {
+                    cpp_name: getter_name,
+                    instance: is_instance,
+                    return_type: const_get_return_type,
+
+                    brief: None,
+                    body: None, // TODO:
+                    // Const if instance for now
+                    is_const: true,
                     is_constexpr: !f_type.is_static() || f_type.is_constant(),
                     is_inline: true,
                     is_virtual: false,
@@ -776,11 +796,19 @@ pub trait CSType: Sized {
                 };
 
                 let getter_impl = CppMethodImpl {
-                    body: vec![Arc::new(CppLine::make(getter_call))],
+                    body: vec![Arc::new(CppLine::make(getter_call.clone()))],
                     declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
                     template: useful_template.clone(),
 
                     ..getter_decl.clone().into()
+                };
+
+                let const_getter_impl = CppMethodImpl {
+                    body: vec![Arc::new(CppLine::make(getter_call))],
+                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
+                    template: useful_template.clone(),
+
+                    ..const_getter_decl.clone().into()
                 };
 
                 let setter_impl = CppMethodImpl {
@@ -799,7 +827,7 @@ pub trait CSType: Sized {
                         instance: !f_type.is_static() && !f_type.is_constant(),
                         getter: getter_decl.cpp_name.clone().into(),
                         setter: setter_decl.cpp_name.clone().into(),
-                        brackets: false,
+                        indexable: false,
                         brief_comment: Some(format!("Field {f_name} offset 0x{f_offset:x}")),
                     };
 
@@ -826,6 +854,13 @@ pub trait CSType: Sized {
                     .declarations
                     .push(CppMember::MethodDecl(getter_decl).into());
 
+                // only push the const getter for instance fields
+                if is_instance {
+                    cpp_type
+                        .declarations
+                        .push(CppMember::MethodDecl(const_getter_decl).into());
+                }
+
                 // impl
                 cpp_type
                     .implementations
@@ -834,6 +869,13 @@ pub trait CSType: Sized {
                 cpp_type
                     .implementations
                     .push(CppMember::MethodImpl(getter_impl).into());
+
+                // only push the const getter for instance fields
+                if is_instance {
+                    cpp_type
+                        .implementations
+                        .push(CppMember::MethodImpl(const_getter_impl).into());
+                }
             }
         }
     }
@@ -1173,7 +1215,7 @@ pub trait CSType: Sized {
                     // methods generated in make_methods
                     setter: p_setter.map(|m| config.name_cpp(m.name(metadata.metadata))),
                     getter: p_getter.map(|m| config.name_cpp(m.name(metadata.metadata))),
-                    brackets: index,
+                    indexable: index,
                     brief_comment: None,
                     instance: true,
                 })
@@ -1195,7 +1237,7 @@ pub trait CSType: Sized {
             let cpp_name = cpp_type.cpp_name_components.combine_all(true);
 
             let assert = CppStaticAssert {
-                condition: format!("::cordl_internals::size_check_v<{cpp_name}, 0x{size:x}>"),
+                condition: format!("::cordl_internals::size_check_v<::{cpp_name}, 0x{size:x}>"),
                 message: Some("Size mismatch!".to_string()),
             };
 
@@ -1229,8 +1271,8 @@ pub trait CSType: Sized {
 
             cpp_type.declarations.push(
                 CppMember::FieldDecl(CppFieldDecl {
-                    cpp_name: REFERENCE_TYPE_FIELD_SIZE.to_string(),
-                    field_ty: format!("std::array<uint8_t, {fixup_size}>"),
+                    cpp_name: format!("{REFERENCE_TYPE_FIELD_SIZE}[{fixup_size}]"),
+                    field_ty: "uint8_t".to_string(),
                     instance: true,
                     readonly: false,
                     const_expr: false,
@@ -1312,7 +1354,8 @@ pub trait CSType: Sized {
                     let value = Self::field_default_value(metadata, field_index)
                         .expect("Enum without value!");
 
-                    format!("__{f_name} = {value},")
+                    // prepend enum name with __E_ to prevent accidentally creating enum values that are reserved for builtin macros
+                    format!("__E_{f_name} = {value},")
                 })
             })
             .map(|s| -> CppMember { CppMember::CppLine(s.into()) });

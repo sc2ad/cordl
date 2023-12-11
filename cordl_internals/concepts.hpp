@@ -66,7 +66,6 @@ namespace cordl_internals {
     concept cordl_pointer = std::is_pointer_v<T> && il2cpp_utils::value_marker_check_v<std::remove_pointer_t<T>, false>;
 
     template <typename T>
-    concept cordl_ref_type =
-        cordl_pointer<T> || std::is_same_v<T, ::StringW> || std::is_same_v<T, ::ArrayW<T>> || std::is_same_v<T, Il2CppObject *>;
+    concept cordl_ref_type = std::is_pointer_v<T> || il2cpp_utils::il2cpp_reference_type<T>;
 }
 } // end anonymous namespace
