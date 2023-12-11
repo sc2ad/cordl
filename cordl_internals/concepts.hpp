@@ -7,7 +7,8 @@
 
 struct StringW;
 
-template <typename T> struct ArrayW;
+template <typename T> struct Array;
+template <typename T, typename Ptr> struct ArrayW;
 
 struct Il2CppObject;
 
@@ -61,11 +62,5 @@ namespace cordl_internals {
         #define SIZE_CHECK(t, message)
     #endif
 #pragma endregion // offset check
-
-    template<typename T>
-    concept cordl_pointer = std::is_pointer_v<T> && il2cpp_utils::value_marker_check_v<std::remove_pointer_t<T>, false>;
-
-    template <typename T>
-    concept cordl_ref_type = std::is_pointer_v<T> || il2cpp_utils::il2cpp_reference_type<T>;
 }
 } // end anonymous namespace

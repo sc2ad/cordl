@@ -22,7 +22,7 @@ pub const CORDL_TYPE_MACRO: &str = "CORDL_TYPE";
 pub const __CORDL_IS_VALUE_TYPE: &str = "__IL2CPP_IS_VALUE_TYPE";
 pub const __CORDL_BACKING_ENUM_TYPE: &str = "__CORDL_BACKING_ENUM_TYPE";
 
-pub const CORDL_REFERENCE_TYPE_CONSTRAINT: &str = "::cordl_internals::cordl_ref_type";
+pub const CORDL_REFERENCE_TYPE_CONSTRAINT: &str = "::il2cpp_utils::il2cpp_reference_type";
 pub const CORDL_NUM_ENUM_TYPE_CONSTRAINT: &str = "::cordl_internals::is_or_is_backed_by";
 pub const CORDL_METHOD_HELPER_NAMESPACE: &str = "::cordl_internals";
 
@@ -418,7 +418,7 @@ impl CppType {
             let type_trait_macro = if self.is_enum_type || self.is_value_type {
                 "MARK_GEN_VAL_T"
             } else {
-                "MARK_GEN_REF_T"
+                "MARK_GEN_REF_PTR_T"
             };
 
             writeln!(
@@ -432,7 +432,7 @@ impl CppType {
             let type_trait_macro = if self.is_enum_type || self.is_value_type {
                 "MARK_VAL_T"
             } else {
-                "MARK_REF_T"
+                "MARK_REF_PTR_T"
             };
 
             writeln!(

@@ -4,6 +4,7 @@
 #include "concepts.hpp"
 #include "exceptions.hpp"
 #include "box-utils.hpp"
+#include "internal.hpp"
 #include <type_traits>
 #include <sstream>
 #include "beatsaber-hook/shared/utils/typedefs-string.hpp"
@@ -93,7 +94,7 @@ template<typename T>
         if (arg) { // is it even a set value
             il2cpp_functions::Init();
             auto k = il2cpp_functions::object_get_class(static_cast<Il2CppObject*>(arg));
-            if (k && !k->nullabletype) {
+            if (k && il2cpp_functions::class_is_valuetype(k)) {
                 // boxed value type, unbox it
                 return il2cpp_functions::object_unbox(static_cast<Il2CppObject*>(arg));
             }
@@ -108,7 +109,7 @@ template<typename T>
         if (arg) { // is it even a set value
             il2cpp_functions::Init();
             auto k = il2cpp_functions::object_get_class(static_cast<Il2CppObject*>(arg));
-            if (k && !k->nullabletype) {
+            if (k && il2cpp_functions::class_is_valuetype(k)) {
                 // boxed value type, unbox it
                 return il2cpp_functions::object_unbox(static_cast<Il2CppObject*>(arg));
             }
@@ -159,18 +160,35 @@ template<typename T>
                                        TArgs&&... params) {
         CRASH_UNLESS(method);
 
+        // get the instance value, regardless of if it is boxed or anything
+        auto inst = ExtractValue(instance);
+
+// if the person compiling has confidence they won't ever nullref allow skipping this check
+#ifndef NO_RUNTIME_METHOD_INSTANCE_CHECKS
         if constexpr (::il2cpp_utils::il2cpp_reference_type<T>) {
             if ((method->flags & METHOD_ATTRIBUTE_STATIC) == 0) { // method is instance method
-                if (!instance.convert()) {
-                    // if instance.convert() is false, we are dealing with a nullptr instance, and the instance method call is a bad idea
+                if (!inst) {
+                    // if instance is null, we are dealing with a null deref, and the instance method call is a bad idea
                     std::stringstream str;
                     // FIXME: should we use this string, or something else? log a stacktrace?
-                    str << "Instance was null for method call of "; str << method->klass->name; str << "::"; str << method->name;
+                    str << "Instance was null for method call of ";
+                    str << method->klass->name; str << "::"; str << method->name;
                     throw NullException(str.str());
+                }
+                // unity cached ptr check
+                if constexpr (std::is_convertible_v<T, UnityEngine::Object*>) {
+                    if (!read_cachedptr(static_cast<UnityEngine::Object*>(inst))) {
+                        // we checked and the cached ptr in unityengine object was null, this is a problem!
+                        std::stringstream str;
+                        // FIXME: should we use this string, or something else? log a stacktrace?
+                        str << "Instance was 'unity invalid' for method call of ";
+                        str << method->klass->name; str << "::"; str << method->name;
+                        throw NullException(str.str());
+                    }
                 }
             }
         }
-
+#endif
         if constexpr (checkTypes && sizeof...(TArgs) > 0) { // param type check
             std::array<Il2CppType const*, sizeof...(TArgs)> types{ ExtractType(
                 params)... };
@@ -182,8 +200,6 @@ template<typename T>
             }
         }
 
-        // get the instance value, regardless of if it is boxed or anything
-        auto inst = ExtractValue(instance);
         Il2CppException* exp = nullptr;
         std::array<void*, sizeof...(params)> invokeParams{ExtractTypeValue(params)...};
         il2cpp_functions::Init();

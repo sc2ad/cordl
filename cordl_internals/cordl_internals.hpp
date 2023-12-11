@@ -35,7 +35,7 @@ namespace cordl_internals {
 
     // Type tag for passing null as a parameter without setting instance to null
     struct NullArg {
-        template <::il2cpp_utils::il2cpp_reference_type T> constexpr operator T() const noexcept {
+        template <::il2cpp_utils::il2cpp_reference_type_wrapper T> constexpr operator T() const noexcept {
             return T(nullptr);
         }
         constexpr operator ::bs_hook::Il2CppWrapperType() const noexcept {
@@ -43,7 +43,7 @@ namespace cordl_internals {
         }
 
         // convert to null anyways
-        // this might cause issues when we have `Foo(::il2cpp_utils::il2cpp_reference_type)` and
+        // this might cause issues when we have `Foo(::il2cpp_utils::il2cpp_reference_type_wrapper)` and
         // `Foo(void*)`, hopefully not
         constexpr operator std::nullptr_t() const noexcept {
             return nullptr;

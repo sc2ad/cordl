@@ -36,7 +36,10 @@ namespace cordl_internals {
         return *reinterpret_cast<T*>(il2cpp_functions::object_unbox(t));
     }
 
-    template<::cordl_internals::cordl_ref_type T>
+    template<::il2cpp_utils::il2cpp_reference_type_wrapper T>
+    CORDL_HIDDEN T Unbox(Il2CppObject* t) { return T(t); }
+
+    template<::il2cpp_utils::il2cpp_reference_type_pointer T>
     CORDL_HIDDEN T Unbox(Il2CppObject* t) { return reinterpret_cast<T>(t); }
 
     template<::il2cpp_utils::il2cpp_value_type T>
