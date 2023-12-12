@@ -6,9 +6,8 @@ use brocolib::runtime_metadata::TypeData;
 use brocolib::runtime_metadata::{Il2CppType, Il2CppTypeEnum};
 use itertools::Itertools;
 use log::debug;
-use log::warn;
 use log::info;
-
+use log::warn;
 
 use crate::generate::type_extensions::TypeExtentions;
 use core::mem;
@@ -256,7 +255,7 @@ fn get_offset_of_type_table(
 fn get_parent_sa(
     metadata: &Metadata<'_>,
     parent_index: u32,
-    generic_inst_types: Option<&Vec<usize>>
+    generic_inst_types: Option<&Vec<usize>>,
 ) -> SizeAndAlignment {
     let parent_ty = &metadata.metadata_registration.types[parent_index as usize];
     let (parent_tdi, parent_generics) = match parent_ty.data {
@@ -279,48 +278,42 @@ fn get_parent_sa(
                 );
             };
 
-            (parent_tdi, Some(&generic_inst.types))
+            // replace all Var with the parent generic args
+
+            let true_generics = generic_inst
+                .types
+                .iter()
+                .map(|t_index| {
+                    let ty = &metadata
+                        .metadata
+                        .runtime_metadata
+                        .metadata_registration
+                        .types[*t_index];
+                    if let TypeData::GenericParameterIndex(generic_param_index) = ty.data &&
+                    let Some(generic_args) = &generic_inst_types {
+                    let generic_param =
+                        &metadata.metadata.global_metadata.generic_parameters[generic_param_index];
+
+                    generic_args[generic_param.num as usize]
+                } else {
+                    // we don't know what it is, so just default later
+                    *t_index
+                }
+                })
+                .collect_vec();
+
+            (parent_tdi, Some(true_generics))
         }
         _ => todo!("Not yet implemented: {:?}", parent_ty.data),
     };
 
-    // replace all Var with the parent generic args
-    if let Some(parent_generics) = &parent_generics {
-        let true_generics = parent_generics.iter().map(|t_index| {
-            let ty = &metadata
-                .metadata
-                .runtime_metadata
-                .metadata_registration
-                .types[t_index.clone()];
-            if ty.ty == Il2CppTypeEnum::Var && let TypeData::GenericParameterIndex(generic_param_index) = ty.data &&
-                let Some(generic_args) = &generic_inst_types {
-                let generic_param =
-                    &metadata.metadata.global_metadata.generic_parameters[generic_param_index];
-
-                generic_args[generic_param.num as usize]
-            } else {
-                t_index.clone()
-            }
-        }).collect_vec();
-
-        layout_fields(
-            metadata,
-            &metadata.metadata.global_metadata.type_definitions[parent_tdi],
-            parent_tdi,
-            Some(&true_generics),
-            None,
-        )
-    } else {
-        layout_fields(
-            metadata,
-            &metadata.metadata.global_metadata.type_definitions[parent_tdi],
-            parent_tdi,
-            None,
-            None,
-        )
-    }
-
-
+    layout_fields(
+        metadata,
+        &metadata.metadata.global_metadata.type_definitions[parent_tdi],
+        parent_tdi,
+        parent_generics.as_ref(),
+        None,
+    )
 }
 
 fn update_instance_size_for_generic_class(
