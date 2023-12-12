@@ -35,8 +35,8 @@ use super::{
     members::{
         CppCommentedString, CppConstructorDecl, CppConstructorImpl, CppFieldDecl, CppFieldImpl,
         CppForwardDeclare, CppInclude, CppLine, CppMember, CppMethodData, CppMethodDecl,
-        CppMethodImpl, CppMethodSizeStruct, CppNestedStruct, CppParam, CppPropertyDecl,
-        CppStaticAssert, CppTemplate,
+        CppMethodImpl, CppMethodSizeStruct, CppNestedStruct, CppNonMember, CppParam,
+        CppPropertyDecl, CppStaticAssert, CppTemplate,
     },
     metadata::Metadata,
     type_extensions::{
@@ -955,36 +955,38 @@ pub trait CSType: Sized {
 
                 cpp_type.inherit.push(format!("{wrapper}<0x{size:x}>"));
             }
-            // Handle System.Object
-            false if t.full_name(metadata.metadata, true) == "System.Object" => {
-                cpp_type.requirements.need_wrapper();
-                cpp_type.inherit.push(OBJECT_WRAPPER_TYPE.to_string());
-            }
             // handle as reference type
             false => {
-                // make sure our parent is intended
-                assert!(
-                    matches!(
+                // if the parent is just object, push wrapper type instead
+                if parent_type.ty == Il2CppTypeEnum::Object {
+                    cpp_type.requirements.need_wrapper();
+                    cpp_type.inherit.push(OBJECT_WRAPPER_TYPE.to_string());
+                } else {
+                    // make sure our parent is intended
+                    assert!(
+                        matches!(
+                            parent_type.ty,
+                            Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
+                        ),
+                        "Not a class, object or generic inst!"
+                    );
+
+                    // We have a parent, lets do something with it
+                    let inherit_type = cpp_type.cppify_name_il2cpp(
+                        ctx_collection,
+                        metadata,
+                        parent_type,
+                        usize::MAX,
+                    );
+
+                    if matches!(
                         parent_type.ty,
-                        Il2CppTypeEnum::Class
-                            | Il2CppTypeEnum::Genericinst
-                            | Il2CppTypeEnum::Object
-                    ),
-                    "Not a class, object or generic inst!"
-                );
+                        Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
+                    ) {
+                        // TODO: Figure out why some generic insts don't work here
+                        let parent_tdi: TypeDefinitionIndex = parent_ty.into();
 
-                // We have a parent, lets do something with it
-                let inherit_type =
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, usize::MAX);
-
-                if matches!(
-                    parent_type.ty,
-                    Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
-                ) {
-                    // TODO: Figure out why some generic insts don't work here
-                    let parent_tdi: TypeDefinitionIndex = parent_ty.into();
-
-                    let base_type_context = ctx_collection
+                        let base_type_context = ctx_collection
                                     .get_context(parent_ty)
                                     .or_else(|| ctx_collection.get_context(parent_tdi.into()))
                                     .unwrap_or_else(|| {
@@ -993,24 +995,34 @@ pub trait CSType: Sized {
                                     )
                                     });
 
-                    let base_type_cpp_type = ctx_collection
-                        .get_cpp_type(parent_ty)
-                        .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
-                        .unwrap_or_else(|| {
-                            panic!(
+                        let base_type_cpp_type = ctx_collection
+                            .get_cpp_type(parent_ty)
+                            .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
+                            .unwrap_or_else(|| {
+                                panic!(
                                 "No CppType for base type {inherit_type:?}. Using tag {parent_ty:?}"
                             )
-                        });
+                            });
 
-                    cpp_type.requirements.add_impl_include(
-                        Some(base_type_cpp_type),
-                        CppInclude::new_context_typeimpl(base_type_context),
-                    )
+                        let base_type_cpp_type = ctx_collection
+                                        .get_cpp_type(parent_ty)
+                                        .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
+                                        .unwrap_or_else(|| {
+                                panic!(
+                                    "No CppType for base type {inherit_type:?}. Using tag {parent_ty:?}"
+                                )
+                            });
+
+                        cpp_type.requirements.add_impl_include(
+                            Some(base_type_cpp_type),
+                            CppInclude::new_context_typeimpl(base_type_context),
+                        )
+                    }
+
+                    cpp_type
+                        .inherit
+                        .push(inherit_type.remove_pointer().combine_all());
                 }
-
-                cpp_type
-                    .inherit
-                    .push(inherit_type.remove_pointer().combine_all());
             }
         }
     }
@@ -1247,6 +1259,10 @@ pub trait CSType: Sized {
 
     fn create_size_assert(&mut self) {
         let cpp_type = self.get_mut_cpp_type();
+        if cpp_type.cpp_name() == "System.Object" {
+            // skip assert on system object because it will be wrong
+            return;
+        }
 
         // FIXME: make this work with templated types that either: have a full template (complete instantiation), or only require a pointer (size should be stable)
         // for now, skip templated types
@@ -1262,7 +1278,9 @@ pub trait CSType: Sized {
                 message: Some("Size mismatch!".to_string()),
             };
 
-            cpp_type.nonmember_declarations.push(Rc::new(assert));
+            cpp_type
+                .nonmember_declarations
+                .push(Rc::new(CppNonMember::CppStaticAssert(assert)));
         } else {
             todo!("Why does this type not have a valid size??? {cpp_type:?}");
         }
@@ -2362,7 +2380,7 @@ pub trait CSType: Sized {
         if let Some(method_calc) = method_calc && template.is_none() && !has_template_args && !is_generic_method_inst {
             cpp_type
                 .nonmember_implementations
-                .push(Rc::new(CppMethodSizeStruct {
+                .push(Rc::new(CppNonMember::SizeStruct(CppMethodSizeStruct {
                     ret_ty: method_decl.return_type.clone(),
                     cpp_method_name: method_decl.cpp_name.clone(),
                     method_name: m_name.to_string(),
@@ -2387,7 +2405,7 @@ pub trait CSType: Sized {
                     } else {
                         None
                     },
-                }));
+                })));
         }
 
         // TODO: Revise this
@@ -2958,7 +2976,10 @@ pub trait CSType: Sized {
                 NameComponents {
                     name: "ArrayW".into(),
                     namespace: Some("".into()),
-                    generics: Some(vec![generic_formatted]),
+                    generics: Some(vec![
+                        generic_formatted.clone(),
+                        format!("::Array<{generic_formatted}>"),
+                    ]),
                     is_pointer: false,
                     ..Default::default()
                 }

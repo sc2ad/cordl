@@ -128,6 +128,15 @@ pub enum CppMember {
     CppLine(CppLine),
 }
 
+#[derive(Clone, Debug)]
+pub enum CppNonMember {
+    SizeStruct(CppMethodSizeStruct),
+    CppUsingAlias(CppUsingAlias),
+    Comment(CppCommentedString),
+    CppStaticAssert(CppStaticAssert),
+    CppLine(CppLine),
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppMethodData {
     pub estimated_size: usize,

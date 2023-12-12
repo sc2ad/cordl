@@ -1,5 +1,12 @@
 #pragma once
 
+#include "beatsaber-hook/shared/utils/byref.hpp"
+#include "beatsaber-hook/shared/utils/il2cpp-utils-methods.hpp"
+#include "beatsaber-hook/shared/utils/il2cpp-utils-properties.hpp"
+#include "beatsaber-hook/shared/utils/il2cpp-utils-fields.hpp"
+#include "beatsaber-hook/shared/utils/utils.h"
+#include "beatsaber-hook/shared/utils/typedefs.h"
+
 #include "config.hpp"
 #include "concepts.hpp"
 #include "field-utils.hpp"
@@ -7,11 +14,6 @@
 #include "method-utils.hpp"
 #include "ptr-utils.hpp"
 #include "size-utils.hpp"
-#include "beatsaber-hook/shared/utils/base-wrapper-type.hpp"
-#include "beatsaber-hook/shared/utils/typedefs-string.hpp"
-#include "beatsaber-hook/shared/utils/typedefs-array.hpp"
-#include "beatsaber-hook/shared/utils/typedefs-list.hpp"
-#include "beatsaber-hook/shared/utils/byref.hpp"
 
 #ifndef csnull
 #define csnull (::cordl_internals::NullArg())
@@ -20,6 +22,12 @@
 // TODO: Implement
 template <typename T>
 using ByRefConst = ::ByRef<T>;
+
+struct StringW;
+template <typename T, typename Ptr> struct ArrayW;
+template <typename T, typename Ptr> struct ListW;
+struct Il2CppObject;
+
 
 namespace {
 namespace cordl_internals {
@@ -52,8 +60,8 @@ namespace cordl_internals {
             return StringW(nullptr);
         }
 
-        template <typename T> constexpr operator ::ArrayW<T>() const noexcept {
-            return ArrayW<T>(nullptr);
+        template <typename T, typename Ptr> constexpr operator ::ArrayW<T, Ptr>() const noexcept {
+            return ArrayW<T, Ptr>(nullptr);
         }
 
         template <typename T, typename U>

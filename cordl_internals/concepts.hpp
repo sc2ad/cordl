@@ -5,13 +5,6 @@
 #include "beatsaber-hook/shared/utils/type-concepts.hpp"
 #include "beatsaber-hook/shared/utils/size-concepts.hpp"
 
-struct StringW;
-
-template <typename T> struct Array;
-template <typename T, typename Ptr> struct ArrayW;
-
-struct Il2CppObject;
-
 namespace {
 namespace cordl_internals {
     template <class T, class U>
