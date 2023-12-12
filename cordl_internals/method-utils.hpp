@@ -126,6 +126,14 @@ template<typename T>
     requires(!std::is_same_v<T, ::bs_hook::Il2CppWrapperType>)
     CORDL_HIDDEN constexpr void* ExtractTypeValue(T&& arg) { return arg.convert(); }
 
+    template<typename T>
+    requires(std::is_pointer_v<T>)
+    CORDL_HIDDEN constexpr void* ExtractTypeValue(T& arg) { return arg; }
+
+    template<typename T>
+    requires(std::is_pointer_v<T>)
+    CORDL_HIDDEN constexpr void* ExtractTypeValue(T&& arg) { return arg; }
+
 #pragma endregion // extract type values
 
 #pragma region extract type
