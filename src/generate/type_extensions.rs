@@ -1,7 +1,7 @@
 use core::panic;
 
 use brocolib::{
-    global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition},
+    global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition, TypeIndex},
     runtime_metadata::{Il2CppType, Il2CppTypeEnum, TypeData},
     Metadata,
 };
@@ -96,6 +96,12 @@ pub trait TypeExtentions {
     fn is_static(&self) -> bool;
     fn is_constant(&self) -> bool;
     fn is_byref(&self) -> bool;
+
+    fn fill_generic_inst<'a>(
+        &'a self,
+        generic_types: &[&'a Il2CppType],
+        metadata: &'a Metadata,
+    ) -> (&'a Il2CppType, Option<Vec<&'a Il2CppType>>);
 }
 
 impl TypeExtentions for Il2CppType {
@@ -110,6 +116,54 @@ impl TypeExtentions for Il2CppType {
 
     fn is_byref(&self) -> bool {
         self.byref
+    }
+
+    /// Returns the actual type for the given generic inst 
+    /// or drills down and fixes it in generic instantiations
+    fn fill_generic_inst<'a>(
+        &'a self,
+        generic_types: &[&'a Il2CppType],
+        metadata: &'a Metadata,
+    ) -> (&'a Il2CppType, Option<Vec<&'a Il2CppType>>) {
+        match &self.data {
+            TypeData::GenericParameterIndex(gen_param_idx) => {
+                let gen_param = &metadata.global_metadata.generic_parameters[*gen_param_idx];
+
+                (generic_types[gen_param.num as usize], None)
+            }
+            TypeData::GenericClassIndex(generic_class_idx) => {
+                let generic_class = &metadata
+                    .runtime_metadata
+                    .metadata_registration
+                    .generic_classes[*generic_class_idx];
+
+                let class_inst_idx = generic_class.context.class_inst_idx.unwrap();
+                let class_inst = &metadata
+                    .runtime_metadata
+                    .metadata_registration
+                    .generic_insts[class_inst_idx];
+                let instantiated_generic_types = class_inst
+                    .types
+                    .iter()
+                    .map(|t| {
+                        let ty = &metadata.runtime_metadata.metadata_registration.types[*t];
+
+                        ty.fill_generic_inst(generic_types, metadata)
+                    })
+                    .map(|(t, ts)| t)
+                    .collect_vec();
+
+                let td_type_idx = &generic_class.type_index;
+                let td_type = &metadata.runtime_metadata.metadata_registration.types[*td_type_idx];
+                let TypeData::TypeDefinitionIndex(tdi) = td_type.data else {
+                    panic!()
+                };
+                // let td = &metadata.global_metadata.type_definitions[tdi];
+
+                (td_type, Some(instantiated_generic_types))
+            }
+            _ => (self, None),
+        }
     }
 }
 
