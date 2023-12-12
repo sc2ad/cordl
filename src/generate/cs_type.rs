@@ -1265,10 +1265,6 @@ pub trait CSType: Sized {
 
     fn create_size_assert(&mut self) {
         let cpp_type = self.get_mut_cpp_type();
-        if cpp_type.cpp_name() == "System.Object" {
-            // skip assert on system object because it will be wrong
-            return;
-        }
 
         // FIXME: make this work with templated types that either: have a full template (complete instantiation), or only require a pointer (size should be stable)
         // for now, skip templated types
