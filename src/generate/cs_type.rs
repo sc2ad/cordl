@@ -2896,6 +2896,16 @@ pub trait CSType: Sized {
                     let _size = offsets::get_sizeof_type(td, tdi, None, metadata);
 
                     if metadata.blacklisted_types.contains(&tdi) {
+                        // classes should return Il2CppObject*
+                        if typ.ty == Il2CppTypeEnum::Class {
+                            return NameComponents {
+                                name: OBJECT_WRAPPER_TYPE.to_string(),
+                                is_pointer: true,
+                                generics: None,
+                                namespace: None,
+                                declaring_types: None,
+                            };
+                        }
                         return wrapper_type_for_tdi(td).to_string().into();
                     }
 
