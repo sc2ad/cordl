@@ -184,12 +184,20 @@ pub trait CSType: Sized {
         let cpp_name_components = NameComponents {
             declaring_types: cs_name_components
                 .declaring_types
-                .iter()
-                .map(|s| config.name_cpp(s))
-                .collect_vec(),
+                .as_ref()
+                .map(|declaring_types| {
+                    declaring_types
+                        .iter()
+                        .map(|s| config.name_cpp(s))
+                        .collect_vec()
+                }),
             generics: cs_name_components.generics.clone(),
             name: config.name_cpp(&cs_name_components.name),
-            namespace: config.namespace_cpp(&cs_name_components.namespace),
+            namespace: cs_name_components
+                .namespace
+                .as_ref()
+                .map(|s| config.namespace_cpp(s)),
+            is_pointer: !t.is_enum_type() && !t.is_value_type(),
         };
 
         // TODO: Come up with a way to avoid this extra call to layout the entire type
@@ -245,11 +253,16 @@ pub trait CSType: Sized {
             let declaring_tag = CppTypeTag::from_type_data(declaring_ty.data, metadata.metadata);
             let declaring_tdi: TypeDefinitionIndex = declaring_tag.into();
             let declaring_td = &metadata.metadata.global_metadata.type_definitions[declaring_tdi];
-            let combined_name = cpptype.cpp_name_components.combine_all(false);
+            let combined_name = cpptype
+                .cpp_name_components
+                .clone()
+                .remove_generics()
+                .remove_pointer()
+                .combine_all();
 
             cpptype.cpp_name_components.namespace =
-                config.namespace_cpp(declaring_td.namespace(metadata.metadata));
-            cpptype.cpp_name_components.declaring_types = vec![]; // remove declaring types
+                Some(config.namespace_cpp(declaring_td.namespace(metadata.metadata)));
+            cpptype.cpp_name_components.declaring_types = None; // remove declaring types
 
             cpptype.cpp_name_components.name = config.generic_nested_name(&combined_name);
         }
@@ -413,9 +426,9 @@ pub trait CSType: Sized {
                     ctx_collection,
                     metadata,
                     &mut template_args,
-                    true,
                 )
             })
+            .map(|n| n.combine_all())
             .collect();
 
         // Handle nested types
@@ -578,7 +591,9 @@ pub trait CSType: Sized {
             let field_ty_cpp_name = if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
                 "::ConstString".to_string()
             } else {
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, 0, true)
+                cpp_type
+                    .cppify_name_il2cpp(ctx_collection, metadata, f_type, 0)
+                    .combine_all()
             };
 
             // TODO: Check a flag to look for default values to speed this up
@@ -614,7 +629,7 @@ pub trait CSType: Sized {
                         let field_impl = CppFieldImpl {
                             value: def_value,
                             const_expr: true,
-                            declaring_type: cpp_type.cpp_name_components.combine_all(true),
+                            declaring_type: cpp_type.cpp_name_components.combine_all(),
                             declaring_type_template: declaring_cpp_template,
                             ..field_decl.clone().into()
                         };
@@ -803,7 +818,7 @@ pub trait CSType: Sized {
 
                 let getter_impl = CppMethodImpl {
                     body: vec![Arc::new(CppLine::make(getter_call.clone()))],
-                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
+                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(),
                     template: useful_template.clone(),
 
                     ..getter_decl.clone().into()
@@ -811,7 +826,7 @@ pub trait CSType: Sized {
 
                 let const_getter_impl = CppMethodImpl {
                     body: vec![Arc::new(CppLine::make(getter_call))],
-                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
+                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(),
                     template: useful_template.clone(),
 
                     ..const_getter_decl.clone().into()
@@ -819,7 +834,7 @@ pub trait CSType: Sized {
 
                 let setter_impl = CppMethodImpl {
                     body: vec![Arc::new(CppLine::make(setter_call))],
-                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
+                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(),
                     template: useful_template.clone(),
 
                     ..setter_decl.clone().into()
@@ -959,13 +974,8 @@ pub trait CSType: Sized {
                 );
 
                 // We have a parent, lets do something with it
-                let inherit_type = cpp_type.cppify_name_il2cpp(
-                    ctx_collection,
-                    metadata,
-                    parent_type,
-                    usize::MAX,
-                    false,
-                );
+                let inherit_type =
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, usize::MAX);
 
                 if matches!(
                     parent_type.ty,
@@ -979,7 +989,7 @@ pub trait CSType: Sized {
                                     .or_else(|| ctx_collection.get_context(parent_tdi.into()))
                                     .unwrap_or_else(|| {
                                         panic!(
-                                        "No CppContext for base type {inherit_type}. Using tag {parent_ty:?}"
+                                        "No CppContext for base type {inherit_type:?}. Using tag {parent_ty:?}"
                                     )
                                     });
 
@@ -988,7 +998,7 @@ pub trait CSType: Sized {
                         .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
                         .unwrap_or_else(|| {
                             panic!(
-                                "No CppType for base type {inherit_type}. Using tag {parent_ty:?}"
+                                "No CppType for base type {inherit_type:?}. Using tag {parent_ty:?}"
                             )
                         });
 
@@ -998,7 +1008,9 @@ pub trait CSType: Sized {
                     )
                 }
 
-                cpp_type.inherit.push(inherit_type);
+                cpp_type
+                    .inherit
+                    .push(inherit_type.remove_pointer().combine_all());
             }
         }
     }
@@ -1016,20 +1028,14 @@ pub trait CSType: Sized {
             let int_ty = &metadata.metadata_registration.types[interface_index as usize];
 
             // We have an interface, lets do something with it
-            let interface_cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, 0, true);
-
-            let convert_line = match t.is_value_type() || t.is_enum_type() {
-                true => {
-                    // box
-                    "static_cast<void*>(::cordl_internals::Box(this))".to_string()
-                }
-                false => "static_cast<void*>(this)".to_string(),
-            };
+            let interface_cpp_name = cpp_type
+                .cppify_name_il2cpp(ctx_collection, metadata, int_ty, 0)
+                .remove_pointer()
+                .combine_all();
 
             let method_decl = CppMethodDecl {
                 body: Default::default(),
-                brief: Some(format!("Convert operator to {interface_cpp_name}")),
+                brief: Some(format!("Convert operator to {interface_cpp_name:?}")),
                 cpp_name: interface_cpp_name.clone(),
                 return_type: "".to_string(),
                 instance: true,
@@ -1055,11 +1061,19 @@ pub trait CSType: Sized {
                 None
             };
 
+            let convert_line = match t.is_value_type() || t.is_enum_type() {
+                true => {
+                    // box
+                    "static_cast<void*>(::cordl_internals::Box(this))".to_string()
+                }
+                false => "static_cast<void*>(this)".to_string(),
+            };
+
             let method_impl = CppMethodImpl {
                 body: vec![Arc::new(CppLine::make(format!(
                     "return static_cast<{interface_cpp_name}>({convert_line});"
                 )))],
-                declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
+                declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(),
                 template: method_impl_template,
                 ..method_decl.clone().into()
             };
@@ -1197,8 +1211,9 @@ pub trait CSType: Sized {
                 .get(p_type_index)
                 .unwrap();
 
-            let p_ty_cpp_name =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, p_type, 0, true);
+            let p_ty_cpp_name = cpp_type
+                .cppify_name_il2cpp(ctx_collection, metadata, p_type, 0)
+                .combine_all();
 
             let _method_map = |p: MethodIndex| {
                 let method_calc = metadata.method_calculations.get(&p).unwrap();
@@ -1240,7 +1255,7 @@ pub trait CSType: Sized {
         }
 
         if let Some(size) = cpp_type.calculated_size {
-            let cpp_name = cpp_type.cpp_name_components.combine_all(true);
+            let cpp_name = cpp_type.cpp_name_components.remove_pointer().combine_all();
 
             let assert = CppStaticAssert {
                 condition: format!("::cordl_internals::size_check_v<::{cpp_name}, 0x{size:x}>"),
@@ -1307,8 +1322,10 @@ pub trait CSType: Sized {
         let backing_field_idx = t.element_type_index as usize;
         let backing_field_ty = &metadata.metadata_registration.types[backing_field_idx];
 
-        let enum_base =
-            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field_ty, 0, false);
+        let enum_base = cpp_type
+            .cppify_name_il2cpp(ctx_collection, metadata, backing_field_ty, 0)
+            .remove_pointer()
+            .combine_all();
 
         cpp_type.declarations.push(
             CppMember::CppUsingAlias(CppUsingAlias {
@@ -1335,8 +1352,10 @@ pub trait CSType: Sized {
             .get(t.element_type_index as usize)
             .unwrap();
 
-        let enum_base =
-            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, backing_field, 0, false);
+        let enum_base = cpp_type
+            .cppify_name_il2cpp(ctx_collection, metadata, backing_field, 0)
+            .remove_pointer()
+            .combine_all();
 
         let enum_entries = t
             .fields(metadata.metadata)
@@ -1482,8 +1501,9 @@ pub trait CSType: Sized {
                     return None;
                 }
 
-                let f_type_cpp_name =
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, 0, true);
+                let f_type_cpp_name = cpp_type
+                    .cppify_name_il2cpp(ctx_collection, metadata, f_type, 0)
+                    .combine_all();
 
                 // Get the inner type of a Generic Inst
                 // e.g ReadOnlySpan<char> -> ReadOnlySpan<T>
@@ -1564,7 +1584,7 @@ pub trait CSType: Sized {
                 body,
                 template: method_impl_template,
                 parameters: instance_fields,
-                declaring_full_name: cpp_type.cpp_name_components.combine_all(true),
+                declaring_full_name: cpp_type.cpp_name_components.remove_pointer().combine_all(),
                 ..constructor_decl.clone().into()
             };
 
@@ -1948,7 +1968,7 @@ pub trait CSType: Sized {
             })
             .collect_vec();
 
-        let ty_full_cpp_name = format!("::{}*", cpp_type.cpp_name_components.combine_all(true));
+        let ty_full_cpp_name = cpp_type.cpp_name_components.combine_all();
 
         let decl: CppMethodDecl = CppMethodDecl {
             cpp_name: "New_ctor".into(),
@@ -1987,7 +2007,7 @@ pub trait CSType: Sized {
         let cpp_constructor_impl = CppMethodImpl {
             body: vec![Arc::new(CppLine::make(format!("return {allocate_call};")))],
 
-            declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(true),
+            declaring_cpp_full_name: cpp_type.cpp_name_components.remove_pointer().combine_all(),
             parameters: m_params.to_vec(),
             template: declaring_template,
             ..decl.clone().into()
@@ -2050,7 +2070,9 @@ pub trait CSType: Sized {
                     cpp_type.requirements.needs_value_include();
                     VT_PTR_TYPE.into()
                 } else {
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, param_type, 0, true)
+                    cpp_type
+                        .cppify_name_il2cpp(ctx_collection, metadata, param_type, 0)
+                        .combine_all()
                 }
             };
 
@@ -2128,7 +2150,11 @@ pub trait CSType: Sized {
             literal_types
                 .iter()
                 .map(|t| &metadata.metadata_registration.types[*t as usize])
-                .map(|t| cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, 0, true))
+                .map(|t| {
+                    cpp_type
+                        .cppify_name_il2cpp(ctx_collection, metadata, t, 0)
+                        .combine_all()
+                })
                 .collect_vec()
         });
 
@@ -2142,7 +2168,9 @@ pub trait CSType: Sized {
                 cpp_type.requirements.needs_value_include();
                 VT_PTR_TYPE.into()
             } else {
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, 0, true)
+                cpp_type
+                    .cppify_name_il2cpp(ctx_collection, metadata, m_ret_type, 0)
+                    .combine_all()
             }
         };
 
@@ -2232,10 +2260,10 @@ pub trait CSType: Sized {
 
         let method_invoke_params = vec![instance_ptr.as_str(), METHOD_INFO_VAR_NAME];
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
-        let declaring_type_cpp_full_name = cpp_type.cpp_name_components.combine_all(true);
-        let declaring_type_cpp_full_name_byref = cpp_type.cpp_complete_name_byref(true);
+        let declaring_type_cpp_full_name =
+            cpp_type.cpp_name_components.remove_pointer().combine_all();
 
-        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{declaring_type_cpp_full_name_byref}>::get()");
+        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{declaring_type_cpp_full_name}>::get()");
 
         let params_types_format: String = CppParam::params_types(&method_decl.parameters)
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
@@ -2742,8 +2770,7 @@ pub trait CSType: Sized {
         metadata: &Metadata,
         typ: &Il2CppType,
         include_depth: usize,
-        pointer_fixup: bool,
-    ) -> String {
+    ) -> NameComponents {
         let cpp_type = self.get_mut_cpp_type();
 
         let mut requirements = cpp_type.requirements.clone();
@@ -2755,7 +2782,6 @@ pub trait CSType: Sized {
             typ,
             include_depth,
             cpp_type.generic_instantiations_args_types.as_ref(),
-            pointer_fixup,
         );
 
         cpp_type.requirements = requirements;
@@ -2763,7 +2789,7 @@ pub trait CSType: Sized {
         res
     }
 
-    /// [pointer_fixup] add * to T if it's a reference type
+    /// [declaring_generic_inst_types] the generic instantiation of the declaring type
     fn cppify_name_il2cpp_recurse(
         &self,
         requirements: &mut CppTypeRequirements,
@@ -2772,8 +2798,7 @@ pub trait CSType: Sized {
         typ: &Il2CppType,
         include_depth: usize,
         declaring_generic_inst_types: Option<&Vec<usize>>,
-        pointer_fixup: bool,
-    ) -> String {
+    ) -> NameComponents {
         let add_include = include_depth > 0;
         let next_include_depth = if add_include { include_depth - 1 } else { 0 };
 
@@ -2815,114 +2840,92 @@ pub trait CSType: Sized {
                 let typ_cpp_tag: CppTypeTag = typ_tag.into();
                 // Self
 
-                let (ret, is_ref) = 'find: {
-                    // we add :: here since we can't add it to method ddefinitions
-                    // e.g void ::Foo::method() <- not allowed
-                    if typ_cpp_tag == cpp_type.self_tag {
-                        break 'find (
-                            format!("::{}", cpp_type.cpp_name_components.combine_all(false)),
-                            cpp_type.is_reference_type,
-                        );
-                    }
-
-                    if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
-                        let td = &metadata.metadata.global_metadata.type_definitions[tdi];
-
-                        // TODO: Do we need generic inst types here? Hopefully not!
-                        let _size = offsets::get_sizeof_type(td, tdi, None, metadata);
-
-                        if metadata.blacklisted_types.contains(&tdi) {
-                            break 'find (
-                                wrapper_type_for_tdi(td).to_string(),
-                                !td.is_value_type() && !td.is_enum_type(),
-                            );
-                        }
-
-                        // if td.namespace(metadata.metadata) == "System"
-                        //     && td.name(metadata.metadata) == "ValueType"
-                        // {
-                        //     requirements.needs_value_include();
-                        //     // FIXME: get the correct size!
-                        //     return format!("{VALUE_WRAPPER_TYPE}<0x{size:x}>");
-                        // }
-                        // TODO: Should System.Enum be a enum or ref type?
-                        // if td.namespace(metadata.metadata) == "System"
-                        //     && td.name(metadata.metadata) == "Enum"
-                        // {
-                        //     requirements.needs_enum_include();
-                        //     // FIXME: get the correct size!
-                        //     return format!("{ENUM_WRAPPER_TYPE}<0x{size:x}>");
-                        // }
-                    }
-
-                    if add_include {
-                        requirements.add_dependency_tag(typ_cpp_tag);
-                    }
-
-                    // In this case, just inherit the type
-                    // But we have to:
-                    // - Determine where to include it from
-                    let to_incl = ctx_collection.get_context(typ_cpp_tag).unwrap_or_else(|| {
-                        let t = &metadata.metadata.global_metadata.type_definitions
-                            [Self::get_tag_tdi(typ.data)];
-
-                        panic!(
-                            "no context for type {typ:?} {}",
-                            t.full_name(metadata.metadata, true)
-                        )
-                    });
-
-                    let other_context_ty = ctx_collection.get_context_root_tag(typ_cpp_tag);
-                    let own_context_ty = ctx_collection.get_context_root_tag(cpp_type.self_tag);
-
-                    let inc = CppInclude::new_context_typedef(to_incl);
-                    let to_incl_cpp_ty = ctx_collection
-                        .get_cpp_type(typ.data.into())
-                        .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));
-
-                    let own_context = other_context_ty == own_context_ty;
-
-                    // - Include it
-                    // Skip including the context if we're already in it
-                    if !own_context {
-                        match add_include {
-                            // add def include
-                            true => {
-                                requirements.add_def_include(Some(to_incl_cpp_ty), inc.clone());
-                            }
-                            // TODO: Remove?
-                            // ignore nested types
-                            // false if to_incl_cpp_ty.nested => {
-                            // TODO: What should we do here?
-                            // error!("Can't forward declare nested type! Including!");
-                            // requirements.add_include(Some(to_incl_cpp_ty), inc);
-                            // }
-                            // forward declare
-                            false => {
-                                requirements.add_forward_declare((
-                                    CppForwardDeclare::from_cpp_type(to_incl_cpp_ty),
-                                    inc,
-                                ));
-                            }
-                        }
-                    }
-
-                    // we add :: here since we can't add it to method ddefinitions
-                    // e.g void ::Foo::method() <- not allowed
-                    let ret = format!(
-                        "::{}",
-                        to_incl_cpp_ty.cpp_name_components.combine_all(false)
-                    );
-
-                    (ret, to_incl_cpp_ty.is_reference_type)
-                };
-                match pointer_fixup {
-                    true if is_ref => {
-                        format!("{ret}*")
-                    }
-
-                    _ => ret,
+                // we add :: here since we can't add it to method ddefinitions
+                // e.g void ::Foo::method() <- not allowed
+                if typ_cpp_tag == cpp_type.self_tag {
+                    return cpp_type.cpp_name_components.clone();
                 }
+
+                if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
+                    let td = &metadata.metadata.global_metadata.type_definitions[tdi];
+
+                    // TODO: Do we need generic inst types here? Hopefully not!
+                    let _size = offsets::get_sizeof_type(td, tdi, None, metadata);
+
+                    if metadata.blacklisted_types.contains(&tdi) {
+                        return wrapper_type_for_tdi(td).to_string().into();
+                    }
+
+                    // if td.namespace(metadata.metadata) == "System"
+                    //     && td.name(metadata.metadata) == "ValueType"
+                    // {
+                    //     requirements.needs_value_include();
+                    //     // FIXME: get the correct size!
+                    //     return format!("{VALUE_WRAPPER_TYPE}<0x{size:x}>");
+                    // }
+                    // TODO: Should System.Enum be a enum or ref type?
+                    // if td.namespace(metadata.metadata) == "System"
+                    //     && td.name(metadata.metadata) == "Enum"
+                    // {
+                    //     requirements.needs_enum_include();
+                    //     // FIXME: get the correct size!
+                    //     return format!("{ENUM_WRAPPER_TYPE}<0x{size:x}>");
+                    // }
+                }
+
+                if add_include {
+                    requirements.add_dependency_tag(typ_cpp_tag);
+                }
+
+                // In this case, just inherit the type
+                // But we have to:
+                // - Determine where to include it from
+                let to_incl = ctx_collection.get_context(typ_cpp_tag).unwrap_or_else(|| {
+                    let t = &metadata.metadata.global_metadata.type_definitions
+                        [Self::get_tag_tdi(typ.data)];
+
+                    panic!(
+                        "no context for type {typ:?} {}",
+                        t.full_name(metadata.metadata, true)
+                    )
+                });
+
+                let other_context_ty = ctx_collection.get_context_root_tag(typ_cpp_tag);
+                let own_context_ty = ctx_collection.get_context_root_tag(cpp_type.self_tag);
+
+                let inc = CppInclude::new_context_typedef(to_incl);
+                let to_incl_cpp_ty = ctx_collection
+                    .get_cpp_type(typ.data.into())
+                    .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));
+
+                let own_context = other_context_ty == own_context_ty;
+
+                // - Include it
+                // Skip including the context if we're already in it
+                if !own_context {
+                    match add_include {
+                        // add def include
+                        true => {
+                            requirements.add_def_include(Some(to_incl_cpp_ty), inc.clone());
+                        }
+                        // TODO: Remove?
+                        // ignore nested types
+                        // false if to_incl_cpp_ty.nested => {
+                        // TODO: What should we do here?
+                        // error!("Can't forward declare nested type! Including!");
+                        // requirements.add_include(Some(to_incl_cpp_ty), inc);
+                        // }
+                        // forward declare
+                        false => {
+                            requirements.add_forward_declare((
+                                CppForwardDeclare::from_cpp_type(to_incl_cpp_ty),
+                                inc,
+                            ));
+                        }
+                    }
+                }
+
+                to_incl_cpp_ty.cpp_name_components.clone()
 
                 // match to_incl_cpp_ty.is_enum_type || to_incl_cpp_ty.is_value_type {
                 //     true => ret,
@@ -2933,7 +2936,7 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::Szarray => {
                 requirements.needs_arrayw_include();
 
-                let generic: String = match typ.data {
+                let generic = match typ.data {
                     TypeData::TypeIndex(e) => {
                         let ty = &metadata.metadata_registration.types[e];
 
@@ -2944,20 +2947,27 @@ pub trait CSType: Sized {
                             ty,
                             include_depth,
                             declaring_generic_inst_types,
-                            true,
                         )
                     }
 
                     _ => panic!("Unknown type data for array {typ:?}!"),
                 };
 
-                format!("::ArrayW<{generic}>")
+                let generic_formatted = generic.combine_all();
+
+                NameComponents {
+                    name: "ArrayW".into(),
+                    namespace: Some("".into()),
+                    generics: Some(vec![generic_formatted]),
+                    is_pointer: false,
+                    ..Default::default()
+                }
             }
             // multi dimensional array
             Il2CppTypeEnum::Array => {
                 // FIXME: when stack further implements the TypeData::ArrayType we can actually implement this fully to be a multidimensional array, whatever that might mean
                 warn!("Multidimensional array was requested but this is not implemented, typ: {typ:?}");
-                "::bs_hook::Il2CppWrapperType".to_string()
+                "::bs_hook::Il2CppWrapperType".to_string().into()
             }
             Il2CppTypeEnum::Mvar => match typ.data {
                 TypeData::GenericParameterIndex(index) => {
@@ -2980,7 +2990,7 @@ pub trait CSType: Sized {
                         cpp_type.method_generic_instantiation_map.get(&method_index);
 
                     if method_args_opt.is_none() {
-                        return gen_param.name(metadata.metadata).to_string();
+                        return gen_param.name(metadata.metadata).to_string().into();
                     }
 
                     let method_args = method_args_opt.unwrap();
@@ -2999,7 +3009,6 @@ pub trait CSType: Sized {
                         ty,
                         include_depth,
                         declaring_generic_inst_types,
-                        pointer_fixup,
                     )
                 }
                 _ => todo!(),
@@ -3034,7 +3043,7 @@ pub trait CSType: Sized {
                             });
 
                         return match has_generic_template {
-                            true => gen_name.to_string(),
+                            true => gen_name.to_string().into(),
                             false => panic!("/* TODO: FIX THIS, THIS SHOULDN'T HAPPEN! NO GENERIC INST ARGS FOUND HERE */ {gen_name}"),
                         };
                     }
@@ -3047,6 +3056,7 @@ pub trait CSType: Sized {
                         .get(generic_param.num as usize)
                         .expect("No generic parameter at index found!")
                         .clone()
+                        .into()
 
                     // This is for calculating on the fly
                     // which is slower and won't work for the reference type lookup fix
@@ -3118,57 +3128,55 @@ pub trait CSType: Sized {
                                 next_include_depth,
                                 // use declaring generic inst since we're cppifying generic args
                                 declaring_generic_inst_types,
-                                true,
                             )
                         })
+                        .map(|n| n.formatted_name(true))
                         .collect_vec();
 
                     let generic_type_def = &mr.types[generic_class.type_index];
-                    let type_def_name = cpp_type.cppify_name_il2cpp_recurse(
+                    let type_def_name_components = cpp_type.cppify_name_il2cpp_recurse(
                         requirements,
                         ctx_collection,
                         metadata,
                         generic_type_def,
                         include_depth,
                         Some(new_generic_inst_types),
-                        false,
                     );
 
-                    let s = format!("{type_def_name}<{}>", generic_types_formatted.join(","));
-
-                    match pointer_fixup && !generic_type_def.valuetype {
-                        true => format!("{s}*"),
-                        false => s,
+                    // add generics to type def
+                    NameComponents {
+                        generics: Some(generic_types_formatted),
+                        ..type_def_name_components
                     }
                 }
 
                 _ => panic!("Unknown type data for generic inst {typ:?}!"),
             },
-            Il2CppTypeEnum::I1 => "int8_t".to_string(),
-            Il2CppTypeEnum::I2 => "int16_t".to_string(),
-            Il2CppTypeEnum::I4 => "int32_t".to_string(),
-            Il2CppTypeEnum::I8 => "int64_t".to_string(),
-            Il2CppTypeEnum::I => "::cordl_internals::intptr_t".to_string(),
-            Il2CppTypeEnum::U1 => "uint8_t".to_string(),
-            Il2CppTypeEnum::U2 => "uint16_t".to_string(),
-            Il2CppTypeEnum::U4 => "uint32_t".to_string(),
-            Il2CppTypeEnum::U8 => "uint64_t".to_string(),
-            Il2CppTypeEnum::U => "::cordl_internals::uintptr_t".to_string(),
+            Il2CppTypeEnum::I1 => "int8_t".to_string().into(),
+            Il2CppTypeEnum::I2 => "int16_t".to_string().into(),
+            Il2CppTypeEnum::I4 => "int32_t".to_string().into(),
+            Il2CppTypeEnum::I8 => "int64_t".to_string().into(),
+            Il2CppTypeEnum::I => "::cordl_internals::intptr_t".to_string().into(),
+            Il2CppTypeEnum::U1 => "uint8_t".to_string().into(),
+            Il2CppTypeEnum::U2 => "uint16_t".to_string().into(),
+            Il2CppTypeEnum::U4 => "uint32_t".to_string().into(),
+            Il2CppTypeEnum::U8 => "uint64_t".to_string().into(),
+            Il2CppTypeEnum::U => "::cordl_internals::uintptr_t".to_string().into(),
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point
-            Il2CppTypeEnum::R4 => "float_t".to_string(),
-            Il2CppTypeEnum::R8 => "double_t".to_string(),
+            Il2CppTypeEnum::R4 => "float_t".to_string().into(),
+            Il2CppTypeEnum::R8 => "double_t".to_string().into(),
 
-            Il2CppTypeEnum::Void => "void".to_string(),
-            Il2CppTypeEnum::Boolean => "bool".to_string(),
-            Il2CppTypeEnum::Char => "char16_t".to_string(),
+            Il2CppTypeEnum::Void => "void".to_string().into(),
+            Il2CppTypeEnum::Boolean => "bool".to_string().into(),
+            Il2CppTypeEnum::Char => "char16_t".to_string().into(),
             Il2CppTypeEnum::String => {
                 requirements.needs_stringw_include();
-                "::StringW".to_string()
+                "::StringW".to_string().into()
             }
             Il2CppTypeEnum::Ptr => {
-                let generic: String = match typ.data {
+                let generic = match typ.data {
                     TypeData::TypeIndex(e) => {
                         let ty = &metadata.metadata_registration.types[e];
                         cpp_type.cppify_name_il2cpp_recurse(
@@ -3178,14 +3186,20 @@ pub trait CSType: Sized {
                             ty,
                             include_depth,
                             declaring_generic_inst_types,
-                            true,
                         )
                     }
 
                     _ => panic!("Unknown type data for array {typ:?}!"),
                 };
 
-                format!("::cordl_internals::Ptr<{generic}>")
+                let generic_formatted = generic.combine_all();
+
+                NameComponents {
+                    namespace: Some("cordl_internals".into()),
+                    generics: Some(vec![generic_formatted]),
+                    name: "Ptr".into(),
+                    ..Default::default()
+                }
             }
             // Il2CppTypeEnum::Typedbyref => {
             //     // TODO: test this
@@ -3197,32 +3211,17 @@ pub trait CSType: Sized {
             //     // "::cordl_internals::TypedByref".to_string()
             // },
             // TODO: Void and the other primitives
-            _ => format!("/* UNKNOWN TYPE! {typ:?} */"),
+            _ => format!("/* UNKNOWN TYPE! {typ:?} */").into(),
         };
 
         ret
     }
 
     fn classof_cpp_name(&self) -> String {
-        let ptr = if self.get_cpp_type().is_value_type {
-            ""
-        } else {
-            "*"
-        };
-
         format!(
             "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{}>::get",
-            self.get_cpp_type().cpp_complete_name_byref(true)
+            self.get_cpp_type().cpp_name_components.combine_all()
         )
-    }
-    fn cpp_complete_name_byref(&self, include_generics: bool) -> String {
-        let cpp_type = self.get_cpp_type();
-        let cpp_full_name = cpp_type.cpp_name_components.combine_all(include_generics);
-
-        match cpp_type.is_value_type || cpp_type.is_enum_type {
-            true => cpp_full_name.to_string(),
-            false => format!("{cpp_full_name}*"),
-        }
     }
 
     fn type_name_byref_fixup(ty: &Il2CppType, name: &str) -> String {
@@ -3267,15 +3266,14 @@ fn parse_generic_arg(
     ctx_collection: &CppContextCollection,
     metadata: &Metadata<'_>,
     template_args: &mut Vec<(String, String)>,
-    fixup_pointer: bool,
-) -> String {
+) -> NameComponents {
     // If reference type, we use a template and add a requirement
     if !t.valuetype {
         template_args.push((
             CORDL_REFERENCE_TYPE_CONSTRAINT.to_string(),
             gen_name.clone(),
         ));
-        return gen_name;
+        return gen_name.into();
     }
 
     /*
@@ -3338,18 +3336,19 @@ fn parse_generic_arg(
     //         | Il2CppTypeEnum::U8
     // ) ||
     if let Some(inner_enum_type) = inner_enum_type {
-        let inner_enum_type_cpp =
-            cpp_type.cppify_name_il2cpp(ctx_collection, metadata, &inner_enum_type, 0, false);
+        let inner_enum_type_cpp = cpp_type
+            .cppify_name_il2cpp(ctx_collection, metadata, &inner_enum_type, 0)
+            .combine_all();
 
         template_args.push((
             format!("{CORDL_NUM_ENUM_TYPE_CONSTRAINT}<{inner_enum_type_cpp}>",),
             gen_name.clone(),
         ));
 
-        return gen_name;
+        return gen_name.into();
     }
 
-    let inner_type = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, 0, fixup_pointer);
+    let inner_type = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, t, 0);
 
     match t.data {
         TypeData::GenericClassIndex(gen_class_idx) => {
@@ -3367,7 +3366,7 @@ fn parse_generic_arg(
 
             // this relies on the fact TDIs do not include their generic params
             let non_generic_inner_type =
-                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, gen_class_ty, 0, false);
+                cpp_type.cppify_name_il2cpp(ctx_collection, metadata, gen_class_ty, 0);
 
             let inner_generic_params = gen_class_inst
                 .types
@@ -3394,12 +3393,15 @@ fn parse_generic_arg(
                         ctx_collection,
                         metadata,
                         template_args,
-                        true,
                     )
                 })
-                .join(", ");
+                .map(|n| n.combine_all())
+                .collect_vec();
 
-            format!("{non_generic_inner_type}<{inner_generic_params}>")
+            NameComponents {
+                generics: Some(inner_generic_params),
+                ..non_generic_inner_type
+            }
         }
         _ => inner_type,
     }

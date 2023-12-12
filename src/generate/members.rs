@@ -385,7 +385,7 @@ impl CppForwardDeclare {
         };
 
         assert!(
-            cpp_type.cpp_name_components.declaring_types.is_empty(),
+            cpp_type.cpp_name_components.declaring_types.is_none(),
             "Can't forward declare nested types!"
         );
 
@@ -515,7 +515,12 @@ impl CppUsingAlias {
 
         let do_fixup = fixup_generic_args && !literal_args.is_empty();
 
-        let mut result = cpp_type.cpp_name_components.combine_all(!do_fixup);
+        let mut name_components = cpp_type.cpp_name_components.clone();
+        if do_fixup {
+            name_components = name_components.remove_generics();
+        }
+
+        let mut result = name_components.combine_all();
 
         // easy way to tell it's a generic instantiation
         if do_fixup {

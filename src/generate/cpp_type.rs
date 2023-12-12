@@ -157,12 +157,18 @@ impl CppTypeRequirements {
 }
 
 impl CppType {
-    pub fn namespace(&self) -> &String {
-        &self.cs_name_components.namespace
+    pub fn namespace(&self) -> String {
+        self.cs_name_components
+            .namespace
+            .clone()
+            .unwrap_or_default()
     }
 
-    pub fn cpp_namespace(&self) -> &str {
-        &self.cpp_name_components.namespace
+    pub fn cpp_namespace(&self) -> String {
+        self.cpp_name_components
+            .namespace
+            .clone()
+            .unwrap_or_default()
     }
 
     pub fn name(&self) -> &String {
@@ -241,7 +247,7 @@ impl CppType {
     }
 
     pub fn write_def(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        self.write_def_internal(writer, Some(self.cpp_namespace()))
+        self.write_def_internal(writer, Some(&self.cpp_namespace()))
     }
 
     pub fn write_impl_internal(
@@ -307,7 +313,7 @@ impl CppType {
             writeln!(
                 writer,
                 "// CS Name: {}",
-                self.cs_name_components.combine_all(true)
+                self.cs_name_components.combine_all()
             )?;
 
             // Type definition plus inherit lines
@@ -346,7 +352,7 @@ impl CppType {
                     writeln!(
                         writer,
                         "// nested type forward declare {} is stub {} {:?} {:?}\n//{:?}",
-                        t.cs_name_components.combine_all(true),
+                        t.cs_name_components.combine_all(),
                         t.is_stub,
                         t.cs_name_components.generics,
                         t.generic_instantiations_args_types,
@@ -362,7 +368,7 @@ impl CppType {
                     writeln!(
                         writer,
                         "// nested type {} is stub {}",
-                        n.cs_name_components.combine_all(true),
+                        n.cs_name_components.combine_all(),
                         n.is_stub
                     )?;
                     n.write_def_internal(writer, None)?;
@@ -424,7 +430,11 @@ impl CppType {
             writeln!(
                 writer,
                 "{type_trait_macro}({});",
-                self.cpp_name_components.combine_all(false)
+                self.cpp_name_components
+                    .clone()
+                    .remove_generics()
+                    .remove_pointer()
+                    .combine_all()
             )?;
         } else {
             // non-generic
@@ -438,7 +448,7 @@ impl CppType {
             writeln!(
                 writer,
                 "{type_trait_macro}({});",
-                self.cpp_name_components.combine_all(true)
+                self.cpp_name_components.clone().remove_pointer().combine_all()
             )?;
         }
 

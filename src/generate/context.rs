@@ -95,7 +95,7 @@ impl CppContext {
 
         let components = t.get_name_components(metadata.metadata);
 
-        let ns = &components.namespace;
+        let ns = &components.namespace.unwrap_or_default();
         let name = &components.name;
 
         let cpp_namespace = config.namespace_cpp(ns);
@@ -110,7 +110,7 @@ impl CppContext {
         let path_name = match t.declaring_type_index != u32::MAX {
             true => {
                 let name = config.path_name(name);
-                let base_name = components.declaring_types.join("_");
+                let base_name = components.declaring_types.unwrap_or_default().join("_");
 
                 format!("{base_name}_{name}")
             }
@@ -162,7 +162,7 @@ impl CppContext {
         if cpp_type.nested {
             panic!(
                 "Cannot have a root type as a nested type! {}",
-                &cpp_type.cpp_name_components.combine_all(true)
+                &cpp_type.cpp_name_components.combine_all()
             );
         }
         self.typedef_types.insert(cpp_type.self_tag, cpp_type);
@@ -418,7 +418,7 @@ impl CppContext {
             if t.nested {
                 panic!(
                     "Cannot have a root type as a nested type! {}",
-                    &t.cpp_name_components.combine_all(true)
+                    &t.cpp_name_components.combine_all()
                 );
             }
             // if t.generic_instantiation_args.is_none() || true {
@@ -481,7 +481,11 @@ impl CppContext {
             writeln!(
                 writer,
                 "NEED_NO_BOX({});",
-                ty.cpp_name_components.combine_all(false)
+                ty.cpp_name_components
+                    .clone()
+                    .remove_generics()
+                    .remove_pointer()
+                    .combine_all()
             )?;
         }
 
@@ -503,29 +507,25 @@ impl CppContext {
                 }
         };
 
-        let ptr = {
-            match !template_container_type && !ty.is_value_type {
-                true => "*",
-                false => "",
-            }
-        };
-
         // Essentially splits namespace.foo/nested_foo into (namespace, foo/nested_foo)
 
-        let namespace = &ty.cs_name_components.namespace;
-        let combined_name = match ty.cs_name_components.declaring_types.is_empty() {
-            true => ty.cs_name_components.name.clone(),
-            false => format!(
+        let namespace = ty.cs_name_components.namespace.clone().unwrap_or_default();
+        let combined_name = match &ty.cs_name_components.declaring_types {
+            None => ty.cs_name_components.name.clone(),
+            Some(declaring_types) => format!(
                 "{}/{}",
-                ty.cs_name_components.declaring_types.join("/"),
+                declaring_types.join("/"),
                 ty.cs_name_components.name.clone()
             ),
         };
 
         writeln!(
             writer,
-            "{macro_arg_define}({}{ptr}, \"{namespace}\", \"{combined_name}\");",
-            ty.cpp_name_components.combine_all(false)
+            "{macro_arg_define}({}, \"{namespace}\", \"{combined_name}\");",
+            ty.cpp_name_components
+                .clone()
+                .remove_generics()
+                .combine_all()
         )?;
 
         Ok(())

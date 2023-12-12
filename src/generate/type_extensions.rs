@@ -118,7 +118,7 @@ impl TypeExtentions for Il2CppType {
         self.byref
     }
 
-    /// Returns the actual type for the given generic inst 
+    /// Returns the actual type for the given generic inst
     /// or drills down and fixes it in generic instantiations
     fn fill_generic_inst<'a>(
         &'a self,
@@ -289,21 +289,23 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
                     _ => todo!(),
                 };
 
-                let mut declaring_types = declaring_ty_names.declaring_types;
+                let mut declaring_types = declaring_ty_names.declaring_types.unwrap_or_default();
                 declaring_types.push(declaring_ty_names.name);
 
                 NameComponents {
                     namespace: declaring_ty_names.namespace,
                     name: name.to_string(),
-                    declaring_types,
+                    declaring_types: Some(declaring_types),
                     generics,
+                    is_pointer: declaring_ty_names.is_pointer,
                 }
             }
             false => NameComponents {
-                namespace: namespace.to_string(),
+                namespace: Some(namespace.to_string()),
                 name: name.to_string(),
-                declaring_types: vec![],
+                declaring_types: None,
                 generics,
+                is_pointer: !self.is_value_type() && !self.is_enum_type()
             },
         }
     }
