@@ -448,7 +448,7 @@ impl CppType {
             writeln!(
                 writer,
                 "{type_trait_macro}({});",
-                self.cpp_name_components.clone().remove_pointer().combine_all()
+                self.cpp_name_components.remove_pointer().combine_all()
             )?;
         }
 

@@ -1,7 +1,7 @@
 use core::panic;
 
 use brocolib::{
-    global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition, TypeIndex},
+    global_metadata::{Il2CppMethodDefinition, Il2CppTypeDefinition},
     runtime_metadata::{Il2CppType, Il2CppTypeEnum, TypeData},
     Metadata,
 };
@@ -150,12 +150,12 @@ impl TypeExtentions for Il2CppType {
 
                         ty.fill_generic_inst(generic_types, metadata)
                     })
-                    .map(|(t, ts)| t)
+                    .map(|(t, _ts)| t)
                     .collect_vec();
 
                 let td_type_idx = &generic_class.type_index;
                 let td_type = &metadata.runtime_metadata.metadata_registration.types[*td_type_idx];
-                let TypeData::TypeDefinitionIndex(tdi) = td_type.data else {
+                let TypeData::TypeDefinitionIndex(_tdi) = td_type.data else {
                     panic!()
                 };
                 // let td = &metadata.global_metadata.type_definitions[tdi];
