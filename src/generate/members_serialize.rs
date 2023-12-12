@@ -408,7 +408,6 @@ impl Writable for CppConstructorDecl {
         let prefixes = prefix_modifiers.join(" ");
         let suffixes = suffix_modifiers.join(" ");
 
-
         if let Some(body) = &body && !self.is_default {
             let initializers = match self.initialized_values.is_empty() && self.base_ctor.is_none()
             {

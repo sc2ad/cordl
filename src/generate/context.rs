@@ -506,7 +506,7 @@ impl CppContext {
         let ptr = {
             match !template_container_type && !ty.is_value_type {
                 true => "*",
-                false => ""
+                false => "",
             }
         };
 
@@ -521,7 +521,6 @@ impl CppContext {
                 ty.cs_name_components.name.clone()
             ),
         };
-
 
         writeln!(
             writer,

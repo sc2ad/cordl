@@ -13,7 +13,8 @@ use std::{
     collections::HashMap,
     hash::Hash,
     path::{Path, PathBuf},
-    sync::Arc, rc::Rc,
+    rc::Rc,
+    sync::Arc,
 };
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, Default, PartialOrd, Ord)]

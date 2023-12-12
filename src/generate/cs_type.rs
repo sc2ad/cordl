@@ -726,9 +726,15 @@ pub trait CSType: Sized {
                 };
 
                 let (get_return_type, const_get_return_type) = if is_instance && f_type.valuetype {
-                    (format!("{field_ty_cpp_name}&"), format!("{field_ty_cpp_name} const&"))
+                    (
+                        format!("{field_ty_cpp_name}&"),
+                        format!("{field_ty_cpp_name} const&"),
+                    )
                 } else {
-                    (field_ty_cpp_name.clone(), format!("{} const", field_ty_cpp_name.clone()))
+                    (
+                        field_ty_cpp_name.clone(),
+                        format!("{} const", field_ty_cpp_name.clone()),
+                    )
                 };
 
                 let getter_decl = CppMethodDecl {
@@ -2165,7 +2171,13 @@ pub trait CSType: Sized {
             // different ret types can exist
             // so we add their ret types
             let fixup_name = match cpp_m_name == "op_Implicit" || cpp_m_name == "op_Explicit" {
-                true => cpp_m_name + "_" + &config.generic_nested_name(&m_ret_cpp_type_name).replace('*', "_"),
+                true => {
+                    cpp_m_name
+                        + "_"
+                        + &config
+                            .generic_nested_name(&m_ret_cpp_type_name)
+                            .replace('*', "_")
+                }
                 false => cpp_m_name,
             };
 

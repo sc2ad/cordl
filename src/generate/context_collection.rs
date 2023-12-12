@@ -709,17 +709,19 @@ impl CppContextCollection {
                     "#ifdef __cpp_modules
                     module;
                     #endif
-                ")?;
+                "
+                )?;
                 writeln!(file, "#pragma once")?;
                 file.write_all(str.as_bytes())?;
-                
+
                 writeln!(file)?;
                 writeln!(
                     file,
                     "#ifdef __cpp_modules
                     export module {namespace};
                     #endif
-                ")?;
+                "
+                )?;
 
                 Ok(())
             })?;
