@@ -316,11 +316,13 @@ pub trait CSType: Sized {
             // self.make_interface_constructors();
             self.delete_move_ctor();
             self.delete_copy_ctor();
+            self.delete_default_ctor();
         } else {
             // ref type
             self.create_ref_size();
             self.delete_move_ctor();
             self.delete_copy_ctor();
+            self.delete_default_ctor();
         }
 
         if !t.is_interface() {
@@ -1970,6 +1972,30 @@ pub trait CSType: Sized {
             .declarations
             .push(CppMember::ConstructorDecl(move_ctor).into());
     }
+
+    fn delete_default_ctor(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = &cpp_type.cpp_name_components.name;
+
+        let default_ctor = CppConstructorDecl {
+            cpp_name: t.clone(),
+            parameters: vec![],
+            template: None,
+            is_constexpr: false,
+            is_explicit: false,
+            is_default: false,
+            is_no_except: false,
+            is_delete: true,
+            base_ctor: None,
+            initialized_values: Default::default(),
+            brief: Some("delete default ctor to prevent accidental value type instantiations of ref types".to_string()),
+            body: None,
+        };
+
+        cpp_type
+            .declarations
+            .push(CppMember::ConstructorDecl(default_ctor).into());
+}
 
     fn create_ref_constructor(
         cpp_type: &mut CppType,
