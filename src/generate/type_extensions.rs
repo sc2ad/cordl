@@ -305,7 +305,7 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
                 name: name.to_string(),
                 declaring_types: None,
                 generics,
-                is_pointer: !self.is_value_type() && !self.is_enum_type()
+                is_pointer: !self.is_value_type() && !self.is_enum_type(),
             },
         }
     }

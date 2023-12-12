@@ -995,7 +995,7 @@ pub trait CSType: Sized {
                                     )
                                     });
 
-                        let base_type_cpp_type = ctx_collection
+                        let _base_type_cpp_type = ctx_collection
                             .get_cpp_type(parent_ty)
                             .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
                             .unwrap_or_else(|| {
