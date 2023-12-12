@@ -519,13 +519,23 @@ impl CppContext {
             ),
         };
 
+        // generics shouldn't emit with a pointer, while regular types should honor the pointer
+        let cpp_name = match template_container_type {
+            true => ty.cpp_name_components
+                        .clone()
+                        .remove_generics()
+                        .remove_pointer()
+                        .combine_all(),
+
+            false => ty.cpp_name_components
+                        .clone()
+                        .remove_generics()
+                        .combine_all(),
+        };
+
         writeln!(
             writer,
-            "{macro_arg_define}({}, \"{namespace}\", \"{combined_name}\");",
-            ty.cpp_name_components
-                .clone()
-                .remove_generics()
-                .combine_all()
+            "{macro_arg_define}({cpp_name}, \"{namespace}\", \"{combined_name}\");",
         )?;
 
         Ok(())

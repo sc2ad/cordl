@@ -629,7 +629,7 @@ pub trait CSType: Sized {
                         let field_impl = CppFieldImpl {
                             value: def_value,
                             const_expr: true,
-                            declaring_type: cpp_type.cpp_name_components.combine_all(),
+                            declaring_type: cpp_type.cpp_name_components.remove_pointer().combine_all(),
                             declaring_type_template: declaring_cpp_template,
                             ..field_decl.clone().into()
                         };
@@ -818,7 +818,7 @@ pub trait CSType: Sized {
 
                 let getter_impl = CppMethodImpl {
                     body: vec![Arc::new(CppLine::make(getter_call.clone()))],
-                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(),
+                    declaring_cpp_full_name: cpp_type.cpp_name_components.remove_pointer().combine_all(),
                     template: useful_template.clone(),
 
                     ..getter_decl.clone().into()
@@ -826,7 +826,7 @@ pub trait CSType: Sized {
 
                 let const_getter_impl = CppMethodImpl {
                     body: vec![Arc::new(CppLine::make(getter_call))],
-                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(),
+                    declaring_cpp_full_name: cpp_type.cpp_name_components.remove_pointer().combine_all(),
                     template: useful_template.clone(),
 
                     ..const_getter_decl.clone().into()
@@ -834,7 +834,7 @@ pub trait CSType: Sized {
 
                 let setter_impl = CppMethodImpl {
                     body: vec![Arc::new(CppLine::make(setter_call))],
-                    declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(),
+                    declaring_cpp_full_name: cpp_type.cpp_name_components.remove_pointer().combine_all(),
                     template: useful_template.clone(),
 
                     ..setter_decl.clone().into()
@@ -1044,11 +1044,15 @@ pub trait CSType: Sized {
                 .cppify_name_il2cpp(ctx_collection, metadata, int_ty, 0)
                 .remove_pointer()
                 .combine_all();
+            let interface_cpp_pointer = cpp_type
+                .cppify_name_il2cpp(ctx_collection, metadata, int_ty, 0)
+                .as_pointer()
+                .combine_all();
 
             let method_decl = CppMethodDecl {
                 body: Default::default(),
                 brief: Some(format!("Convert operator to {interface_cpp_name:?}")),
-                cpp_name: interface_cpp_name.clone(),
+                cpp_name: interface_cpp_pointer.clone(),
                 return_type: "".to_string(),
                 instance: true,
                 is_const: false,
@@ -1083,9 +1087,9 @@ pub trait CSType: Sized {
 
             let method_impl = CppMethodImpl {
                 body: vec![Arc::new(CppLine::make(format!(
-                    "return static_cast<{interface_cpp_name}>({convert_line});"
+                    "return static_cast<{interface_cpp_pointer}>({convert_line});"
                 )))],
-                declaring_cpp_full_name: cpp_type.cpp_name_components.combine_all(),
+                declaring_cpp_full_name: cpp_type.cpp_name_components.remove_pointer().combine_all(),
                 template: method_impl_template,
                 ..method_decl.clone().into()
             };
@@ -2278,10 +2282,9 @@ pub trait CSType: Sized {
 
         let method_invoke_params = vec![instance_ptr.as_str(), METHOD_INFO_VAR_NAME];
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
-        let declaring_type_cpp_full_name =
-            cpp_type.cpp_name_components.remove_pointer().combine_all();
+        let declaring_type_cpp_full_name = cpp_type.cpp_name_components.remove_pointer().combine_all();
 
-        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{declaring_type_cpp_full_name}>::get()");
+        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{}>::get()", cpp_type.cpp_name_components.combine_all());
 
         let params_types_format: String = CppParam::params_types(&method_decl.parameters)
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
@@ -2978,7 +2981,7 @@ pub trait CSType: Sized {
                     namespace: Some("".into()),
                     generics: Some(vec![
                         generic_formatted.clone(),
-                        format!("::Array<{generic_formatted}>"),
+                        format!("::Array<{generic_formatted}>*"),
                     ]),
                     is_pointer: false,
                     ..Default::default()
@@ -3151,7 +3154,7 @@ pub trait CSType: Sized {
                                 declaring_generic_inst_types,
                             )
                         })
-                        .map(|n| n.formatted_name(true))
+                        .map(|n| n.combine_all())
                         .collect_vec();
 
                     let generic_type_def = &mr.types[generic_class.type_index];

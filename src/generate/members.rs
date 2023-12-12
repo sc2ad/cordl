@@ -529,7 +529,7 @@ impl CppUsingAlias {
             name_components = name_components.remove_generics();
         }
 
-        let mut result = name_components.combine_all();
+        let mut result = name_components.remove_pointer().combine_all();
 
         // easy way to tell it's a generic instantiation
         if do_fixup {
