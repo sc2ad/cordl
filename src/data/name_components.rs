@@ -23,7 +23,7 @@ impl NameComponents {
         let mut completed = format!("{prefix}{}", self.name);
 
         if let Some(generics) = &self.generics {
-            completed = format!("{completed}<{}>", generics.join(", "));
+            completed = format!("{completed}<{}>", generics.join(","));
         }
 
         if self.is_pointer {
@@ -65,7 +65,7 @@ impl NameComponents {
     /// just cpp name with generics
     pub fn formatted_name(&self, include_generics: bool) -> String {
         if let Some(generics) = &self.generics && include_generics {
-            format!("{}<{}>", self.name, generics.join(", "))
+            format!("{}<{}>", self.name, generics.join(","))
         } else {
             self.name.to_string()
         }
