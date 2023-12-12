@@ -43,7 +43,7 @@ template<typename T>
         if (arg) { // is it even a set value
             il2cpp_functions::Init();
             auto k = il2cpp_functions::object_get_class(static_cast<Il2CppObject*>(arg));
-            if (k && !k->nullabletype) {
+            if (k && il2cpp_functions::class_is_valuetype(k)) {
                 // boxed value type, unbox it
                 return il2cpp_functions::object_unbox(static_cast<Il2CppObject*>(arg));
             }
@@ -93,7 +93,7 @@ template<typename T>
         if (arg) { // is it even a set value
             il2cpp_functions::Init();
             auto k = il2cpp_functions::object_get_class(static_cast<Il2CppObject*>(arg));
-            if (k && !k->nullabletype) {
+            if (k && il2cpp_functions::class_is_valuetype(k)) {
                 // boxed value type, unbox it
                 return il2cpp_functions::object_unbox(static_cast<Il2CppObject*>(arg));
             }
@@ -108,7 +108,7 @@ template<typename T>
         if (arg) { // is it even a set value
             il2cpp_functions::Init();
             auto k = il2cpp_functions::object_get_class(static_cast<Il2CppObject*>(arg));
-            if (k && !k->nullabletype) {
+            if (k && il2cpp_functions::class_is_valuetype(k)) {
                 // boxed value type, unbox it
                 return il2cpp_functions::object_unbox(static_cast<Il2CppObject*>(arg));
             }
