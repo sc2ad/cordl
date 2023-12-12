@@ -536,8 +536,6 @@ impl CppUsingAlias {
             result = format!("{result}<{}>", literal_args.join(", "))
         }
 
-        result = format!("::{result}");
-
         Self {
             alias,
             result,

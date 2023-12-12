@@ -17,7 +17,13 @@ impl NameComponents {
         let prefix = combined_declaring_types
             .as_ref()
             .or(self.namespace.as_ref())
-            .map(|s| format!("{s}::"))
+            .map(|s| {
+                if s.is_empty() {
+                    "::".to_string()
+                } else {
+                    format!("::{s}::")
+                }
+            })
             .unwrap_or_default();
 
         let mut completed = format!("{prefix}{}", self.name);

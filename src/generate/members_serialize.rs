@@ -158,7 +158,7 @@ impl Writable for CppFieldImpl {
 
         let ty = &self.field_ty;
         let name = &self.cpp_name;
-        let declaring_ty = &self.declaring_type;
+        let declaring_ty = self.declaring_type.strip_prefix("::").unwrap_or(&self.declaring_type);
         let mut prefix_mods: Vec<&str> = vec![];
         let mut suffix_mods: Vec<&str> = vec![];
 
@@ -339,7 +339,7 @@ impl Writable for CppMethodImpl {
         let suffixes = suffix_modifiers.join(" ");
         let prefixes = prefix_modifiers.join(" ");
         let ret = &self.return_type;
-        let declaring_type = &self.declaring_cpp_full_name;
+        let declaring_type = self.declaring_cpp_full_name.strip_prefix("::").unwrap_or(&self.declaring_cpp_full_name);
         let name = &self.cpp_method_name;
         let params = CppParam::params_as_args_no_default(&self.parameters).join(", ");
 

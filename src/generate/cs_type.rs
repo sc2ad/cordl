@@ -593,9 +593,14 @@ pub trait CSType: Sized {
             let field_ty_cpp_name = if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
                 "::ConstString".to_string()
             } else {
-                cpp_type
-                    .cppify_name_il2cpp(ctx_collection, metadata, f_type, 0)
-                    .combine_all()
+                let field_name_components = cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, 0);
+
+                let name = field_name_components.combine_all();
+                if field_name_components.namespace.is_some() && !name.starts_with("::") {
+                    format!("::{name}")
+                } else {
+                    name
+                }
             };
 
             // TODO: Check a flag to look for default values to speed this up
@@ -1276,7 +1281,7 @@ pub trait CSType: Sized {
             let cpp_name = cpp_type.cpp_name_components.remove_pointer().combine_all();
 
             let assert = CppStaticAssert {
-                condition: format!("::cordl_internals::size_check_v<::{cpp_name}, 0x{size:x}>"),
+                condition: format!("::cordl_internals::size_check_v<{cpp_name}, 0x{size:x}>"),
                 message: Some("Size mismatch!".to_string()),
             };
 
@@ -2306,7 +2311,7 @@ pub trait CSType: Sized {
         let param_names = CppParam::params_names(&method_decl.parameters).map(|s| s.as_str());
         let declaring_type_cpp_full_name = cpp_type.cpp_name_components.remove_pointer().combine_all();
 
-        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{}>::get()", cpp_type.cpp_name_components.combine_all());
+        let declaring_classof_call = format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get()", cpp_type.cpp_name_components.combine_all());
 
         let params_types_format: String = CppParam::params_types(&method_decl.parameters)
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
@@ -3275,7 +3280,7 @@ pub trait CSType: Sized {
 
     fn classof_cpp_name(&self) -> String {
         format!(
-            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::{}>::get",
+            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{}>::get",
             self.get_cpp_type().cpp_name_components.combine_all()
         )
     }
