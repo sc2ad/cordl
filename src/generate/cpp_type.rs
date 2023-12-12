@@ -14,7 +14,7 @@ use crate::data::name_components::NameComponents;
 use super::{
     context_collection::CppContextCollection,
     cpp_type_tag::CppTypeTag,
-    members::{CppForwardDeclare, CppInclude, CppMember, CppTemplate},
+    members::{CppForwardDeclare, CppInclude, CppMember, CppNonMember, CppTemplate},
     writer::{CppWriter, Sortable, Writable},
 };
 
@@ -84,8 +84,8 @@ pub struct CppType {
     pub implementations: Vec<Rc<CppMember>>,
     /// Outside of the class declaration
     /// Move to CsType/CppType?
-    pub nonmember_implementations: Vec<Rc<dyn Writable>>,
-    pub nonmember_declarations: Vec<Rc<dyn Writable>>,
+    pub nonmember_implementations: Vec<Rc<CppNonMember>>,
+    pub nonmember_declarations: Vec<Rc<CppNonMember>>,
 
     pub is_value_type: bool,
     pub is_enum_type: bool,

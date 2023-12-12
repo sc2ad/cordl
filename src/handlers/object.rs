@@ -5,7 +5,7 @@ use log::info;
 use crate::generate::{
     cpp_type::CppType,
     cs_type::{OBJECT_WRAPPER_TYPE},
-    members::{CppMember},
+    members::{CppMember, CppNonMember},
     metadata::{Il2cppFullName, Metadata},
 };
 
@@ -33,12 +33,22 @@ fn register_system_object_type_handler(metadata: &mut Metadata) -> Result<()> {
 
 fn system_object_handler(cpp_type: &mut CppType) {
     info!("Found System.Object type, adding systemW!");
-    cpp_type.inherit = vec![OBJECT_WRAPPER_TYPE.to_string()];
+    // clear inherit so that bs hook can dof include order shenanigans
+    cpp_type.inherit = vec![];
 
     cpp_type.requirements.need_wrapper();
 
     // Remove field because it does not size properly and is not necessary
     cpp_type
         .declarations
-        .retain(|t| !matches!(t.as_ref(), CppMember::FieldDecl(_)));
+        .retain(|t|
+            !matches!(t.as_ref(), CppMember::FieldDecl(_))
+        );
+
+    // remove size assert too because System::Object will be wrong due to include ordering
+    cpp_type
+        .nonmember_declarations
+        .retain(|t|
+            !matches!(t.as_ref(), CppNonMember::CppStaticAssert(_))
+        );
 }

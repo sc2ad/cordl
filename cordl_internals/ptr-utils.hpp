@@ -7,7 +7,7 @@ namespace cordl_internals {
     /// @brief type to wrap a pointer to a T, not recommended to be used with anything that's not il2cpp compatible
     /// @tparam T type that instance points to
     template<typename T>
-    requires(!::il2cpp_utils::il2cpp_reference_type<T>)
+    requires(!::il2cpp_utils::il2cpp_reference_type_wrapper<T>)
     struct Ptr {
         constexpr explicit Ptr(void* i) : instance(i) {}
         constexpr void* convert() const { return const_cast<void*>(instance); }

@@ -619,6 +619,12 @@ struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{ret_type} 
     }
 }
 
+impl Sortable for CppMethodSizeStruct {
+    fn sort_level(&self) -> SortLevel {
+        SortLevel::SizeStruct
+    }
+}
+
 impl Writable for CppStaticAssert {
     fn write(&self, writer: &mut CppWriter) -> color_eyre::Result<()> {
         let condition = &self.condition;
@@ -694,6 +700,18 @@ impl Writable for CppMember {
     }
 }
 
+impl Writable for CppNonMember {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        match self {
+            CppNonMember::SizeStruct(ss) => ss.write(writer),
+            CppNonMember::Comment(c) => c.write(writer),
+            CppNonMember::CppUsingAlias(alias) => alias.write(writer),
+            CppNonMember::CppLine(line) => line.write(writer),
+            CppNonMember::CppStaticAssert(sa) => sa.write(writer),
+        }
+    }
+}
+
 impl Sortable for CppMember {
     fn sort_level(&self) -> SortLevel {
         match self {
@@ -709,6 +727,18 @@ impl Sortable for CppMember {
             CppMember::CppStaticAssert(_) => SortLevel::Unknown,
             CppMember::Comment(_) => SortLevel::Unknown,
             CppMember::CppLine(_) => SortLevel::Unknown,
+        }
+    }
+}
+
+impl Sortable for CppNonMember {
+    fn sort_level(&self) -> SortLevel {
+        match self {
+            CppNonMember::SizeStruct(ss) => ss.sort_level(),
+            CppNonMember::CppUsingAlias(t) => t.sort_level(),
+            CppNonMember::CppStaticAssert(_) => SortLevel::Unknown,
+            CppNonMember::Comment(_) => SortLevel::Unknown,
+            CppNonMember::CppLine(_) => SortLevel::Unknown,
         }
     }
 }
