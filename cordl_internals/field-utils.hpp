@@ -16,35 +16,6 @@ namespace UnityEngine {
 namespace {
 namespace cordl_internals {
 
-  /// @brief reads the cachedptr on the given unity object instance
-  template<::il2cpp_utils::il2cpp_reference_type_pointer T>
-  requires(std::is_convertible_v<T, UnityEngine::Object*>)
-  CORDL_HIDDEN inline constexpr void* read_cachedptr(T instance) {
-    return *static_cast<void**>(getAtOffset<0x10>(instance));
-  }
-
-  /// @brief checks for instance being null or null equivalent
-  template<::il2cpp_utils::il2cpp_reference_type_pointer T>
-  requires(std::is_convertible_v<T, UnityEngine::Object*>)
-  inline bool check_null(T instance) {
-    return instance && read_cachedptr(instance);
-  }
-
-  /// @brief checks for instance being null
-  template<::il2cpp_utils::il2cpp_reference_type_pointer T>
-  requires(!std::is_convertible_v<T, UnityEngine::Object*>)
-  inline bool check_null(T instance) {
-    return instance;
-  }
-
-  // if you compile with the define RUNTIME_FIELD_NULL_CHECKS at runtime every field access will be null checked for you, and a c++ exception will be thrown if the instance is null.
-  // in case of a unity object, the m_CachedPtr is also checked. Since this can incur some overhead you can also just not define RUNTIME_FIELD_NULL_CHECKS to save performance
-  #ifdef RUNTIME_FIELD_NULL_CHECKS
-    #define NULL_CHECK(instance) if (!::cordl_internals::check_null(instance)) throw ::cordl_internals::NullException(std::string("Field access on nullptr instance, please make sure your instance is not null"))
-  #else
-    #define NULL_CHECK(instance)
-  #endif
-
   /// @brief method to find a field info in a klass
   /// @tparam name field name
   /// @tparam klass_resolver method to get the Il2CppClass* on which to get the klass
@@ -73,7 +44,7 @@ namespace cordl_internals {
   template<::il2cpp_utils::il2cpp_reference_type T, std::size_t offset, ::il2cpp_utils::il2cpp_reference_type_pointer InstT>
   CORDL_HIDDEN void setInstanceField(InstT instance, T&& v) {
     OFFSET_CHECK(il2cpp_instance_sizeof(InstT), offset, sizeof(void*), "offset is too large for the size of the instance to be assigned correctly!");
-    NULL_CHECK(instance);
+    FIELD_NULL_CHECK(instance);
 
     auto value = il2cpp_utils::il2cpp_reference_type_value<T>(std::forward<T>(v));
     ::il2cpp_functions::Init();
@@ -84,7 +55,7 @@ namespace cordl_internals {
   template<::il2cpp_utils::il2cpp_value_type T, std::size_t offset, ::il2cpp_utils::il2cpp_reference_type_pointer InstT>
   CORDL_HIDDEN void setInstanceField(InstT instance, T&& v) {
     OFFSET_CHECK(il2cpp_instance_sizeof(InstT), offset, il2cpp_instance_sizeof(T), "offset is too large for the size of the instance to be assigned correctly!");
-    NULL_CHECK(instance);
+    FIELD_NULL_CHECK(instance);
 
     std::memcpy(getAtOffset<offset>(instance), v.convert(), il2cpp_instance_sizeof(T));
   }
@@ -93,7 +64,7 @@ namespace cordl_internals {
   template<typename T, std::size_t offset, ::il2cpp_utils::il2cpp_reference_type_pointer InstT>
   CORDL_HIDDEN void setInstanceField(InstT instance, T&& v) {
     OFFSET_CHECK(il2cpp_instance_sizeof(InstT), offset, sizeof(T), "offset is too large for the size of the instance to be assigned correctly!");
-    NULL_CHECK(instance);
+    FIELD_NULL_CHECK(instance);
 
     std::memcpy(getAtOffset<offset>(instance), &v, sizeof(T));
   }
@@ -127,7 +98,11 @@ namespace cordl_internals {
     OFFSET_CHECK(sz, offset, il2cpp_instance_sizeof(T), "offset is too large for the size of the instance to be assigned correctly!");
     SIZE_CHECK(T, "wrapper size was different from the type it wraps!");
 
-    std::copy_n(v.::bs_hook::ValueTypeWrapper<il2cpp_instance_sizeof(T)>::instance.begin(), il2cpp_instance_sizeof(T), std::next(instance.begin(), offset));
+    std::copy_n(
+      v.::bs_hook::ValueTypeWrapper<il2cpp_instance_sizeof(T)>::instance.begin(),
+      il2cpp_instance_sizeof(T),
+      std::next(instance.begin(), offset)
+    );
   }
 
   /// @brief set trivial value @ offset on instance of size sz
@@ -135,7 +110,11 @@ namespace cordl_internals {
   CORDL_HIDDEN constexpr void setInstanceField(std::array<std::byte, sz>& instance, T&& v) {
     OFFSET_CHECK(sz, offset, sizeof(T), "offset is too large for the size of the instance to be assigned correctly!");
 
-    std::copy_n(std::bit_cast<std::array<std::byte, sizeof(T)>>(v).begin(), sizeof(T), std::next(instance.begin(), offset));
+    std::copy_n(
+      std::bit_cast<std::array<std::byte, sizeof(T)>>(v).begin(),
+      sizeof(T),
+      std::next(instance.begin(), offset)
+    );
   }
 
 #pragma endregion // ref instance field setters
@@ -184,7 +163,7 @@ namespace cordl_internals {
   requires(std::is_const_v<std::remove_pointer_t<InstT>>)
   [[nodiscard]] CORDL_HIDDEN T const& getInstanceField(InstT instance) {
     OFFSET_CHECK(sizeof(std::remove_pointer_t<InstT>), offset, sizeof(T), "offset is too large for the size of the instance to be retreived correctly!");
-    NULL_CHECK(instance);
+    FIELD_NULL_CHECK(instance);
 
     return *static_cast<T const*>(static_cast<void const*>(getAtOffset<offset>(instance)));
   }
@@ -196,7 +175,7 @@ namespace cordl_internals {
   requires(!std::is_const_v<std::remove_pointer_t<InstT>>)
   [[nodiscard]] CORDL_HIDDEN T& getInstanceField(InstT instance) {
     OFFSET_CHECK(sizeof(std::remove_pointer_t<InstT>), offset, sizeof(T), "offset is too large for the size of the instance to be retreived correctly!");
-    NULL_CHECK(instance);
+    FIELD_NULL_CHECK(instance);
 
     return *static_cast<T*>(static_cast<void*>(getAtOffset<offset>(instance)));
   }

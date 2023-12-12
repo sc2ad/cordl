@@ -6,6 +6,10 @@
 #include <cstring>
 #include <string_view>
 
+namespace UnityEngine {
+    class Object;
+}
+
 namespace {
 namespace cordl_internals {
     namespace internal {
@@ -32,24 +36,19 @@ namespace cordl_internals {
         return static_cast<const void* const*>(static_cast<const void*>(static_cast<const uint8_t*>(instance) + offset));
     }
 
-    template <std::size_t sz>
-    CORDL_HIDDEN constexpr void copyByByte(std::array<std::byte, sz> const& src, std::array<std::byte, sz>& dst) {
-        dst = src;
+    /// @brief reads the cachedptr on the given unity object instance
+    template<typename T>
+    requires(std::is_convertible_v<T, UnityEngine::Object*>)
+    CORDL_HIDDEN inline constexpr void* read_cachedptr(T instance) {
+        return *static_cast<void**>(getAtOffset<0x10>(static_cast<UnityEngine::Object*>(instance)));
     }
 
-    template <std::size_t sz>
-    CORDL_HIDDEN constexpr void copyByByte(void* src, void* dst) {
-        std::memcpy(dst, src, sz);
-    }
-
-    template <std::size_t sz>
-    CORDL_HIDDEN constexpr void moveByByte(std::array<std::byte, sz>&& src, std::array<std::byte, sz>& dst) {
-        dst = std::move(src);
-    }
-
-    template <std::size_t sz>
-    CORDL_HIDDEN constexpr void moveByByte(void* src, void* dst) {
-        std::memmove(dst, src, sz);
-    }
+    // if you compile with the define RUNTIME_FIELD_NULL_CHECKS at runtime every field access will be null checked for you, and a c++ exception will be thrown if the instance is null.
+    // in case of a unity object, the m_CachedPtr is also checked. Since this can incur some overhead you can also just not define RUNTIME_FIELD_NULL_CHECKS to save performance
+    #ifdef RUNTIME_FIELD_NULL_CHECKS
+        #define FIELD_NULL_CHECK(inst) if (!inst) throw ::cordl_internals::NullException(std::string("Field access on nullptr instance, please make sure your instance is not null"))
+    #else
+        #define FIELD_NULL_CHECK(instance)
+    #endif
 }
 }
