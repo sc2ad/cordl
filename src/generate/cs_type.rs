@@ -3027,8 +3027,14 @@ pub trait CSType: Sized {
             // multi dimensional array
             Il2CppTypeEnum::Array => {
                 // FIXME: when stack further implements the TypeData::ArrayType we can actually implement this fully to be a multidimensional array, whatever that might mean
-                warn!("Multidimensional array was requested but this is not implemented, typ: {typ:?}");
-                "::bs_hook::Il2CppWrapperType".to_string().into()
+                warn!("Multidimensional array was requested but this is not implemented, typ: {typ:?}, instead returning Il2CppObject!");
+                NameComponents {
+                    name: OBJECT_WRAPPER_TYPE.to_string(),
+                    is_pointer: true,
+                    generics: None,
+                    namespace: None,
+                    declaring_types: None,
+                }
             }
             Il2CppTypeEnum::Mvar => match typ.data {
                 TypeData::GenericParameterIndex(index) => {
