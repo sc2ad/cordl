@@ -713,10 +713,14 @@ fn format_files() -> Result<()> {
         // reverse to go big -> small, so we can work on other files while big files are happening
         .rev()
         // parallelism
+        .enumerate()
         .par_bridge()
-        .try_for_each(|file| -> Result<()> {
+        .into_par_iter()
+        .try_for_each(|(file_num, file)| -> Result<()> {
+            let path = file.path();
+            info!("Formatting [{file_num}/{file_count}] {}", path.display());
             let mut command = Command::new("clang-format");
-            command.arg("--verbose").arg("-i").arg(file.path());
+            command.arg("-i").arg(path);
 
             command.spawn()?.wait()?.exit_ok()?;
 
