@@ -24,6 +24,7 @@ use std::{
     process::{Child, Command},
     sync::LazyLock,
     thread, time,
+    io::Write, os::windows::fs::MetadataExt
 };
 
 use clap::{Parser, Subcommand};
@@ -693,36 +694,76 @@ fn format_files() -> Result<()> {
         .try_collect()?;
     let file_count = files.len();
 
-    let thread_count = thread::available_parallelism()?;
+    let thread_count: usize = thread::available_parallelism()?.into();
     let chunks = file_count / thread_count;
 
     info!("{chunks} per thread for {thread_count} threads");
+    // easily get file size for a given file
+    fn file_size(file: &DirEntry) -> usize {
+        match std::fs::metadata(file.path()) {
+            Ok(data) => data.file_size() as usize,
+            Err(_) => 0
+        }
+    }
 
-    let file_chunks = files
+    // we chunk into
+    let chunked_by_size = files
         .into_iter()
-        .sorted_by(|a, b| a.path().cmp(b.path()))
-        // .unique_by(|f| f.path().to_str().unwrap().to_string())
-        .chunks(chunks);
+        .sorted_by(|a, b| file_size(a).cmp(&file_size(b)))
+        .chunks(thread_count);
 
-    let commands: Vec<Child> = file_chunks
+    // create all chunk files
+    let chunk_files = (0..thread_count).map(|i| {
+        let chunk_file_name = format!("format/chunk_{i}.txt");
+        let chunk_file_path = std::path::Path::new(&chunk_file_name);
+        std::fs::create_dir_all(chunk_file_path).expect("Failed to create dir");
+        std::fs::File::options().create(true).write(true).open(chunk_file_path).expect("Failed to open file");
+        chunk_file_path.canonicalize().unwrap()
+    })
+    .collect_vec();
+
+    // write into the chunk files
+    chunked_by_size
         .into_iter()
-        .map(|files| -> Result<Child> {
+        .for_each(|chunk|{
+            chunk
+                .into_iter()
+                .enumerate()
+                .for_each(|(i, f)|{
+                    // get the chunk
+                    if let Some(chunk_file_path) = &chunk_files.get(i) {
+                        std::fs::File::options()
+                            .append(true)
+                            .open(chunk_file_path) // FIXME: please for the love of god I need help to make this not open the file 1600 times
+                            .expect("Failed to open file")
+                            .write_all(format!("{}\r\n", f.into_path().into_os_string().into_string().unwrap()).as_bytes())
+                            .expect("Failed to append file");
+                    } else {
+                        warn!("Tried to get format file {i} but it did not exist?!")
+                    }
+                });
+        });
+
+    // format all files in those files
+    let commands: Vec<Child> = chunk_files
+        .iter()
+        .map(|chunk_file_path| -> Result<Child> {
             let mut command = Command::new("clang-format");
-            command.arg("--verbose").arg("-i");
-            command.args(
-                files
-                    .into_iter()
-                    .map(|f| f.into_path().into_os_string().into_string().unwrap()),
-            );
-
+            let chunk_file = std::path::Path::new(&chunk_file_path);
+            command.arg("--verbose").arg("-i").arg("--files").arg(chunk_file);
+            info!("{:?}", command);
             Ok(command.spawn()?)
         })
         .try_collect()?;
 
+    // wait for all formatting to complete
     commands.into_iter().try_for_each(|mut c| -> Result<()> {
         c.wait()?.exit_ok()?;
         Ok(())
     })?;
+
+    // delete all chunk files
+    std::fs::remove_dir_all("format").expect("Failed to remove format dir");
 
     info!("Done formatting!");
     Ok(())
