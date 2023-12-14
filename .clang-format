@@ -12,3 +12,4 @@ UseTab: Never
 Cpp11BracedListStyle: false
 QualifierAlignment: Right
 SortIncludes: Never
+ColumnLimit: 200
