@@ -695,9 +695,8 @@ fn format_files() -> Result<()> {
         .try_collect()?;
 
     let file_count = files.len();
-    let thread_count: usize = thread::available_parallelism()?.into();
 
-    info!("{file_count} across {thread_count} threads");
+    info!("{file_count} files across {} threads", rayon::current_num_threads());
     // easily get file size for a given file
     fn file_size(file: &DirEntry) -> usize {
         match std::fs::metadata(file.path()) {
