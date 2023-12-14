@@ -717,7 +717,7 @@ fn format_files() -> Result<()> {
         .into_par_iter()
         .try_for_each(|(file_num, file)| -> Result<()> {
             let path = file.path();
-            info!("Formatting [{file_num}/{file_count}] {}", path.display());
+            info!("Formatting [{}/{file_count}] {}", file_num + 1, path.display());
             let mut command = Command::new("clang-format");
             command.arg("-i").arg(path);
 
