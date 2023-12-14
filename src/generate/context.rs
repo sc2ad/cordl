@@ -218,6 +218,8 @@ impl CppContext {
         )
         .unwrap();
 
+        // write typedefs.h include first - this makes include order mostly happy (probably System.Object would still be weird!)
+        CppInclude::new_exact("beatsaber-hook/shared/utils/typedefs.h").write(&mut typedef_writer)?;
         CppInclude::new_exact(dest_path).write(&mut typedef_writer)?;
 
         // after including cordl internals
