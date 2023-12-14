@@ -1988,7 +1988,7 @@ pub trait CSType: Sized {
             is_default: true,
             is_no_except: false,
             is_delete: false,
-            base_ctor: Nosne,rk
+            base_ctor: None,
             initialized_values: Default::default(),
             brief: Some("default ctor".to_string()),
             body: None,
