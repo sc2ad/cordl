@@ -10,13 +10,14 @@
 #![feature(result_option_inspect)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
-use color_eyre::Result;
+use color_eyre::{Result, owo_colors::OwoColorize};
 use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
 extern crate pretty_env_logger;
 use include_dir::{include_dir, Dir};
 use log::{info, trace, warn};
 use walkdir::DirEntry;
+use rayon::prelude::*;
 
 use std::{
     fs,
@@ -692,12 +693,11 @@ fn format_files() -> Result<()> {
         .into_iter()
         .filter(|f| f.as_ref().is_ok_and(|f| f.path().is_file()))
         .try_collect()?;
+
     let file_count = files.len();
-
     let thread_count: usize = thread::available_parallelism()?.into();
-    let chunks = file_count / thread_count;
 
-    info!("{chunks} per thread for {thread_count} threads");
+    info!("{file_count} across {thread_count} threads");
     // easily get file size for a given file
     fn file_size(file: &DirEntry) -> usize {
         match std::fs::metadata(file.path()) {
@@ -706,64 +706,22 @@ fn format_files() -> Result<()> {
         }
     }
 
-    // we chunk into
-    let chunked_by_size = files
-        .into_iter()
-        .sorted_by(|a, b| file_size(a).cmp(&file_size(b)))
-        .chunks(thread_count);
-
-    // create all chunk files
-    let chunk_files = (0..thread_count).map(|i| {
-        let chunk_file_name = format!("format/chunk_{i}.txt");
-        let chunk_file_path = std::path::Path::new(&chunk_file_name);
-        std::fs::create_dir_all(chunk_file_path).expect("Failed to create dir");
-        std::fs::File::options().create(true).write(true).open(chunk_file_path).expect("Failed to open file");
-        chunk_file_path.canonicalize().unwrap()
-    })
-    .collect_vec();
-
-    // write into the chunk files
-    chunked_by_size
-        .into_iter()
-        .for_each(|chunk|{
-            chunk
-                .into_iter()
-                .enumerate()
-                .for_each(|(i, f)|{
-                    // get the chunk
-                    if let Some(chunk_file_path) = &chunk_files.get(i) {
-                        std::fs::File::options()
-                            .append(true)
-                            .open(chunk_file_path) // FIXME: please for the love of god I need help to make this not open the file 1600 times
-                            .expect("Failed to open file")
-                            .write_all(format!("{}\r\n", f.into_path().into_os_string().into_string().unwrap()).as_bytes())
-                            .expect("Failed to append file");
-                    } else {
-                        warn!("Tried to get format file {i} but it did not exist?!")
-                    }
-                });
-        });
-
-    // format all files in those files
-    let commands: Vec<Child> = chunk_files
+    files
         .iter()
-        .map(|chunk_file_path| -> Result<Child> {
+        // sort on file size
+        .sorted_by(|a, b| file_size(a).cmp(&file_size(b)))
+        // reverse to go big -> small, so we can work on other files while big files are happening
+        .rev()
+        // parallelism
+        .par_bridge()
+        .try_for_each(|file| -> Result<()> {
             let mut command = Command::new("clang-format");
-            let chunk_file = std::path::Path::new(&chunk_file_path);
-            command.arg("--verbose").arg("-i").arg("--files").arg(chunk_file);
-            info!("{:?}", command);
-            Ok(command.spawn()?)
-        })
-        .try_collect()?;
+            command.arg("--verbose").arg("-i").arg(file.path());
 
-    // wait for all formatting to complete
-    commands.into_iter().try_for_each(|mut c| -> Result<()> {
-        c.wait()?.exit_ok()?;
-        Ok(())
-    })?;
+            command.spawn()?.wait()?.exit_ok()?;
 
-    // delete all chunk files
-    std::fs::remove_dir_all("format").expect("Failed to remove format dir");
+            Ok(())
+        })?;
 
     info!("Done formatting!");
     Ok(())
