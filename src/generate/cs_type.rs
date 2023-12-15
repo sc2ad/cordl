@@ -312,6 +312,7 @@ pub trait CSType: Sized {
                 self.create_enum_wrapper(metadata, ctx_collection, tdi);
                 self.create_enum_backing_type_constant(metadata, ctx_collection, tdi);
             }
+            self.add_default_ctor();
         } else if t.is_interface() {
             // self.make_interface_constructors();
             self.delete_move_ctor();
