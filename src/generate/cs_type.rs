@@ -312,17 +312,19 @@ pub trait CSType: Sized {
                 self.create_enum_wrapper(metadata, ctx_collection, tdi);
                 self.create_enum_backing_type_constant(metadata, ctx_collection, tdi);
             }
+            self.add_default_ctor();
         } else if t.is_interface() {
             // self.make_interface_constructors();
             self.delete_move_ctor();
             self.delete_copy_ctor();
-            self.delete_default_ctor();
+            // self.delete_default_ctor();
         } else {
             // ref type
             self.create_ref_size();
             self.delete_move_ctor();
             self.delete_copy_ctor();
-            self.create_ref_default_constructor();
+            self.add_default_ctor();
+            // self.delete_default_ctor();
         }
 
         if !t.is_interface() {
@@ -1338,7 +1340,7 @@ pub trait CSType: Sized {
                     instance: true,
                     readonly: false,
                     const_expr: false,
-                    value: None,
+                    value: Some("".into()),
                     brief_comment: Some(
                         "The size this ref type adds onto its base type, may evaluate to 0"
                             .to_string(),
@@ -2003,6 +2005,31 @@ pub trait CSType: Sized {
         cpp_type
             .declarations
             .push(CppMember::ConstructorDecl(move_ctor).into());
+    }
+
+    fn add_default_ctor(&mut self) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = &cpp_type.cpp_name_components.name;
+
+        let default_ctor = CppConstructorDecl {
+            cpp_name: t.clone(),
+            parameters: vec![],
+            template: None,
+            is_constexpr: false,
+            is_explicit: false,
+            is_default: true,
+            is_no_except: false,
+            is_delete: false,
+            is_protected: true,
+            base_ctor: None,
+            initialized_values: Default::default(),
+            brief: Some("default ctor".to_string()),
+            body: None,
+        };
+
+        cpp_type
+            .declarations
+            .push(CppMember::ConstructorDecl(default_ctor).into());
     }
 
     fn delete_default_ctor(&mut self) {
@@ -3066,8 +3093,14 @@ pub trait CSType: Sized {
             // multi dimensional array
             Il2CppTypeEnum::Array => {
                 // FIXME: when stack further implements the TypeData::ArrayType we can actually implement this fully to be a multidimensional array, whatever that might mean
-                warn!("Multidimensional array was requested but this is not implemented, typ: {typ:?}");
-                "::bs_hook::Il2CppWrapperType".to_string().into()
+                warn!("Multidimensional array was requested but this is not implemented, typ: {typ:?}, instead returning Il2CppObject!");
+                NameComponents {
+                    name: OBJECT_WRAPPER_TYPE.to_string(),
+                    is_pointer: true,
+                    generics: None,
+                    namespace: None,
+                    declaring_types: None,
+                }
             }
             Il2CppTypeEnum::Mvar => match typ.data {
                 TypeData::GenericParameterIndex(index) => {

@@ -10,13 +10,14 @@
 #![feature(result_option_inspect)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
-use color_eyre::Result;
+use color_eyre::{Result, owo_colors::OwoColorize};
 use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
 extern crate pretty_env_logger;
 use include_dir::{include_dir, Dir};
 use log::{info, trace, warn};
 use walkdir::DirEntry;
+use rayon::prelude::*;
 
 use std::{
     fs,
@@ -24,6 +25,7 @@ use std::{
     process::{Child, Command},
     sync::LazyLock,
     thread, time,
+    io::Write, os::windows::fs::MetadataExt
 };
 
 use clap::{Parser, Subcommand};
@@ -691,38 +693,38 @@ fn format_files() -> Result<()> {
         .into_iter()
         .filter(|f| f.as_ref().is_ok_and(|f| f.path().is_file()))
         .try_collect()?;
+
     let file_count = files.len();
 
-    let thread_count = thread::available_parallelism()?;
-    let chunks = file_count / thread_count;
+    info!("{file_count} files across {} threads", rayon::current_num_threads());
+    // easily get file size for a given file
+    fn file_size(file: &DirEntry) -> usize {
+        match std::fs::metadata(file.path()) {
+            Ok(data) => data.file_size() as usize,
+            Err(_) => 0
+        }
+    }
 
-    info!("{chunks} per thread for {thread_count} threads");
-
-    let file_chunks = files
-        .into_iter()
-        .sorted_by(|a, b| a.path().cmp(b.path()))
-        // .unique_by(|f| f.path().to_str().unwrap().to_string())
-        .chunks(chunks);
-
-    let commands: Vec<Child> = file_chunks
-        .into_iter()
-        .map(|files| -> Result<Child> {
+    files
+        .iter()
+        // sort on file size
+        .sorted_by(|a, b| file_size(a).cmp(&file_size(b)))
+        // reverse to go big -> small, so we can work on other files while big files are happening
+        .rev()
+        // parallelism
+        .enumerate()
+        .par_bridge()
+        .into_par_iter()
+        .try_for_each(|(file_num, file)| -> Result<()> {
+            let path = file.path();
+            info!("Formatting [{}/{file_count}] {}", file_num + 1, path.display());
             let mut command = Command::new("clang-format");
-            command.arg("--verbose").arg("-i");
-            command.args(
-                files
-                    .into_iter()
-                    .map(|f| f.into_path().into_os_string().into_string().unwrap()),
-            );
+            command.arg("-i").arg(path);
 
-            Ok(command.spawn()?)
-        })
-        .try_collect()?;
+            command.spawn()?.wait()?.exit_ok()?;
 
-    commands.into_iter().try_for_each(|mut c| -> Result<()> {
-        c.wait()?.exit_ok()?;
-        Ok(())
-    })?;
+            Ok(())
+        })?;
 
     info!("Done formatting!");
     Ok(())
