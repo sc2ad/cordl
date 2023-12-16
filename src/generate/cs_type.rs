@@ -314,7 +314,6 @@ pub trait CSType: Sized {
                 self.create_enum_wrapper(metadata, ctx_collection, tdi);
                 self.create_enum_backing_type_constant(metadata, ctx_collection, tdi);
             }
-            self.add_default_ctor(false);
         } else if t.is_interface() {
             // self.make_interface_constructors();
             self.delete_move_ctor();
@@ -1612,7 +1611,7 @@ pub trait CSType: Sized {
             //     .iter()
             //     .map(|p| (p.name.to_string(), p.name.to_string()))
             //     .collect(),
-            parameters: params_no_def,
+            parameters: instance_fields,
             brief: None,
             body: None,
         };
@@ -1630,7 +1629,7 @@ pub trait CSType: Sized {
         let constructor_impl = CppConstructorImpl {
             body,
             template: method_impl_template,
-            parameters: instance_fields,
+            parameters: params_no_def,
             declaring_full_name: cpp_type.cpp_name_components.remove_pointer().combine_all(),
             ..constructor_decl.clone().into()
         };
