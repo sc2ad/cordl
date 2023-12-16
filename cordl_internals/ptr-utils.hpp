@@ -1,10 +1,19 @@
 #pragma once
 
+#include <type_traits>
+#include <concepts>
+
 #include "config.hpp"
 #include "concepts.hpp"
 
 namespace {
 namespace cordl_internals {
+    template <typename T>
+    requires(std::is_pointer_v<T>)
+    using to_const_pointer = std::remove_pointer_t<T> const*;
+
+    
+    
     /// @brief type to wrap a pointer to a T, not recommended to be used with anything that's not il2cpp compatible
     /// @tparam T type that instance points to
     template<typename T>
