@@ -10,22 +10,23 @@
 #![feature(result_option_inspect)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
-use color_eyre::{Result, owo_colors::OwoColorize};
+use color_eyre::{owo_colors::OwoColorize, Result};
 use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
 extern crate pretty_env_logger;
+use filesize::PathExt;
 use include_dir::{include_dir, Dir};
 use log::{info, trace, warn};
-use walkdir::DirEntry;
 use rayon::prelude::*;
+use walkdir::DirEntry;
 
 use std::{
     fs,
+    io::Write,
     path::PathBuf,
     process::{Child, Command},
     sync::LazyLock,
     thread, time,
-    io::Write, os::windows::fs::MetadataExt
 };
 
 use clap::{Parser, Subcommand};
@@ -696,12 +697,15 @@ fn format_files() -> Result<()> {
 
     let file_count = files.len();
 
-    info!("{file_count} files across {} threads", rayon::current_num_threads());
+    info!(
+        "{file_count} files across {} threads",
+        rayon::current_num_threads()
+    );
     // easily get file size for a given file
     fn file_size(file: &DirEntry) -> usize {
         match std::fs::metadata(file.path()) {
-            Ok(data) => data.file_size() as usize,
-            Err(_) => 0
+            Ok(data) => file.path().size_on_disk_fast(&data).unwrap() as usize,
+            Err(_) => 0,
         }
     }
 
@@ -717,7 +721,11 @@ fn format_files() -> Result<()> {
         .into_par_iter()
         .try_for_each(|(file_num, file)| -> Result<()> {
             let path = file.path();
-            info!("Formatting [{}/{file_count}] {}", file_num + 1, path.display());
+            info!(
+                "Formatting [{}/{file_count}] {}",
+                file_num + 1,
+                path.display()
+            );
             let mut command = Command::new("clang-format");
             command.arg("-i").arg(path);
 
