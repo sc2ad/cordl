@@ -276,6 +276,11 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
             false => None,
         };
 
+        let ty =
+            &metadata.runtime_metadata.metadata_registration.types[self.byval_type_index as usize];
+        let is_pointer =
+            (!self.is_value_type() && !self.is_enum_type()) || ty.ty == Il2CppTypeEnum::Class;
+
         match self.declaring_type_index != u32::MAX {
             true => {
                 let declaring_ty = metadata.runtime_metadata.metadata_registration.types
@@ -297,7 +302,7 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
                     name: name.to_string(),
                     declaring_types: Some(declaring_types),
                     generics,
-                    is_pointer: declaring_ty_names.is_pointer,
+                    is_pointer,
                 }
             }
             false => NameComponents {
@@ -305,7 +310,7 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
                 name: name.to_string(),
                 declaring_types: None,
                 generics,
-                is_pointer: !self.is_value_type() && !self.is_enum_type(),
+                is_pointer,
             },
         }
     }

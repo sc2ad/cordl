@@ -181,6 +181,8 @@ pub trait CSType: Sized {
         let nested = false; // t.declaring_type_index != u32::MAX;
         let cs_name_components = t.get_name_components(metadata.metadata);
 
+        let is_pointer = cs_name_components.is_pointer;
+
         let cpp_name_components = NameComponents {
             declaring_types: cs_name_components
                 .declaring_types
@@ -197,7 +199,7 @@ pub trait CSType: Sized {
                 .namespace
                 .as_ref()
                 .map(|s| config.namespace_cpp(s)),
-            is_pointer: !t.is_enum_type() && !t.is_value_type(),
+            is_pointer,
         };
 
         // TODO: Come up with a way to avoid this extra call to layout the entire type
@@ -223,7 +225,7 @@ pub trait CSType: Sized {
 
             is_value_type: t.is_value_type(),
             is_enum_type: t.is_enum_type(),
-            is_reference_type: !t.is_enum_type() && !t.is_value_type(),
+            is_reference_type: is_pointer,
             requirements: Default::default(),
 
             inherit: Default::default(),
@@ -592,19 +594,19 @@ pub trait CSType: Sized {
                 warn!("Value type uses {tdi:?} which is blacklisted! TODO");
             }
 
-            let field_ty_cpp_name = if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
-                "::ConstString".to_string()
-            } else {
-                let field_name_components =
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, 0);
-
-                let name = field_name_components.combine_all();
-                if field_name_components.namespace.is_some() && !name.starts_with("::") {
-                    format!("::{name}")
+            // Var types are default pointers so we need to get the name component's pointer bool
+            let (field_ty_cpp_name, field_is_pointer) =
+                if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
+                    ("::ConstString".to_string(), false)
                 } else {
-                    name
-                }
-            };
+                    let field_name_components =
+                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, 0);
+
+                    (
+                        field_name_components.combine_all(),
+                        field_name_components.is_pointer,
+                    )
+                };
 
             // TODO: Check a flag to look for default values to speed this up
             let def_value = Self::field_default_value(metadata, field_index);
@@ -753,16 +755,25 @@ pub trait CSType: Sized {
                     ),
                 };
 
-                let (get_return_type, const_get_return_type) = if is_instance && f_type.valuetype {
-                    (
-                        format!("{field_ty_cpp_name}&"),
-                        format!("{field_ty_cpp_name} const&"),
-                    )
-                } else {
-                    (
+                let (get_return_type, const_get_return_type) = match is_instance {
+                    // Var types are default pointers
+                    true if field_is_pointer => (
                         field_ty_cpp_name.clone(),
-                        format!("{} const", field_ty_cpp_name.clone()),
-                    )
+                        format!(
+                            "::cordl_internals::to_const_pointer<{}>",
+                            field_ty_cpp_name.clone()
+                        ),
+                    ),
+                    true =>
+                    {
+                        (
+                            format!("{field_ty_cpp_name}&"),
+                            format!("{field_ty_cpp_name} const&"),
+                        )
+                    }
+
+                    // static/const fields
+                    _ => (field_ty_cpp_name.clone(), field_ty_cpp_name.clone()),
                 };
 
                 let getter_decl = CppMethodDecl {
@@ -3181,15 +3192,24 @@ pub trait CSType: Sized {
                         };
                     }
 
-                    cpp_type
+                    let ty_var = &metadata.metadata_registration.types[ty_idx_opt.unwrap()];
+
+                    let generics = &cpp_type
                         .cpp_name_components
                         .generics
                         .as_ref()
-                        .expect("Generic instantiation args not made yet!")
+                        .expect("Generic instantiation args not made yet!");
+
+                    let resolved_var = generics
                         .get(generic_param.num as usize)
                         .expect("No generic parameter at index found!")
-                        .clone()
-                        .into()
+                        .clone();
+
+                    NameComponents {
+                        is_pointer: !ty_var.valuetype,
+                        name: resolved_var,
+                        ..Default::default()
+                    }
 
                     // This is for calculating on the fly
                     // which is slower and won't work for the reference type lookup fix
