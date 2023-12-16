@@ -48,11 +48,11 @@ namespace cordl_internals {
 }
 } // end anonymous namespace
 // Ptr is neither Ref nor Val type
-template<> CORDL_HIDDEN struct ::il2cpp_utils::GenRefTypeTrait<::cordl_internals::Ptr> { constexpr static bool value = false; };
-template<> CORDL_HIDDEN struct ::il2cpp_utils::GenValueTypeTrait<::cordl_internals::Ptr> { constexpr static bool value = false; };
+template<> struct CORDL_HIDDEN ::il2cpp_utils::GenRefTypeTrait<::cordl_internals::Ptr> { constexpr static bool value = false; };
+template<> struct CORDL_HIDDEN ::il2cpp_utils::GenValueTypeTrait<::cordl_internals::Ptr> { constexpr static bool value = false; };
 
 template<typename T>
-CORDL_HIDDEN struct ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<::cordl_internals::Ptr<T>> {
+struct CORDL_HIDDEN ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<::cordl_internals::Ptr<T>> {
     static inline const Il2CppType* get() {
         static auto* typ = &::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<T>::get()->this_arg;
         return typ;
@@ -60,7 +60,7 @@ CORDL_HIDDEN struct ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<::cord
 };
 
 template<typename T>
-CORDL_HIDDEN struct ::il2cpp_utils::il2cpp_type_check::il2cpp_arg_type<::cordl_internals::Ptr<T>> {
+struct CORDL_HIDDEN ::il2cpp_utils::il2cpp_type_check::il2cpp_arg_type<::cordl_internals::Ptr<T>> {
     static inline const Il2CppType* get([[maybe_unused]] ::cordl_internals::Ptr<T> arg) {
         return ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<::cordl_internals::Ptr<T>>::get();
     }
