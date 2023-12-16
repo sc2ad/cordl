@@ -3,6 +3,7 @@ use log::info;
 
 use crate::generate::{
     cpp_type::CppType,
+    cs_type::IL2CPP_OBJECT_TYPE,
     members::{CppMember, CppNonMember},
     metadata::{Il2cppFullName, Metadata},
 };
@@ -32,7 +33,8 @@ fn register_system_object_type_handler(metadata: &mut Metadata) -> Result<()> {
 fn system_object_handler(cpp_type: &mut CppType) {
     info!("Found System.Object type, adding systemW!");
     // clear inherit so that bs hook can dof include order shenanigans
-    cpp_type.inherit = vec![];
+    cpp_type.requirements.need_wrapper();
+    cpp_type.inherit = vec![IL2CPP_OBJECT_TYPE.to_string()];
 
     cpp_type.requirements.need_wrapper();
 

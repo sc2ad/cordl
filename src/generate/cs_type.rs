@@ -59,7 +59,7 @@ pub const REFERENCE_WRAPPER_INSTANCE_NAME: &str = "::bs_hook::Il2CppWrapperType:
 pub const VALUE_WRAPPER_TYPE: &str = "::bs_hook::ValueTypeWrapper";
 pub const ENUM_WRAPPER_TYPE: &str = "::bs_hook::EnumTypeWrapper";
 pub const INTERFACE_WRAPPER_TYPE: &str = "::cordl_internals::InterfaceW";
-pub const OBJECT_WRAPPER_TYPE: &str = "Il2CppObject";
+pub const IL2CPP_OBJECT_TYPE: &str = "Il2CppObject";
 pub const CORDL_NO_INCLUDE_IMPL_DEFINE: &str = "CORDL_NO_IMPL_INCLUDE";
 
 pub const ENUM_PTR_TYPE: &str = "::bs_hook::EnumPtr";
@@ -764,13 +764,10 @@ pub trait CSType: Sized {
                             field_ty_cpp_name.clone()
                         ),
                     ),
-                    true =>
-                    {
-                        (
-                            format!("{field_ty_cpp_name}&"),
-                            format!("{field_ty_cpp_name} const&"),
-                        )
-                    }
+                    true => (
+                        format!("{field_ty_cpp_name}&"),
+                        format!("{field_ty_cpp_name} const&"),
+                    ),
 
                     // static/const fields
                     _ => (field_ty_cpp_name.clone(), field_ty_cpp_name.clone()),
@@ -990,36 +987,29 @@ pub trait CSType: Sized {
             }
             // handle as reference type
             false => {
-                // if the parent is just object, push wrapper type instead
-                if parent_type.ty == Il2CppTypeEnum::Object {
-                    cpp_type.requirements.need_wrapper();
-                    cpp_type.inherit.push(OBJECT_WRAPPER_TYPE.to_string());
-                } else {
-                    // make sure our parent is intended
-                    assert!(
-                        matches!(
-                            parent_type.ty,
-                            Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
-                        ),
-                        "Not a class, object or generic inst!"
-                    );
-
-                    // We have a parent, lets do something with it
-                    let inherit_type = cpp_type.cppify_name_il2cpp(
-                        ctx_collection,
-                        metadata,
-                        parent_type,
-                        usize::MAX,
-                    );
-
-                    if matches!(
+                // make sure our parent is intended
+                assert!(
+                    matches!(
                         parent_type.ty,
-                        Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
-                    ) {
-                        // TODO: Figure out why some generic insts don't work here
-                        let parent_tdi: TypeDefinitionIndex = parent_ty.into();
+                        Il2CppTypeEnum::Class
+                            | Il2CppTypeEnum::Genericinst
+                            | Il2CppTypeEnum::Object
+                    ),
+                    "Not a class, object or generic inst!"
+                );
 
-                        let base_type_context = ctx_collection
+                // We have a parent, lets do something with it
+                let inherit_type =
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, usize::MAX);
+
+                if matches!(
+                    parent_type.ty,
+                    Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
+                ) {
+                    // TODO: Figure out why some generic insts don't work here
+                    let parent_tdi: TypeDefinitionIndex = parent_ty.into();
+
+                    let base_type_context = ctx_collection
                                     .get_context(parent_ty)
                                     .or_else(|| ctx_collection.get_context(parent_tdi.into()))
                                     .unwrap_or_else(|| {
@@ -1028,16 +1018,16 @@ pub trait CSType: Sized {
                                     )
                                     });
 
-                        let _base_type_cpp_type = ctx_collection
-                            .get_cpp_type(parent_ty)
-                            .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
-                            .unwrap_or_else(|| {
-                                panic!(
+                    let _base_type_cpp_type = ctx_collection
+                        .get_cpp_type(parent_ty)
+                        .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
+                        .unwrap_or_else(|| {
+                            panic!(
                                 "No CppType for base type {inherit_type:?}. Using tag {parent_ty:?}"
                             )
-                            });
+                        });
 
-                        let base_type_cpp_type = ctx_collection
+                    let base_type_cpp_type = ctx_collection
                                         .get_cpp_type(parent_ty)
                                         .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
                                         .unwrap_or_else(|| {
@@ -1046,16 +1036,15 @@ pub trait CSType: Sized {
                                 )
                             });
 
-                        cpp_type.requirements.add_impl_include(
-                            Some(base_type_cpp_type),
-                            CppInclude::new_context_typeimpl(base_type_context),
-                        )
-                    }
-
-                    cpp_type
-                        .inherit
-                        .push(inherit_type.remove_pointer().combine_all());
+                    cpp_type.requirements.add_impl_include(
+                        Some(base_type_cpp_type),
+                        CppInclude::new_context_typeimpl(base_type_context),
+                    )
                 }
+
+                cpp_type
+                    .inherit
+                    .push(inherit_type.remove_pointer().combine_all());
             }
         }
     }
@@ -2981,7 +2970,7 @@ pub trait CSType: Sized {
                         // classes should return Il2CppObject*
                         if typ.ty == Il2CppTypeEnum::Class {
                             return NameComponents {
-                                name: OBJECT_WRAPPER_TYPE.to_string(),
+                                name: IL2CPP_OBJECT_TYPE.to_string(),
                                 is_pointer: true,
                                 generics: None,
                                 namespace: None,
@@ -3106,7 +3095,7 @@ pub trait CSType: Sized {
                 // FIXME: when stack further implements the TypeData::ArrayType we can actually implement this fully to be a multidimensional array, whatever that might mean
                 warn!("Multidimensional array was requested but this is not implemented, typ: {typ:?}, instead returning Il2CppObject!");
                 NameComponents {
-                    name: OBJECT_WRAPPER_TYPE.to_string(),
+                    name: IL2CPP_OBJECT_TYPE.to_string(),
                     is_pointer: true,
                     generics: None,
                     namespace: None,
@@ -3405,7 +3394,7 @@ fn wrapper_type_for_tdi(td: &Il2CppTypeDefinition) -> &str {
         return INTERFACE_WRAPPER_TYPE;
     }
 
-    OBJECT_WRAPPER_TYPE
+    IL2CPP_OBJECT_TYPE
 }
 
 ///

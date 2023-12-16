@@ -21,7 +21,7 @@ use crate::helpers::sorting::DependencyGraph;
 use crate::STATIC_CONFIG;
 
 use super::cpp_type_tag::CppTypeTag;
-use super::cs_type::OBJECT_WRAPPER_TYPE;
+use super::cs_type::IL2CPP_OBJECT_TYPE;
 use super::{
     config::GenerationConfig,
     cpp_type::CppType,
@@ -135,7 +135,7 @@ impl CppContext {
                     cpp_namespace,
                     CppUsingAlias {
                         alias: cpp_name.to_string(),
-                        result: OBJECT_WRAPPER_TYPE.to_string(),
+                        result: IL2CPP_OBJECT_TYPE.to_string(),
                         template: Default::default(),
                     },
                 ));
@@ -219,7 +219,8 @@ impl CppContext {
         .unwrap();
 
         // write typedefs.h include first - this makes include order mostly happy (probably System.Object would still be weird!)
-        CppInclude::new_exact("beatsaber-hook/shared/utils/typedefs.h").write(&mut typedef_writer)?;
+        CppInclude::new_exact("beatsaber-hook/shared/utils/typedefs.h")
+            .write(&mut typedef_writer)?;
         CppInclude::new_exact(dest_path).write(&mut typedef_writer)?;
 
         // after including cordl internals
@@ -523,16 +524,18 @@ impl CppContext {
 
         // generics shouldn't emit with a pointer, while regular types should honor the pointer
         let cpp_name = match template_container_type {
-            true => ty.cpp_name_components
-                        .clone()
-                        .remove_generics()
-                        .remove_pointer()
-                        .combine_all(),
+            true => ty
+                .cpp_name_components
+                .clone()
+                .remove_generics()
+                .remove_pointer()
+                .combine_all(),
 
-            false => ty.cpp_name_components
-                        .clone()
-                        .remove_generics()
-                        .combine_all(),
+            false => ty
+                .cpp_name_components
+                .clone()
+                .remove_generics()
+                .combine_all(),
         };
 
         writeln!(
