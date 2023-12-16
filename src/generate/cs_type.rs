@@ -3194,8 +3194,16 @@ pub trait CSType: Sized {
                         .expect("No generic parameter at index found!")
                         .clone();
 
+                    let is_pointer = !ty_var.valuetype
+                    // if resolved_var exists in generic template, it can't be a pointer!
+                        && (cpp_type.cpp_template.is_none()
+                            || !cpp_type
+                                .cpp_template
+                                .as_ref()
+                                .is_some_and(|t| t.just_names().any(|s| s == &resolved_var)));
+
                     NameComponents {
-                        is_pointer: !ty_var.valuetype,
+                        is_pointer,
                         name: resolved_var,
                         ..Default::default()
                     }
