@@ -314,7 +314,7 @@ pub trait CSType: Sized {
                 self.create_enum_wrapper(metadata, ctx_collection, tdi);
                 self.create_enum_backing_type_constant(metadata, ctx_collection, tdi);
             }
-            self.add_default_ctor();
+            self.add_default_ctor(false);
         } else if t.is_interface() {
             // self.make_interface_constructors();
             self.delete_move_ctor();
@@ -325,7 +325,7 @@ pub trait CSType: Sized {
             self.create_ref_size();
             self.delete_move_ctor();
             self.delete_copy_ctor();
-            self.add_default_ctor();
+            self.add_default_ctor(true);
             // self.delete_default_ctor();
         }
 
@@ -2007,7 +2007,7 @@ pub trait CSType: Sized {
             .push(CppMember::ConstructorDecl(move_ctor).into());
     }
 
-    fn add_default_ctor(&mut self) {
+    fn add_default_ctor(&mut self, protected: bool) {
         let cpp_type = self.get_mut_cpp_type();
         let t = &cpp_type.cpp_name_components.name;
 
@@ -2020,7 +2020,7 @@ pub trait CSType: Sized {
             is_default: true,
             is_no_except: false,
             is_delete: false,
-            is_protected: true,
+            is_protected: protected,
             base_ctor: None,
             initialized_values: Default::default(),
             brief: Some("default ctor".to_string()),
