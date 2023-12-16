@@ -332,6 +332,7 @@ pub struct CppConstructorDecl {
     pub is_default: bool,
     pub is_no_except: bool,
     pub is_delete: bool,
+    pub is_protected: bool,
 
     // call base ctor
     pub base_ctor: Option<(String, String)>,

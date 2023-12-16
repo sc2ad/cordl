@@ -191,6 +191,7 @@ fn reference_type_convert(cpp_type: &mut CppType, il2cpp_t: &str) {
         is_default: false,
         is_no_except: true,
         is_delete: false,
+        is_protected: false,
 
         // use the void* ctor overload
         base_ctor: Some((
@@ -267,6 +268,7 @@ fn value_type_convert(cpp_type: &mut CppType, il2cpp_t: &str) {
         }],
         template: None,
         is_constexpr: true,
+        is_protected: false,
         is_explicit: false,
         is_default: false,
         is_no_except: true,

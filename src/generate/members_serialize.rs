@@ -366,6 +366,11 @@ impl Sortable for CppMethodImpl {
 impl Writable for CppConstructorDecl {
     // declaration
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        // I'm lazy
+        if self.is_protected {
+            writeln!(writer, "protected:")?;
+        }
+
         writeln!(writer, "// Ctor Parameters {:?}", self.parameters)?;
         if let Some(brief) = &self.brief {
             writeln!(writer, "// @brief {brief}")?;
@@ -436,6 +441,11 @@ impl Writable for CppConstructorDecl {
                 true => writeln!(writer, "{prefixes} {name}({params}) {suffixes} = default;")?,
                 false => writeln!(writer, "{prefixes} {name}({params}) {suffixes};")?,
             };
+        }
+
+        // I'm lazy
+        if self.is_protected {
+            writeln!(writer, "public:")?;
         }
 
         Ok(())
