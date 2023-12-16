@@ -36,15 +36,13 @@ fn system_object_handler(cpp_type: &mut CppType) {
     cpp_type.requirements.need_wrapper();
     cpp_type.inherit = vec![IL2CPP_OBJECT_TYPE.to_string()];
 
-    cpp_type.requirements.need_wrapper();
-
     // Remove field because it does not size properly and is not necessary
     cpp_type
         .declarations
         .retain(|t| !matches!(t.as_ref(), CppMember::FieldDecl(_)));
 
     // remove size assert too because System::Object will be wrong due to include ordering
-    cpp_type
-        .nonmember_declarations
-        .retain(|t| !matches!(t.as_ref(), CppNonMember::CppStaticAssert(_)));
+    // cpp_type
+    //     .nonmember_declarations
+    //     .retain(|t| !matches!(t.as_ref(), CppNonMember::CppStaticAssert(_)));
 }
