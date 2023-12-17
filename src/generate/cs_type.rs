@@ -987,25 +987,18 @@ pub trait CSType: Sized {
             }
             // handle as reference type
             false => {
-                // make sure our parent is intended
-                assert!(
-                    matches!(
-                        parent_type.ty,
-                        Il2CppTypeEnum::Class
-                            | Il2CppTypeEnum::Genericinst
-                            | Il2CppTypeEnum::Object
-                    ),
-                    "Not a class, object or generic inst!"
+                // make sure our parent is intended\
+                let is_ref_type = matches!(
+                    parent_type.ty,
+                    Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst | Il2CppTypeEnum::Object
                 );
+                assert!(is_ref_type, "Not a class, object or generic inst!");
 
                 // We have a parent, lets do something with it
                 let inherit_type =
                     cpp_type.cppify_name_il2cpp(ctx_collection, metadata, parent_type, usize::MAX);
 
-                if matches!(
-                    parent_type.ty,
-                    Il2CppTypeEnum::Class | Il2CppTypeEnum::Genericinst
-                ) {
+                if is_ref_type {
                     // TODO: Figure out why some generic insts don't work here
                     let parent_tdi: TypeDefinitionIndex = parent_ty.into();
 
@@ -1017,15 +1010,6 @@ pub trait CSType: Sized {
                                         "No CppContext for base type {inherit_type:?}. Using tag {parent_ty:?}"
                                     )
                                     });
-
-                    let _base_type_cpp_type = ctx_collection
-                        .get_cpp_type(parent_ty)
-                        .or_else(|| ctx_collection.get_cpp_type(parent_tdi.into()))
-                        .unwrap_or_else(|| {
-                            panic!(
-                                "No CppType for base type {inherit_type:?}. Using tag {parent_ty:?}"
-                            )
-                        });
 
                     let base_type_cpp_type = ctx_collection
                                         .get_cpp_type(parent_ty)
