@@ -148,7 +148,9 @@ pub fn layout_fields(
     }
 
     // if we have an explicit size, use that
-    if declaring_ty_def.is_explicit_layout() && let Some (sz) = get_size_of_type_table(metadata, declaring_tdi) {
+    if declaring_ty_def.is_explicit_layout()
+        && let Some(sz) = get_size_of_type_table(metadata, declaring_tdi)
+    {
         instance_size = sz.instance_size as usize;
     }
 
@@ -209,7 +211,9 @@ fn layout_instance_fields(
         offset &= !(alignment as usize - 1);
 
         // explicit layout & we have a value in the offset table
-        if declaring_ty_def.is_explicit_layout() && let Some(special_offset) = get_offset_of_type_table(metadata, declaring_tdi, i) {
+        if declaring_ty_def.is_explicit_layout()
+            && let Some(special_offset) = get_offset_of_type_table(metadata, declaring_tdi, i)
+        {
             offset = special_offset;
         }
 
@@ -289,16 +293,17 @@ fn get_parent_sa(
                         .runtime_metadata
                         .metadata_registration
                         .types[*t_index];
-                    if let TypeData::GenericParameterIndex(generic_param_index) = ty.data &&
-                    let Some(generic_args) = &generic_inst_types {
-                    let generic_param =
-                        &metadata.metadata.global_metadata.generic_parameters[generic_param_index];
+                    if let TypeData::GenericParameterIndex(generic_param_index) = ty.data
+                        && let Some(generic_args) = &generic_inst_types
+                    {
+                        let generic_param = &metadata.metadata.global_metadata.generic_parameters
+                            [generic_param_index];
 
-                    generic_args[generic_param.num as usize]
-                } else {
-                    // we don't know what it is, so just default later
-                    *t_index
-                }
+                        generic_args[generic_param.num as usize]
+                    } else {
+                        // we don't know what it is, so just default later
+                        *t_index
+                    }
                 })
                 .collect_vec();
 
@@ -405,17 +410,21 @@ fn get_type_size_and_alignment(
 
     // only handle if generic inst, otherwise let the rest handle it as before
     // aka a pointer size
-    if ty.ty == Il2CppTypeEnum::Var && let TypeData::GenericParameterIndex(generic_param_index) = ty.data &&
-        let Some(generic_args) = &generic_inst_types {
-
+    if ty.ty == Il2CppTypeEnum::Var
+        && let TypeData::GenericParameterIndex(generic_param_index) = ty.data
+        && let Some(generic_args) = &generic_inst_types
+    {
         let generic_param =
             &metadata.metadata.global_metadata.generic_parameters[generic_param_index];
 
         let resulting_ty_idx = generic_args[generic_param.num as usize];
-        let resulting_ty =  &metadata.metadata_registration.types[resulting_ty_idx];
+        let resulting_ty = &metadata.metadata_registration.types[resulting_ty_idx];
 
         if resulting_ty == ty {
-            warn!("Var points to itself! Type: {resulting_ty:?} generic args: {generic_args:?} {}", ty.full_name(metadata.metadata));
+            warn!(
+                "Var points to itself! Type: {resulting_ty:?} generic args: {generic_args:?} {}",
+                ty.full_name(metadata.metadata)
+            );
         }
         // If Var, this is partial instantiation
         // we just treat it as Ptr below

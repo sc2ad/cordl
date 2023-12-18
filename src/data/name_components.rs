@@ -70,7 +70,9 @@ impl NameComponents {
 
     /// just cpp name with generics
     pub fn formatted_name(&self, include_generics: bool) -> String {
-        if let Some(generics) = &self.generics && include_generics {
+        if let Some(generics) = &self.generics
+            && include_generics
+        {
             format!("{}<{}>", self.name, generics.join(","))
         } else {
             self.name.to_string()

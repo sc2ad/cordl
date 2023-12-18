@@ -587,7 +587,9 @@ pub trait CSType: Sized {
                 }
             };
 
-            if let TypeData::TypeDefinitionIndex(field_tdi) = f_type.data && metadata.blacklisted_types.contains(&field_tdi) {
+            if let TypeData::TypeDefinitionIndex(field_tdi) = f_type.data
+                && metadata.blacklisted_types.contains(&field_tdi)
+            {
                 if !cpp_type.is_value_type && !cpp_type.is_enum_type {
                     continue;
                 }
@@ -1490,7 +1492,7 @@ pub trait CSType: Sized {
                 is_delete: false,
                 is_protected: false,
                 base_ctor: Some((
-                    cpp_type.inherit.get(0).unwrap().to_string(),
+                    cpp_type.inherit.first().unwrap().to_string(),
                     "instance".to_string(),
                 )),
                 initialized_values: Default::default(),
@@ -1557,7 +1559,10 @@ pub trait CSType: Sized {
         }
         // Maps into the first parent -> ""
         // so then Parent()
-        let base_ctor = cpp_type.inherit.get(0).map(|s| (s.clone(), "".to_string()));
+        let base_ctor = cpp_type
+            .inherit
+            .first()
+            .map(|s| (s.clone(), "".to_string()));
 
         let body: Vec<Arc<dyn Writable>> = instance_fields
             .iter()
@@ -1864,7 +1869,7 @@ pub trait CSType: Sized {
 
         let base_type = cpp_type
             .inherit
-            .get(0)
+            .first()
             .expect("No parent for interface type?");
 
         cpp_type.declarations.push(
@@ -2457,35 +2462,42 @@ pub trait CSType: Sized {
             .is_some_and(|t| !t.names.is_empty());
 
         // don't emit method size structs for generic methods
-        if let Some(method_calc) = method_calc && template.is_none() && !has_template_args && !is_generic_method_inst {
+        if let Some(method_calc) = method_calc
+            && template.is_none()
+            && !has_template_args
+            && !is_generic_method_inst
+        {
             cpp_type
                 .nonmember_implementations
-                .push(Rc::new(CppNonMember::SizeStruct(CppMethodSizeStruct {
-                    ret_ty: method_decl.return_type.clone(),
-                    cpp_method_name: method_decl.cpp_name.clone(),
-                    method_name: m_name.to_string(),
-                    declaring_type_name: method_impl.declaring_cpp_full_name.clone(),
-                    declaring_classof_call,
-                    method_info_lines,
-                    method_info_var: METHOD_INFO_VAR_NAME.to_string(),
-                    instance: method_decl.instance,
-                    params: method_decl.parameters.clone(),
-                    template: template.clone(),
-                    generic_literals: resolved_generic_types,
-                    method_data: CppMethodData {
-                        addrs: method_calc.addrs,
-                        estimated_size: method_calc.estimated_size,
-                    },
-                    interface_clazz_of: interface_declaring_cpp_type
-                        .map(|d| d.classof_cpp_name())
-                        .unwrap_or_else(|| format!("Bad stuff happened {declaring_type:?}")),
-                    is_final: method.is_final_method(),
-                    slot: if method.slot != u16::MAX {
-                        Some(method.slot)
-                    } else {
-                        None
-                    },
-                })));
+                .push(Rc::new(CppNonMember::SizeStruct(
+                    CppMethodSizeStruct {
+                        ret_ty: method_decl.return_type.clone(),
+                        cpp_method_name: method_decl.cpp_name.clone(),
+                        method_name: m_name.to_string(),
+                        declaring_type_name: method_impl.declaring_cpp_full_name.clone(),
+                        declaring_classof_call,
+                        method_info_lines,
+                        method_info_var: METHOD_INFO_VAR_NAME.to_string(),
+                        instance: method_decl.instance,
+                        params: method_decl.parameters.clone(),
+                        template: template.clone(),
+                        generic_literals: resolved_generic_types,
+                        method_data: CppMethodData {
+                            addrs: method_calc.addrs,
+                            estimated_size: method_calc.estimated_size,
+                        },
+                        interface_clazz_of: interface_declaring_cpp_type
+                            .map(|d| d.classof_cpp_name())
+                            .unwrap_or_else(|| format!("Bad stuff happened {declaring_type:?}")),
+                        is_final: method.is_final_method(),
+                        slot: if method.slot != u16::MAX {
+                            Some(method.slot)
+                        } else {
+                            None
+                        },
+                    }
+                    .into(),
+                )));
         }
 
         // TODO: Revise this

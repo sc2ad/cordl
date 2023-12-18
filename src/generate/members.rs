@@ -130,7 +130,7 @@ pub enum CppMember {
 
 #[derive(Clone, Debug)]
 pub enum CppNonMember {
-    SizeStruct(CppMethodSizeStruct),
+    SizeStruct(Box<CppMethodSizeStruct>),
     CppUsingAlias(CppUsingAlias),
     Comment(CppCommentedString),
     CppStaticAssert(CppStaticAssert),

@@ -419,7 +419,9 @@ impl Writable for CppConstructorDecl {
         let prefixes = prefix_modifiers.join(" ");
         let suffixes = suffix_modifiers.join(" ");
 
-        if let Some(body) = &body && !self.is_default {
+        if let Some(body) = &body
+            && !self.is_default
+        {
             let initializers = match self.initialized_values.is_empty() && self.base_ctor.is_none()
             {
                 true => "".to_string(),
@@ -438,7 +440,10 @@ impl Writable for CppConstructorDecl {
                 }
             };
 
-            writeln!(writer, "{prefixes} {name}({params}) {suffixes} {initializers} {{",)?;
+            writeln!(
+                writer,
+                "{prefixes} {name}({params}) {suffixes} {initializers} {{",
+            )?;
 
             body.iter().try_for_each(|w| w.write(writer))?;
             writeln!(writer, "}}")?;

@@ -1,16 +1,13 @@
 #![feature(entry_insert)]
 #![feature(let_chains)]
-#![feature(core_intrinsics)]
 #![feature(slice_as_chunks)]
 #![feature(read_buf)]
 #![feature(map_try_insert)]
-#![feature(return_position_impl_trait_in_trait)]
 #![feature(lazy_cell)]
 #![feature(exit_status_error)]
-#![feature(result_option_inspect)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
-use color_eyre::{owo_colors::OwoColorize, Result};
+use color_eyre::Result;
 use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
 extern crate pretty_env_logger;
@@ -20,14 +17,7 @@ use log::{info, trace, warn};
 use rayon::prelude::*;
 use walkdir::DirEntry;
 
-use std::{
-    fs,
-    io::Write,
-    path::PathBuf,
-    process::{Child, Command},
-    sync::LazyLock,
-    thread, time,
-};
+use std::{fs, path::PathBuf, process::Command, sync::LazyLock, time};
 
 use clap::{Parser, Subcommand};
 

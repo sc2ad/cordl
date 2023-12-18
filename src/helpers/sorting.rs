@@ -37,7 +37,7 @@ where
     pub fn add_dependency(&mut self, dependent: &'a A, dependency: &'a A) {
         self.dependencies
             .entry(dependent)
-            .or_insert(HashSet::new())
+            .or_default()
             .insert(dependency);
     }
 
