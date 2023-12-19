@@ -2353,7 +2353,7 @@ pub trait CSType: Sized {
         let instance_ptr: String = if method.is_static_method() {
             "nullptr".into()
         } else {
-            "this".into()
+            "*this".into()
         };
 
         const METHOD_INFO_VAR_NAME: &str = "___internal_method";
