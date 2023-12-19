@@ -183,12 +183,10 @@ namespace cordl_internals {
               typename... TArgs>
     CORDL_HIDDEN TOut RunMethodRethrow(T&& instance, MethodInfo const* method,
                                        TArgs&&... params) {
-        static auto logger = il2cpp_utils::getLogger().WithContext("RunMethodRethrow");
         CRASH_UNLESS(method);
 
         // get the instance value, regardless of if it is boxed or anything
         auto inst = ExtractValue(instance);
-        logger.info("Instance: %p", inst);
 
         // do a null check for reference instance method calls
 #ifndef NO_RUNTIME_INSTANCE_METHOD_NULL_CHECKS
