@@ -12,23 +12,37 @@
 namespace {
 namespace cordl_internals {
 #pragma region extract values
-template<typename T>
+    template<typename T>
+    requires(!std::is_convertible_v<T, Il2CppObject*>)
     CORDL_HIDDEN void* ExtractValue(T& arg)  {
         return const_cast<void*>(static_cast<void*>(&arg));
     }
 
+    template<typename T>
+    requires(std::is_convertible_v<T, Il2CppObject*>)
+    CORDL_HIDDEN void* ExtractValue(T& arg)  {
+        return const_cast<void*>(static_cast<void*>(arg));
+    }
+
     template<>
-    CORDL_HIDDEN void* ExtractValue(void*& arg)  {
+    CORDL_HIDDEN void* ExtractValue<void*>(void*& arg)  {
         return arg;
     }
 
     template<typename T>
+    requires(!std::is_convertible_v<T, Il2CppObject*>)
     CORDL_HIDDEN void* ExtractValue(T&& arg)  {
         return const_cast<void*>(&arg);
     }
 
+    template<typename T>
+    requires(std::is_convertible_v<T, Il2CppObject*>)
+    CORDL_HIDDEN void* ExtractValue(T&& arg)  {
+        return const_cast<void*>(static_cast<void*>(arg));
+    }
+
     template<>
-    CORDL_HIDDEN void* ExtractValue(void*&& arg)  {
+    CORDL_HIDDEN void* ExtractValue<void*>(void*&& arg)  {
         return arg;
     }
 
@@ -39,18 +53,22 @@ template<typename T>
     CORDL_HIDDEN constexpr void* ExtractValue<Il2CppClass*>(Il2CppClass*&&) { return nullptr; }
 
     template<>
-    CORDL_HIDDEN void* ExtractValue<::bs_hook::Il2CppWrapperType>(::bs_hook::Il2CppWrapperType& arg) {
-        if (arg) { // is it even a set value
+    CORDL_HIDDEN constexpr void* ExtractValue<Il2CppObject*>(Il2CppObject*&& arg) {
+        if (arg) {
             il2cpp_functions::Init();
-            auto k = il2cpp_functions::object_get_class(static_cast<Il2CppObject*>(arg));
+            auto k = il2cpp_functions::object_get_class(arg);
             if (k && il2cpp_functions::class_is_valuetype(k)) {
                 // boxed value type, unbox it
                 return il2cpp_functions::object_unbox(static_cast<Il2CppObject*>(arg));
             }
-            return arg.convert();
-        } else {
-            return nullptr;
         }
+
+        return arg;
+    }
+
+    template<>
+    CORDL_HIDDEN void* ExtractValue<::bs_hook::Il2CppWrapperType>(::bs_hook::Il2CppWrapperType& arg) {
+        return ExtractValue<Il2CppObject*>(arg);
     }
 
     template<il2cpp_convertible T>
@@ -165,10 +183,13 @@ template<typename T>
               typename... TArgs>
     CORDL_HIDDEN TOut RunMethodRethrow(T&& instance, MethodInfo const* method,
                                        TArgs&&... params) {
+        static auto logger = il2cpp_utils::getLogger().WithContext("RunMethodRethrow");
         CRASH_UNLESS(method);
 
         // get the instance value, regardless of if it is boxed or anything
         auto inst = ExtractValue(instance);
+        logger.info("Instance: %p", inst);
+
         // do a null check for reference instance method calls
 #ifndef NO_RUNTIME_INSTANCE_METHOD_NULL_CHECKS
         if constexpr (::il2cpp_utils::il2cpp_reference_type<T>) {
