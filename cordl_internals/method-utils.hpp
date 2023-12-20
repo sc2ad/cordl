@@ -13,47 +13,31 @@ namespace {
 namespace cordl_internals {
 #pragma region extract values
     template<typename T>
-    requires(!std::is_convertible_v<T, Il2CppObject*>)
-    CORDL_HIDDEN void* ExtractValue(T& arg)  {
-        return const_cast<void*>(static_cast<void*>(&arg));
-    }
+    CORDL_HIDDEN void* ExtractValue(T& arg) noexcept;
 
     template<typename T>
-    requires(std::is_convertible_v<T, Il2CppObject*>)
-    CORDL_HIDDEN void* ExtractValue(T& arg)  {
-        return const_cast<void*>(static_cast<void*>(arg));
-    }
-
-    template<>
-    CORDL_HIDDEN void* ExtractValue<void*>(void*& arg)  {
-        return arg;
-    }
+    requires(il2cpp_convertible<T>)
+    CORDL_HIDDEN void* ExtractValue(T& arg) noexcept { return arg.convert(); }
 
     template<typename T>
-    requires(!std::is_convertible_v<T, Il2CppObject*>)
-    CORDL_HIDDEN void* ExtractValue(T&& arg)  {
-        return const_cast<void*>(&arg);
-    }
-
-    template<typename T>
-    requires(std::is_convertible_v<T, Il2CppObject*>)
-    CORDL_HIDDEN void* ExtractValue(T&& arg)  {
-        return const_cast<void*>(static_cast<void*>(arg));
+    requires(std::is_pointer_v<T>)
+    CORDL_HIDDEN void* ExtractValue(T& arg) noexcept {
+        return const_cast<void*>(static_cast<const void*>(arg));
     }
 
     template<>
-    CORDL_HIDDEN void* ExtractValue<void*>(void*&& arg)  {
-        return arg;
-    }
+    CORDL_HIDDEN void* ExtractValue<nullptr_t>(nullptr_t&) noexcept { return nullptr; }
+    template<>
+    CORDL_HIDDEN void* ExtractValue<void*>(void*& arg) noexcept { return arg; }
 
     template<>
-    CORDL_HIDDEN constexpr void* ExtractValue<Il2CppType*>(Il2CppType*&&) { return nullptr; }
+    CORDL_HIDDEN constexpr void* ExtractValue<Il2CppType*>(Il2CppType*&) noexcept { return nullptr; }
 
     template<>
-    CORDL_HIDDEN constexpr void* ExtractValue<Il2CppClass*>(Il2CppClass*&&) { return nullptr; }
+    CORDL_HIDDEN constexpr void* ExtractValue<Il2CppClass*>(Il2CppClass*&) noexcept { return nullptr; }
 
     template<>
-    CORDL_HIDDEN constexpr void* ExtractValue<Il2CppObject*>(Il2CppObject*&& arg) {
+    CORDL_HIDDEN constexpr void* ExtractValue<Il2CppObject*>(Il2CppObject*& arg) noexcept {
         if (arg) {
             il2cpp_functions::Init();
             auto k = il2cpp_functions::object_get_class(arg);
@@ -66,14 +50,43 @@ namespace cordl_internals {
         return arg;
     }
 
-    template<>
-    CORDL_HIDDEN void* ExtractValue<::bs_hook::Il2CppWrapperType>(::bs_hook::Il2CppWrapperType& arg) {
-        return ExtractValue<Il2CppObject*>(arg);
+    template<typename T>
+    CORDL_HIDDEN void* ExtractValue(T&& arg) noexcept;
+
+    template<typename T>
+    requires(il2cpp_convertible<T>)
+    CORDL_HIDDEN void* ExtractValue(T&& arg) noexcept { return arg.convert(); }
+
+    template<typename T>
+    requires(std::is_pointer_v<T>)
+    CORDL_HIDDEN void* ExtractValue(T&& arg) noexcept {
+        return const_cast<void*>(static_cast<const void*>(arg));
     }
 
-    template<il2cpp_convertible T>
-    requires(!std::is_same_v<T, ::bs_hook::Il2CppWrapperType>)
-    CORDL_HIDDEN constexpr void* ExtractValue(T& arg) { return arg.convert(); }
+    template<>
+    CORDL_HIDDEN void* ExtractValue<nullptr_t>(nullptr_t&&) noexcept { return nullptr; }
+    template<>
+    CORDL_HIDDEN void* ExtractValue<void*>(void*&& arg) noexcept { return arg; }
+
+    template<>
+    CORDL_HIDDEN constexpr void* ExtractValue<Il2CppType*>(Il2CppType*&&) noexcept { return nullptr; }
+
+    template<>
+    CORDL_HIDDEN constexpr void* ExtractValue<Il2CppClass*>(Il2CppClass*&&) noexcept { return nullptr; }
+
+    template<>
+    CORDL_HIDDEN constexpr void* ExtractValue<Il2CppObject*>(Il2CppObject*&& arg) noexcept {
+        if (arg) {
+            il2cpp_functions::Init();
+            auto k = il2cpp_functions::object_get_class(arg);
+            if (k && il2cpp_functions::class_is_valuetype(k)) {
+                // boxed value type, unbox it
+                return il2cpp_functions::object_unbox(static_cast<Il2CppObject*>(arg));
+            }
+        }
+
+        return arg;
+    }
 
     CORDL_HIDDEN inline auto ExtractValues() {
         return ::std::vector<void*>();
