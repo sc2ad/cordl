@@ -2490,6 +2490,7 @@ pub trait CSType: Sized {
                             .map(|d| d.classof_cpp_name())
                             .unwrap_or_else(|| format!("Bad stuff happened {declaring_type:?}")),
                         is_final: method.is_final_method(),
+                        is_interface: cpp_type.is_interface,
                         slot: if method.slot != u16::MAX {
                             Some(method.slot)
                         } else {
