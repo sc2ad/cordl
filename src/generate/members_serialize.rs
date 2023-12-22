@@ -603,7 +603,7 @@ impl Writable for CppMethodSizeStruct {
 
         // if we have a slot, this isn't final and we aren't an interface, do a slot resolve
         // interface classes don't actually have vtables to perform a slot resolve on (count == 0)
-        let method_info_lines = if let Some(slot) = self.slot && !self.is_final && !self.is_interface {
+        let method_info_lines = if let Some(slot) = self.slot && !self.is_final {
             vec![
                 format!("
                             static auto* {method_info_var} = THROW_UNLESS(::il2cpp_utils::ResolveVtableSlot(

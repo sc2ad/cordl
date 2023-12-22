@@ -163,7 +163,6 @@ pub struct CppMethodSizeStruct {
 
     pub interface_clazz_of: String,
     pub is_final: bool,
-    pub is_interface: bool,
     pub slot: Option<u16>,
 }
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]

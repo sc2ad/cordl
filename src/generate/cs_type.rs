@@ -2368,66 +2368,116 @@ pub trait CSType: Sized {
             cpp_type.cpp_name_components.combine_all()
         );
 
+        let extract_self_class = "il2cpp_functions::object_get_class(reinterpret_cast<Il2CppObject*>(this))";
+
         let params_types_format: String = CppParam::params_types(&method_decl.parameters)
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
             .join(", ");
+
+        let resolve_instance_slot_lines = if method.slot != u16::MAX {
+            let slot = &method.slot;
+            vec![
+                format!("auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::ResolveVtableSlot(
+                    {extract_self_class},
+                    {declaring_classof_call},
+                    {slot}
+                )));"),
+            ]
+        } else {
+            vec![]
+        };
+
+        // TODO: link the method to the interface that originally declared it
+        // then the resolve should look something like:
+        // resolve(classof(GlobalNamespace::BeatmapLevelPack*), classof(GlobalNamespace::IBeatmapLevelPack*), 0);
+        // that way the resolve should work correctly, but it should only happen like that for non-interfaces
+
+        let resolve_metadata_slot_lines = if method.slot != u16::MAX {
+            let self_classof_call = "";
+            let declaring_classof_call = "";
+            let slot = &method.slot;
+
+            vec![
+                format!("auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::ResolveVtableSlot(
+                    {self_classof_call},
+                    {declaring_classof_call},
+                    {slot}
+                )));"),
+            ]
+        } else {
+            vec![]
+        };
 
         let method_info_lines = match &template {
             Some(template) => {
                 // generic
                 let template_names = template
-                    .just_names()
-                    .map(|t| {
-                        format!(
-                            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"
-                        )
-                    })
-                    .join(", ");
+                .just_names()
+                .map(|t| {
+                    format!(
+                        "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"
+                    )
+                })
+                .join(", ");
 
-                vec![
-                    format!("static auto* ___internal_method_base = THROW_UNLESS((::il2cpp_utils::FindMethod(
-                        {declaring_classof_call},
-                        \"{m_name}\",
-                        std::vector<Il2CppClass*>{{{template_names}}},
-                        ::std::vector<const Il2CppType*>{{{params_types_format}}}
-                    )));"),
-                    format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS(::il2cpp_utils::MakeGenericMethod(
-                        ___internal_method_base,
-                         std::vector<Il2CppClass*>{{{template_names}}}
-                        ));"),
+            vec![
+                format!("static auto* ___internal_method_base = THROW_UNLESS((::il2cpp_utils::FindMethod(
+                    {declaring_classof_call},
+                    \"{m_name}\",
+                    std::vector<Il2CppClass*>{{{template_names}}},
+                    ::std::vector<const Il2CppType*>{{{params_types_format}}}
+                )));"),
+                format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS(::il2cpp_utils::MakeGenericMethod(
+                    ___internal_method_base,
+                    std::vector<Il2CppClass*>{{{template_names}}}
+                ));"),
                 ]
             }
             None => {
                 vec![
                     format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::FindMethod(
-                            {declaring_classof_call},
-                            \"{m_name}\",
-                            std::vector<Il2CppClass*>{{}},
-                            ::std::vector<const Il2CppType*>{{{params_types_format}}}
-                        )));"),
-                ]
+                        {declaring_classof_call},
+                        \"{m_name}\",
+                        std::vector<Il2CppClass*>{{}},
+                        ::std::vector<const Il2CppType*>{{{params_types_format}}}
+                    )));"),
+                    ]
             }
         };
 
         let method_body_lines = [format!(
             "return ::cordl_internals::RunMethodRethrow<{m_ret_cpp_type_name}, false>({});",
             method_invoke_params
-                .into_iter()
-                .chain(param_names)
-                .join(", ")
+            .into_iter()
+            .chain(param_names)
+            .join(", ")
         )];
 
         //   static auto ___internal__logger = ::Logger::get().WithContext("::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals");
         //   auto* ___internal__method = THROW_UNLESS((::il2cpp_utils::FindMethod(this, "Equals", std::vector<Il2CppClass*>{}, ::std::vector<const Il2CppType*>{::il2cpp_utils::ExtractType(obj)})));
         //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
-        let method_impl = CppMethodImpl {
-            body: method_info_lines
+        let method_body = match cpp_type.is_interface {
+            true => {
+                resolve_instance_slot_lines
+                    .iter()
+                    .chain(method_body_lines.iter())
+                    .cloned()
+                    .map(|l| -> Arc<dyn Writable> { Arc::new(CppLine::make(l)) })
+                    .collect_vec()
+            },
+            false => {
+                method_info_lines
                 .iter()
                 .chain(method_body_lines.iter())
                 .cloned()
                 .map(|l| -> Arc<dyn Writable> { Arc::new(CppLine::make(l)) })
-                .collect_vec(),
+                .collect_vec()
+            }
+        };
+
+        let method_impl = CppMethodImpl {
+            body: method_body,
             parameters: m_params_with_def.clone(),
             brief: None,
             declaring_cpp_full_name: declaring_type_cpp_full_name,
@@ -2490,7 +2540,6 @@ pub trait CSType: Sized {
                             .map(|d| d.classof_cpp_name())
                             .unwrap_or_else(|| format!("Bad stuff happened {declaring_type:?}")),
                         is_final: method.is_final_method(),
-                        is_interface: cpp_type.is_interface,
                         slot: if method.slot != u16::MAX {
                             Some(method.slot)
                         } else {
