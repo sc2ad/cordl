@@ -667,7 +667,9 @@ impl Writable for CppLine {
 
 impl Writable for CppNestedStruct {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        writeln!(writer, "/// @brief Nested struct {}", self.declaring_name)?;
+        if let Some(brief) = &self.brief_comment {
+            writeln!(writer, "/// @brief {brief}")?;
+        }
 
         let mut struct_declaration = match self.is_class {
             true => "class",
@@ -705,14 +707,13 @@ impl Sortable for CppNestedStruct {
 
 impl Writable for CppNestedUnion {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
-        let size = &self.size;
-        let offset = &self.offset;
+        if let Some(brief) = &self.brief_comment {
+            writeln!(writer, "/// @brief {brief}")?;
+        }
 
-        writeln!(writer, "// nameless union offset {offset:x}, size {size:x}")?;
         writeln!(writer, "union {{")?;
         self.declarations
             .iter()
-            .sorted_by(|a, b| a.sort_level().cmp(&b.sort_level()))
             .try_for_each(|member| -> color_eyre::Result<()>{
                 member.write(writer)?;
                 Ok(())
@@ -725,7 +726,7 @@ impl Writable for CppNestedUnion {
 
 impl Sortable for CppNestedUnion {
     fn sort_level(&self) -> SortLevel {
-        SortLevel::NestedStruct
+        SortLevel::Fields
     }
 }
 

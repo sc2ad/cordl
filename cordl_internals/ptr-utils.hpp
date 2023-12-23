@@ -12,13 +12,14 @@ namespace cordl_internals {
     requires(std::is_pointer_v<T>)
     using to_const_pointer = std::remove_pointer_t<T> const*;
 
-    
-    
+
+
     /// @brief type to wrap a pointer to a T, not recommended to be used with anything that's not il2cpp compatible
     /// @tparam T type that instance points to
     template<typename T>
     requires(!::il2cpp_utils::il2cpp_reference_type_wrapper<T>)
     struct Ptr {
+        constexpr Ptr() : instance(nullptr) {}
         constexpr explicit Ptr(void* i) : instance(i) {}
         constexpr void* convert() const { return const_cast<void*>(instance); }
 
@@ -36,6 +37,7 @@ namespace cordl_internals {
     // specific instantiation for void pointers
     template<>
     struct Ptr<void> {
+        constexpr Ptr() : instance(nullptr) {}
         constexpr Ptr(void* i) : instance(i) {}
         constexpr void* convert() const { return const_cast<void*>(instance); }
         constexpr operator void*() const { return const_cast<void*>(instance); }

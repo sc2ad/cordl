@@ -21,7 +21,7 @@ use itertools::Itertools;
 
 use crate::{
     data::name_components::NameComponents,
-    generate::{members::CppUsingAlias, offsets},
+    generate::{members::{CppUsingAlias, CppNestedUnion}, offsets},
     helpers::cursor::ReadBytesExtensions,
 };
 
@@ -72,6 +72,18 @@ struct FieldInfo {
     cpp_field: CppFieldDecl,
     offset: usize,
     size: usize,
+}
+
+struct FieldInfoSet {
+    fields: Vec<Vec<FieldInfo>>,
+    size: u32,
+    offset: u32,
+}
+
+impl FieldInfoSet {
+    fn max(&self) -> u32 {
+        self.size + self.offset
+    }
 }
 
 pub trait CSType: Sized {
@@ -537,7 +549,6 @@ pub trait CSType: Sized {
             }
         }
         let mut offset_iter = offsets.iter();
-        let mut instance_field_decls = vec![];
 
         let get_offset = |field: &Il2CppFieldDefinition, i: usize, iter: &mut Iter<u32>| {
             let f_type = metadata
@@ -548,7 +559,8 @@ pub trait CSType: Sized {
             let f_name = field.name(metadata.metadata);
 
             match f_type.is_static() || f_type.is_constant() {
-                true => 0,
+                // return u32::MAX for static fields as an "invalid offset" value
+                true => u32::MAX,
                 false => {
                     // If we have a hotfix offset, use that instead
                     // We can safely assume this always returns None even if we "next" past the end
@@ -640,40 +652,6 @@ pub trait CSType: Sized {
             // calculate / fetch the field size
             let f_size = get_size(field, cpp_type.generic_instantiations_args_types.clone());
 
-            // calculate / fetch the field size
-            let f_size = match f_type.valuetype {
-                false => metadata.pointer_size as u32,
-                true => {
-                    let f_tag = CppTypeTag::from_type_data(f_type.data, metadata.metadata);
-                    let f_tdi = f_tag.get_tdi();
-                    let f_td = Self::get_type_definition(metadata, f_tdi);
-
-                    if let Some(sz) = offsets::get_size_of_type_table(metadata, f_tdi) {
-                        if sz.instance_size == 0 {
-                            // At this point we need to compute the offsets
-                            debug!(
-                                "Computing offsets for TDI: {:?}, as it has a size of 0",
-                                tdi
-                            );
-                            let _resulting_size = offsets::layout_fields(
-                                metadata,
-                                f_td,
-                                f_tdi,
-                                cpp_type.generic_instantiations_args_types.as_ref(),
-                                None,
-                            );
-
-                            // TODO: check for VT fixup?
-                            _resulting_size.size as u32 - metadata.object_size() as u32
-                        } else {
-                            sz.instance_size - metadata.object_size() as u32
-                        }
-                    } else {
-                        0
-                    }
-                }
-            };
-
             if let TypeData::TypeDefinitionIndex(field_tdi) = f_type.data
                 && metadata.blacklisted_types.contains(&field_tdi)
             {
@@ -721,8 +699,6 @@ pub trait CSType: Sized {
                         let field_decl = CppFieldDecl {
                             cpp_name: f_cpp_name,
                             field_ty: field_ty_cpp_name,
-                            field_offset: f_offset,
-                            field_size: f_size,
                             instance: false,
                             readonly: f_type.is_constant(),
                             value: None,
@@ -774,8 +750,6 @@ pub trait CSType: Sized {
                         let field_decl = CppFieldDecl {
                             cpp_name: f_cpp_name,
                             field_ty: field_ty_cpp_name,
-                            field_offset: f_offset,
-                            field_size: f_size,
                             instance: false,
                             readonly: f_type.is_constant(),
                             value: Some(def_value),
@@ -1030,8 +1004,8 @@ pub trait CSType: Sized {
                     }
                 }
 
-                // only push def dependency if instance & valuetype field
-                if is_instance && f_type.valuetype {
+                // only push def dependency if instance & valuetype field & not a primitive builtin
+                if is_instance && f_type.valuetype && !f_type.ty.is_primitive_builtin(){
                     let field_cpp_tag: CppTypeTag =
                         CppTypeTag::from_type_data(f_type.data, metadata.metadata);
                     let field_cpp_td_tag: CppTypeTag = field_cpp_tag.get_tdi().into();
@@ -1110,6 +1084,8 @@ pub trait CSType: Sized {
                     size: f_size,
                 }
             })
+            // since static fields have u32::MAX as offset, we can filter on that
+            .filter(|f| f.offset as u32 != u32::MAX)
             .collect();
 
         // oh no! the fields are unionizing! don't tell elon musk!
@@ -1127,7 +1103,7 @@ pub trait CSType: Sized {
                 if field.offset < next_offset {
                     true
                 } else {
-                    next_offset = field.offset + field.offset;
+                    next_offset = field.offset + field.size;
                     false
                 }
             });
@@ -1141,10 +1117,110 @@ pub trait CSType: Sized {
                 .collect_vec();
         }
 
-        // TODO: actually create the CppNestedUnions and CppNestedStructs where things are unionized
+        let mut offset_map = HashMap::new();
+
+        fn accumulated_size(
+            fields: &[FieldInfo]
+        ) -> u32 {
+            fields
+                .iter()
+                .map(|f| f.size as u32)
+                .sum()
+        }
+
+        let mut current_max: u32 = 0;
+        let mut current_offset: u32 = 0;
+
+        // TODO: Field padding for exact offsets (explicit layouts?)
+
+        // you can't sort instance fields on offset/size because it will throw off the unionization process
         instance_fields
             .into_iter()
-            .map(|d| CppMember::FieldDecl(d.cpp_field))
+            .for_each(|field| {
+                let offset = field.offset as u32;
+                let size = field.size as u32;
+                let max = offset + size;
+
+                if max > current_max {
+                    current_offset = offset;
+                    current_max = max;
+                }
+
+                let current_set = offset_map
+                    .entry(current_offset)
+                    .or_insert_with(|| FieldInfoSet {
+                        fields: vec![],
+                        offset: current_offset,
+                        size,
+                    });
+
+                // if we have a last vector & the size of its fields + current_offset is smaller than current max add to that list
+                if let Some(last) = current_set.fields.last_mut() && current_offset + accumulated_size(last) < current_max {
+                    last.push(field);
+                } else {
+                    current_set.fields.push(vec![field]);
+                }
+            }
+        );
+
+        offset_map
+            .into_values()
+            .map(|field_set| {
+                // if we only have one list, just emit it as a set of fields
+                if field_set.fields.len() == 1 {
+                    field_set
+                        .fields
+                        .into_iter()
+                        .flat_map(|v| v.into_iter())
+                        .map(|d| CppMember::FieldDecl(d.cpp_field))
+                        .collect_vec()
+                } else {
+                    // we had more than 1 list, so we have unions to emit
+                    let declarations = field_set
+                        .fields
+                        .into_iter()
+                        .map(|struct_contents| {
+                            if struct_contents.len() == 1 {
+                                // emit a struct with only 1 field as just a field
+                                struct_contents
+                                    .into_iter()
+                                    .map(|d| CppMember::FieldDecl(d.cpp_field))
+                                    .collect_vec()
+                            } else {
+                                vec![
+                                    // if we have more than 1 field, emit a nested struct
+                                    CppMember::NestedStruct(
+                                        CppNestedStruct {
+                                            base_type: None,
+                                            declaring_name: "".to_string(),
+                                            is_enum: false,
+                                            is_class: false,
+                                            declarations:
+                                            struct_contents
+                                                .into_iter()
+                                                .map(|d| CppMember::FieldDecl(d.cpp_field).into())
+                                                .collect_vec(),
+                                            brief_comment: Some(format!("Anonymous struct offset 0x{:x}, size 0x{:x}", field_set.offset, field_set.size)),
+                                        }
+                                    )
+                                ]
+                            }
+                        })
+                        .flat_map(|v| v.into_iter())
+                        .collect_vec();
+
+                    // wrap our set into a union
+                    vec![
+                        CppMember::NestedUnion(
+                            CppNestedUnion {
+                                brief_comment: Some(format!("Anonymous union offset 0x{:x}, size 0x{:x}", field_set.offset, field_set.size)),
+                                declarations: declarations.into_iter().map(|d| d.into()).collect_vec()
+                            }
+                        )
+                    ]
+                }
+            })
+            .flat_map(|v| v.into_iter())
             .collect_vec()
     }
 
@@ -1519,8 +1595,6 @@ pub trait CSType: Sized {
                 CppMember::FieldDecl(CppFieldDecl {
                     cpp_name: REFERENCE_TYPE_WRAPPER_SIZE.to_string(),
                     field_ty: "auto".to_string(),
-                    field_offset: 0,
-                    field_size: 0,
                     instance: false,
                     readonly: false,
                     const_expr: true,
@@ -1540,8 +1614,6 @@ pub trait CSType: Sized {
                 CppMember::FieldDecl(CppFieldDecl {
                     cpp_name: format!("{REFERENCE_TYPE_FIELD_SIZE}[{fixup_size}]"),
                     field_ty: "uint8_t".to_string(),
-                    field_offset: 0,
-                    field_size: 0,
                     instance: true,
                     readonly: false,
                     const_expr: false,
@@ -1639,6 +1711,7 @@ pub trait CSType: Sized {
             is_class: false,
             is_enum: true,
             declarations: enum_entries.map(Rc::new).collect(),
+            brief_comment: Some(format!("Nested struct {unwrapped_name}"))
         };
         cpp_type
             .declarations
@@ -1682,8 +1755,6 @@ pub trait CSType: Sized {
             CppMember::FieldDecl(CppFieldDecl {
                 cpp_name: VALUE_TYPE_WRAPPER_SIZE.to_string(),
                 field_ty: "auto".to_string(),
-                field_offset: 0,
-                field_size: 0,
                 instance: false,
                 readonly: false,
                 const_expr: true,
