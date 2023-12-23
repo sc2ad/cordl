@@ -122,6 +122,7 @@ pub enum CppMember {
     ConstructorDecl(CppConstructorDecl),
     ConstructorImpl(CppConstructorImpl),
     NestedStruct(CppNestedStruct),
+    NestedUnion(CppNestedUnion),
     CppUsingAlias(CppUsingAlias),
     Comment(CppCommentedString),
     CppStaticAssert(CppStaticAssert),
@@ -169,6 +170,8 @@ pub struct CppMethodSizeStruct {
 pub struct CppFieldDecl {
     pub cpp_name: String,
     pub field_ty: String,
+    pub field_offset: u32,
+    pub field_size: u32,
     pub instance: bool,
     pub readonly: bool,
     pub const_expr: bool,
@@ -365,6 +368,13 @@ pub struct CppNestedStruct {
     pub declarations: Vec<Rc<CppMember>>,
     pub is_enum: bool,
     pub is_class: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct CppNestedUnion {
+    pub declarations: Vec<Rc<CppMember>>,
+    pub offset: u32,
+    pub size: u32
 }
 
 impl From<CppConstructorDecl> for CppConstructorImpl {

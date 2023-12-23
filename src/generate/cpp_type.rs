@@ -144,14 +144,14 @@ impl CppTypeRequirements {
     pub fn needs_enum_include(&mut self) {
         self.add_def_include(
             None,
-            CppInclude::new_exact("beatsaber-hook/shared/utils/enum-wrapper-type.hpp"),
+            CppInclude::new_exact("beatsaber-hook/shared/utils/enum-type.hpp"),
         );
     }
 
     pub fn needs_value_include(&mut self) {
         self.add_def_include(
             None,
-            CppInclude::new_exact("beatsaber-hook/shared/utils/value-wrapper-type.hpp"),
+            CppInclude::new_exact("beatsaber-hook/shared/utils/value-type.hpp"),
         );
     }
 }
