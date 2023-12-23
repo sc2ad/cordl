@@ -50,5 +50,12 @@ namespace cordl_internals {
     #else
         #define FIELD_NULL_CHECK(instance)
     #endif
+
+    template<typename T>
+    requires(std::is_pointer_v<T>)
+    constexpr inline void* convert(T&& inst) { return static_cast<void*>(const_cast<void*>(static_cast<const void*>(inst))); }
+
+    template<il2cpp_utils::has_il2cpp_conversion T>
+    constexpr inline void* convert(T&& inst) { return inst.convert(); }
 }
 }

@@ -74,6 +74,7 @@ pub struct CppType {
     pub(crate) prefix_comments: Vec<String>,
 
     pub calculated_size: Option<usize>,
+    pub packing: Option<usize>,
 
     // Computed by TypeDefinition.full_name()
     // Then fixed for generic types in CppContextCollection::make_generic_from/fill_generic_inst
@@ -327,6 +328,11 @@ impl CppType {
                 true => CORDL_TYPE_MACRO,
                 false => "",
             };
+
+            if let Some(packing) = &self.packing {
+                writeln!(writer, "#pragma pack(push, {packing})")?;
+            }
+
             match self.inherit.is_empty() {
                 true => writeln!(writer, "{type_kind} {cordl_hide} {clazz_name} {{")?,
                 false => writeln!(
@@ -394,6 +400,11 @@ impl CppType {
             // Type complete
             writer.dedent();
             writeln!(writer, "}};")?;
+
+            if self.packing.is_some() {
+                writeln!(writer, "#pragma pack(pop)")?;
+            }
+
 
             // NON MEMBER DECLARATIONS
             writeln!(writer, "// Non member Declarations")?;

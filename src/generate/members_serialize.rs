@@ -512,14 +512,21 @@ impl Writable for CppConstructorImpl {
         let prefixes = prefix_modifiers.join(" ");
         let suffixes = suffix_modifiers.join(" ");
 
-        write!(
-            writer,
-            "{prefixes} {full_name}::{declaring_name}({params}) {suffixes} {initializers} {{",
-        )?;
+        if self.is_default {
+            writeln!(
+                writer,
+                "{prefixes} {full_name}::{declaring_name}({params}) {suffixes} {initializers} = default;",
+            )?;
+        } else {
+            writeln!(
+                writer,
+                "{prefixes} {full_name}::{declaring_name}({params}) {suffixes} {initializers} {{",
+            )?;
 
-        self.body.iter().try_for_each(|w| w.write(writer))?;
-        // End
-        writeln!(writer, "}}")?;
+            self.body.iter().try_for_each(|w| w.write(writer))?;
+            // End
+            writeln!(writer, "}}")?;
+        }
 
         Ok(())
     }

@@ -224,7 +224,7 @@ pub trait CSType: Sized {
         // TODO: Come up with a way to avoid this extra call to layout the entire type
         // We really just want to call it once for a given size and then move on
         // Every type should have a valid metadata size, even if it is 0
-        let metadata_size = offsets::get_sizeof_type(t, tdi, generic_inst_types, metadata);
+        let (metadata_size, alignment) = offsets::get_size_and_alignment(t, tdi, generic_inst_types, metadata);
 
         // Modified later for nested types
         let mut cpptype = CppType {
@@ -233,6 +233,7 @@ pub trait CSType: Sized {
             prefix_comments: vec![format!("Type: {ns}::{name}")],
 
             calculated_size: Some(metadata_size as usize),
+            packing: Some(alignment as usize),
 
             cpp_name_components,
             cs_name_components,
@@ -590,49 +591,67 @@ pub trait CSType: Sized {
             }
         };
 
-        let get_size = |field: &Il2CppFieldDefinition, gen_args: Option<Vec<usize>>| {
+        let get_size = |field: &Il2CppFieldDefinition, gen_args: Option<&Vec<usize>>| {
             let f_type = metadata
                 .metadata_registration
                 .types
                 .get(field.type_index as usize)
                 .unwrap();
 
-            match f_type.valuetype {
-                false => metadata.pointer_size as u32,
-                true => {
-                    let f_tag = CppTypeTag::from_type_data(f_type.data, metadata.metadata);
-                    let f_tdi = f_tag.get_tdi();
-                    let f_td = Self::get_type_definition(metadata, f_tdi);
+            let sa = offsets::get_il2cpptype_sa(
+                metadata,
+                f_type,
+                gen_args,
+            );
 
-                    if let Some(sz) = offsets::get_size_of_type_table(metadata, f_tdi) {
-                        if sz.instance_size == 0 {
-                            // At this point we need to compute the offsets
-                            debug!(
-                                "Computing offsets for TDI: {:?}, as it has a size of 0",
-                                tdi
-                            );
-                            let _resulting_size = offsets::layout_fields(
-                                metadata,
-                                f_td,
-                                f_tdi,
-                                gen_args.as_ref(),
-                                None,
-                            );
+            return sa.size;
 
-                            // TODO: check for VT fixup?
-                            if f_td.is_value_type() {
-                                _resulting_size.size as u32 - metadata.object_size() as u32
-                            } else {
-                                _resulting_size.size as u32
-                            }
-                        } else {
-                            sz.instance_size - metadata.object_size() as u32
-                        }
-                    } else {
-                        0
-                    }
-                }
-            }
+            // // TODO: is valuetype even a good way of checking whether we should be size of pointer?
+            // match f_type.valuetype {
+            //     false => metadata.pointer_size as u32,
+            //     true => {
+            //         match f_type.data {
+            //             TypeData::TypeDefinitionIndex(f_tdi) => {
+            //                 let f_td = Self::get_type_definition(metadata, f_tdi);
+
+            //             },
+            //             TypeData::GenericClassIndex(class_index) => {
+
+            //             }
+            //         }
+            //         let f_tag = CppTypeTag::from_type_data(f_type.data, metadata.metadata);
+            //         let f_tdi = f_tag.get_tdi();
+            //         let f_td = Self::get_type_definition(metadata, f_tdi);
+
+            //         if let Some(sz) = offsets::get_size_of_type_table(metadata, f_tdi) {
+            //             if sz.instance_size == 0 {
+            //                 // At this point we need to compute the offsets
+            //                 debug!(
+            //                     "Computing offsets for TDI: {:?}, as it has a size of 0",
+            //                     tdi
+            //                 );
+            //                 let _resulting_size = offsets::layout_fields(
+            //                     metadata,
+            //                     f_td,
+            //                     f_tdi,
+            //                     gen_args.as_ref(),
+            //                     None,
+            //                 );
+
+            //                 // TODO: check for VT fixup?
+            //                 if f_td.is_value_type() {
+            //                     _resulting_size.size as u32 - metadata.object_size() as u32
+            //                 } else {
+            //                     _resulting_size.size as u32
+            //                 }
+            //             } else {
+            //                 sz.instance_size - metadata.object_size() as u32
+            //             }
+            //         } else {
+            //             0
+            //         }
+            //     }
+            // }
         };
 
         for (i, field) in t.fields(metadata.metadata).iter().enumerate() {
@@ -650,7 +669,11 @@ pub trait CSType: Sized {
             let f_offset = get_offset(field, i, &mut offset_iter);
 
             // calculate / fetch the field size
-            let f_size = get_size(field, cpp_type.generic_instantiations_args_types.clone());
+            let f_size = if let Some(generics) = &cpp_type.generic_instantiations_args_types {
+                get_size(field, Some(generics))
+            } else {
+                get_size(field, None)
+            } as usize;
 
             if let TypeData::TypeDefinitionIndex(field_tdi) = f_type.data
                 && metadata.blacklisted_types.contains(&field_tdi)
@@ -803,7 +826,7 @@ pub trait CSType: Sized {
                         match !f_type.valuetype && declaring_is_ref {
                             // ref type field write on a ref type
                             true => {
-                                format!("il2cpp_functions::gc_wbarrier_set_field(this, &{field_access}, static_cast<void*>({setter_var_name}));")
+                                format!("il2cpp_functions::gc_wbarrier_set_field(this, &{field_access}, cordl_internals::convert(std::forward<decltype({setter_var_name})>({setter_var_name})));")
                             }
                             false => {
                                 format!("{field_access} = {setter_var_name};")
@@ -1005,7 +1028,7 @@ pub trait CSType: Sized {
                 }
 
                 // only push def dependency if instance & valuetype field & not a primitive builtin
-                if is_instance && f_type.valuetype && !f_type.ty.is_primitive_builtin(){
+                if is_instance && f_type.valuetype && !f_type.ty.is_primitive_builtin() {
                     let field_cpp_tag: CppTypeTag =
                         CppTypeTag::from_type_data(f_type.data, metadata.metadata);
                     let field_cpp_td_tag: CppTypeTag = field_cpp_tag.get_tdi().into();
@@ -1017,6 +1040,11 @@ pub trait CSType: Sized {
                             .expect("No context for cpp enum type");
 
                         cpp_type.requirements.add_def_include(
+                            field_cpp_type,
+                            CppInclude::new_context_typedef(field_cpp_context),
+                        );
+
+                        cpp_type.requirements.add_impl_include(
                             field_cpp_type,
                             CppInclude::new_context_typeimpl(field_cpp_context),
                         );
@@ -1062,8 +1090,12 @@ pub trait CSType: Sized {
                 };
 
                 let f_offset = get_offset(field, i, &mut offset_iter) as usize;
-                let f_size =
-                    get_size(field, cpp_type.generic_instantiations_args_types.clone()) as usize;
+                let f_size = if let Some(generics) = &cpp_type.generic_instantiations_args_types {
+                    get_size(field, Some(generics))
+                } else {
+                    get_size(field, None)
+                } as usize;
+
                 let def_value = Self::field_default_value(metadata, field_index);
 
                 let decl = CppFieldDecl {
@@ -1263,21 +1295,7 @@ pub trait CSType: Sized {
             // parent will be a value wrapper type
             // which will have the size
             // OF THE TYPE ITSELF, NOT PARENT
-            true => {
-                let size = cpp_type
-                    .calculated_size
-                    .expect("No size for value/enum type!");
-
-                if t.is_enum_type() {
-                    cpp_type.requirements.needs_enum_include();
-                } else if t.is_value_type() {
-                    cpp_type.requirements.needs_value_include();
-                }
-
-                let wrapper = wrapper_type_for_tdi(t);
-
-                cpp_type.inherit.push(wrapper.to_string());
-            }
+            true => {},
             // handle as reference type
             false => {
                 // make sure our parent is intended\
@@ -2289,13 +2307,13 @@ pub trait CSType: Sized {
         let cpp_type = self.get_mut_cpp_type();
         let t = &cpp_type.cpp_name_components.name;
 
-        let default_ctor = CppConstructorDecl {
+        let default_ctor_decl = CppConstructorDecl {
             cpp_name: t.clone(),
             parameters: vec![],
             template: None,
             is_constexpr: false,
             is_explicit: false,
-            is_default: true,
+            is_default: false,
             is_no_except: false,
             is_delete: false,
             is_protected: protected,
@@ -2305,9 +2323,19 @@ pub trait CSType: Sized {
             body: None,
         };
 
+        let default_ctor_impl = CppConstructorImpl {
+            is_default: true,
+            declaring_full_name: cpp_type.cpp_name_components.remove_pointer().combine_all(),
+            ..default_ctor_decl.clone().into()
+        };
+
         cpp_type
             .declarations
-            .push(CppMember::ConstructorDecl(default_ctor).into());
+            .push(CppMember::ConstructorDecl(default_ctor_decl).into());
+
+        cpp_type
+            .implementations
+            .push(CppMember::ConstructorImpl(default_ctor_impl).into());
     }
 
     fn delete_default_ctor(&mut self) {

@@ -353,6 +353,7 @@ pub struct CppConstructorImpl {
 
     pub is_constexpr: bool,
     pub is_no_except: bool,
+    pub is_default: bool,
 
     pub template: Option<CppTemplate>,
 
@@ -382,6 +383,7 @@ impl From<CppConstructorDecl> for CppConstructorImpl {
             declaring_full_name: value.cpp_name.clone(),
             declaring_name: value.cpp_name,
             is_constexpr: value.is_constexpr,
+            is_default: value.is_default,
             base_ctor: value.base_ctor,
             initialized_values: value.initialized_values,
             is_no_except: value.is_no_except,

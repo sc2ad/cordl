@@ -19,6 +19,44 @@ use super::type_extensions::TypeDefinitionExtensions;
 
 const IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS: u32 = 1;
 
+pub fn get_size_and_alignment<'a>(
+    t: &'a Il2CppTypeDefinition,
+    tdi: TypeDefinitionIndex,
+    generic_inst_types: Option<&Vec<usize>>,
+    metadata: &'a Metadata,
+) -> (u32, u32) {
+    let sa = layout_fields(metadata, t, tdi, generic_inst_types, None);
+    let mut metadata_size = get_size_of_type_table(metadata, tdi).unwrap().instance_size;
+
+    let sz = match metadata_size == 0 {
+        true => {
+            sa.size
+        },
+        false => {
+            metadata_size as usize
+        }
+    };
+
+    let return_size = if t.is_value_type() || t.is_enum_type() {
+        sz
+            .checked_sub(metadata.object_size() as usize)
+            .unwrap()
+    } else {
+        sa.size
+    };
+
+    (return_size as u32, sa.alignment as u32)
+}
+
+pub fn get_il2cpptype_sa(
+    metadata: &Metadata<'_>,
+    ty: &Il2CppType,
+    generic_inst_types: Option<&Vec<usize>>,
+) -> SizeAndAlignment {
+    get_type_size_and_alignment(ty, generic_inst_types, metadata)
+}
+
+
 pub fn get_sizeof_type<'a>(
     t: &'a Il2CppTypeDefinition,
     tdi: TypeDefinitionIndex,
