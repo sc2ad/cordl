@@ -627,7 +627,7 @@ impl Writable for CppMethodSizeStruct {
         writeln!(
             writer,
             "
-struct ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{ret_type} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_method_name})> {{
+struct CORDL_HIDDEN ::il2cpp_utils::il2cpp_type_check::MetadataGetter<static_cast<{ret_type} ({f_ptr_prefix}*)({params_format})>(&{complete_type_name}::{cpp_method_name})> {{
   constexpr static std::size_t size = 0x{size:x};
   constexpr static std::size_t addrs = 0x{addr:x};
 

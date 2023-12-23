@@ -4,13 +4,14 @@ use std::{
     collections::HashMap,
     io::{Cursor, Read},
     rc::Rc,
+    slice::Iter,
     sync::Arc,
 };
 
 use brocolib::{
     global_metadata::{
-        FieldIndex, Il2CppTypeDefinition, MethodIndex, ParameterIndex, TypeDefinitionIndex,
-        TypeIndex,
+        FieldIndex, Il2CppFieldDefinition, Il2CppTypeDefinition, MethodIndex, ParameterIndex,
+        TypeDefinitionIndex, TypeIndex,
     },
     runtime_metadata::{Il2CppMethodSpec, Il2CppType, Il2CppTypeEnum, TypeData},
 };
@@ -66,6 +67,12 @@ pub const ENUM_PTR_TYPE: &str = "::bs_hook::EnumPtr";
 pub const VT_PTR_TYPE: &str = "::bs_hook::VTPtr";
 
 const SIZEOF_IL2CPP_OBJECT: u32 = 0x10;
+
+struct FieldInfo {
+    cpp_field: CppFieldDecl,
+    offset: usize,
+    size: usize,
+}
 
 pub trait CSType: Sized {
     fn get_mut_cpp_type(&mut self) -> &mut CppType; // idk how else to do this
@@ -532,24 +539,20 @@ pub trait CSType: Sized {
         let mut offset_iter = offsets.iter();
         let mut instance_field_decls = vec![];
 
-        for (i, field) in t.fields(metadata.metadata).iter().enumerate() {
+        let get_offset = |field: &Il2CppFieldDefinition, i: usize, iter: &mut Iter<u32>| {
             let f_type = metadata
                 .metadata_registration
                 .types
                 .get(field.type_index as usize)
                 .unwrap();
-
-            let field_index = FieldIndex::new(t.field_start.index() + i as u32);
             let f_name = field.name(metadata.metadata);
 
-            let f_cpp_name = config.name_cpp_plus(f_name, &[cpp_type.cpp_name().as_str()]);
-
-            let f_offset = match f_type.is_static() || f_type.is_constant() {
+            match f_type.is_static() || f_type.is_constant() {
                 true => 0,
                 false => {
                     // If we have a hotfix offset, use that instead
                     // We can safely assume this always returns None even if we "next" past the end
-                    let offset = if let Some(computed_offset) = offset_iter.next() {
+                    let offset = if let Some(computed_offset) = iter.next() {
                         *computed_offset
                     } else {
                         field_offsets[i]
@@ -572,7 +575,70 @@ pub trait CSType: Sized {
                         false => offset,
                     }
                 }
-            };
+            }
+        };
+
+        let get_size = |field: &Il2CppFieldDefinition, gen_args: Option<Vec<usize>>| {
+            let f_type = metadata
+                .metadata_registration
+                .types
+                .get(field.type_index as usize)
+                .unwrap();
+
+            match f_type.valuetype {
+                false => metadata.pointer_size as u32,
+                true => {
+                    let f_tag = CppTypeTag::from_type_data(f_type.data, metadata.metadata);
+                    let f_tdi = f_tag.get_tdi();
+                    let f_td = Self::get_type_definition(metadata, f_tdi);
+
+                    if let Some(sz) = offsets::get_size_of_type_table(metadata, f_tdi) {
+                        if sz.instance_size == 0 {
+                            // At this point we need to compute the offsets
+                            debug!(
+                                "Computing offsets for TDI: {:?}, as it has a size of 0",
+                                tdi
+                            );
+                            let _resulting_size = offsets::layout_fields(
+                                metadata,
+                                f_td,
+                                f_tdi,
+                                gen_args.as_ref(),
+                                None,
+                            );
+
+                            // TODO: check for VT fixup?
+                            if f_td.is_value_type() {
+                                _resulting_size.size as u32 - metadata.object_size() as u32
+                            } else {
+                                _resulting_size.size as u32
+                            }
+                        } else {
+                            sz.instance_size - metadata.object_size() as u32
+                        }
+                    } else {
+                        0
+                    }
+                }
+            }
+        };
+
+        for (i, field) in t.fields(metadata.metadata).iter().enumerate() {
+            let f_type = metadata
+                .metadata_registration
+                .types
+                .get(field.type_index as usize)
+                .unwrap();
+
+            let field_index = FieldIndex::new(t.field_start.index() + i as u32);
+            let f_name = field.name(metadata.metadata);
+
+            let f_cpp_name = config.name_cpp_plus(f_name, &[cpp_type.cpp_name().as_str()]);
+
+            let f_offset = get_offset(field, i, &mut offset_iter);
+
+            // calculate / fetch the field size
+            let f_size = get_size(field, cpp_type.generic_instantiations_args_types.clone());
 
             // calculate / fetch the field size
             let f_size = match f_type.valuetype {
@@ -714,7 +780,9 @@ pub trait CSType: Sized {
                             readonly: f_type.is_constant(),
                             value: Some(def_value),
                             const_expr: true,
-                            brief_comment: Some(format!("Field {f_name} offset 0x{f_offset:x} size 0x{f_size:x}")),
+                            brief_comment: Some(format!(
+                                "Field {f_name} offset 0x{f_offset:x} size 0x{f_size:x}"
+                            )),
                         };
 
                         cpp_type
@@ -722,7 +790,8 @@ pub trait CSType: Sized {
                             .push(CppMember::FieldDecl(field_decl).into());
                     }
                 }
-            } else { // non const field
+            } else {
+                // non const field
                 // instance field access on ref types is special
                 let is_instance = !f_type.is_static() && !f_type.is_constant();
                 let declaring_is_ref = !t.is_value_type() && !t.is_enum_type();
@@ -757,10 +826,11 @@ pub trait CSType: Sized {
                     )
                     }
                     false => {
-                        match !f_type.valuetype && declaring_is_ref { // ref type field write on a ref type
+                        match !f_type.valuetype && declaring_is_ref {
+                            // ref type field write on a ref type
                             true => {
                                 format!("il2cpp_functions::gc_wbarrier_set_field(this, &{field_access}, static_cast<void*>({setter_var_name}));")
-                            },
+                            }
                             false => {
                                 format!("{field_access} = {setter_var_name};")
                             }
@@ -777,7 +847,6 @@ pub trait CSType: Sized {
                             true => None,
                             false => Some(t),
                         });
-
 
                 let (getter_name, setter_name) = match is_instance {
                     true => (
@@ -915,28 +984,15 @@ pub trait CSType: Sized {
                             getter: getter_decl.cpp_name.clone().into(),
                             setter: setter_decl.cpp_name.clone().into(),
                             indexable: false,
-                            brief_comment: Some(format!("Field {f_name}, offset 0x{f_offset:x}, size 0x{f_size:x} ")),
+                            brief_comment: Some(format!(
+                                "Field {f_name}, offset 0x{f_offset:x}, size 0x{f_size:x} "
+                            )),
                         };
 
                         cpp_type
                             .declarations
                             .push(CppMember::Property(prop_decl).into());
                     }
-
-                    // instance fields get collected into a vector so we can do our union shenanigans for fields with offsets that bleed into other fields
-                    instance_field_decls.push(
-                        CppFieldDecl {
-                            cpp_name: cordl_field_name,
-                            field_ty: field_ty_cpp_name.clone(),
-                            field_offset: f_offset,
-                            field_size: f_size,
-                            instance: !f_type.is_static() && !f_type.is_constant(),
-                            brief_comment: Some(format!("Field {f_name}, offset 0x{f_offset:x}, size 0x{f_size:x} ")),
-                            readonly: false,
-                            const_expr: false,
-                            value: def_value
-                        }
-                    );
                 }
 
                 // only push accessors if declaring ref type, or if static field
@@ -995,44 +1051,100 @@ pub trait CSType: Sized {
             }
         }
 
+        let mut offset_iter = offsets.iter();
+
+        let instance_field_decls = t
+            .fields(metadata.metadata)
+            .iter()
+            .enumerate()
+            .map(|(i, field)| {
+                // instance fields get collected into a vector so we can do our union shenanigans for fields with offsets that bleed into other fields
+                let f_name = field.name(metadata.metadata);
+                let f_cpp_name = config.name_cpp_plus(f_name, &[cpp_type.cpp_name().as_str()]);
+
+                let field_index = FieldIndex::new(t.field_start.index() + i as u32);
+
+                let f_type = metadata
+                    .metadata_registration
+                    .types
+                    .get(field.type_index as usize)
+                    .unwrap();
+
+                let field_name_components =
+                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, 0);
+
+                let field_ty_cpp_name = field_name_components.combine_all();
+
+                // non const field
+                // instance field access on ref types is special
+                let is_instance = !f_type.is_static() && !f_type.is_constant();
+                let declaring_is_ref = !t.is_value_type() && !t.is_enum_type();
+
+                // ref type instance fields are specially named because the field getters are supposed to be used
+                let cordl_field_name = if declaring_is_ref && is_instance {
+                    format!("_cordl_{f_cpp_name}")
+                } else {
+                    f_cpp_name.clone()
+                };
+
+                let f_offset = get_offset(field, i, &mut offset_iter) as usize;
+                let f_size =
+                    get_size(field, cpp_type.generic_instantiations_args_types.clone()) as usize;
+                let def_value = Self::field_default_value(metadata, field_index);
+
+                let decl = CppFieldDecl {
+                    cpp_name: cordl_field_name.to_string(),
+                    field_ty: field_ty_cpp_name.clone(),
+                    instance: !f_type.is_static() && !f_type.is_constant(),
+                    brief_comment: Some(format!(
+                        "Field {f_name}, offset 0x{f_offset:x}, size 0x{f_size:x} "
+                    )),
+                    readonly: false,
+                    const_expr: false,
+                    value: def_value,
+                };
+
+                FieldInfo {
+                    cpp_field: decl,
+                    offset: f_offset,
+                    size: f_size,
+                }
+            })
+            .collect();
+
         // oh no! the fields are unionizing! don't tell elon musk!
         Self::unionize_fields(instance_field_decls)
             .into_iter()
             .for_each(|member| cpp_type.declarations.push(member.into()));
-
     }
 
-    fn field_collision_check(
-        instance_fields: &[CppFieldDecl],
-    ) -> bool {
+    fn field_collision_check(instance_fields: &[FieldInfo]) -> bool {
         let mut next_offset = 0;
         return instance_fields
             .iter()
-            .sorted_by(|a, b| a.field_offset.cmp(&b.field_offset))
+            .sorted_by(|a, b| a.offset.cmp(&b.offset))
             .any(|field| {
-                if field.field_offset < next_offset {
+                if field.offset < next_offset {
                     true
                 } else {
-                    next_offset = field.field_offset + field.field_size;
+                    next_offset = field.offset + field.offset;
                     false
                 }
             });
     }
 
-    fn unionize_fields(
-        instance_fields: Vec<CppFieldDecl>,
-    ) -> Vec<CppMember> {
+    fn unionize_fields(instance_fields: Vec<FieldInfo>) -> Vec<CppMember> {
         if !Self::field_collision_check(&instance_fields) {
             return instance_fields
                 .into_iter()
-                .map(CppMember::FieldDecl)
-                .collect_vec()
+                .map(|d| CppMember::FieldDecl(d.cpp_field))
+                .collect_vec();
         }
 
         // TODO: actually create the CppNestedUnions and CppNestedStructs where things are unionized
         instance_fields
             .into_iter()
-            .map(CppMember::FieldDecl)
+            .map(|d| CppMember::FieldDecl(d.cpp_field))
             .collect_vec()
     }
 
@@ -1532,9 +1644,7 @@ pub trait CSType: Sized {
             .declarations
             .push(CppMember::NestedStruct(nested_struct).into());
 
-        let operator_body = format!(
-            "return static_cast<{unwrapped_name}>(this->value__);"
-        );
+        let operator_body = format!("return static_cast<{unwrapped_name}>(this->value__);");
         let operator_decl = CppMethodDecl {
             cpp_name: Default::default(),
             instance: true,
@@ -2476,7 +2586,8 @@ pub trait CSType: Sized {
             cpp_type.cpp_name_components.combine_all()
         );
 
-        let extract_self_class = "il2cpp_functions::object_get_class(reinterpret_cast<Il2CppObject*>(this))";
+        let extract_self_class =
+            "il2cpp_functions::object_get_class(reinterpret_cast<Il2CppObject*>(this))";
 
         let params_types_format: String = CppParam::params_types(&method_decl.parameters)
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
@@ -2484,13 +2595,13 @@ pub trait CSType: Sized {
 
         let resolve_instance_slot_lines = if method.slot != u16::MAX {
             let slot = &method.slot;
-            vec![
-                format!("auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::ResolveVtableSlot(
+            vec![format!(
+                "auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::ResolveVtableSlot(
                     {extract_self_class},
                     {declaring_classof_call},
                     {slot}
-                )));"),
-            ]
+                )));"
+            )]
         } else {
             vec![]
         };
@@ -2505,13 +2616,13 @@ pub trait CSType: Sized {
             let declaring_classof_call = "";
             let slot = &method.slot;
 
-            vec![
-                format!("auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::ResolveVtableSlot(
+            vec![format!(
+                "auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::ResolveVtableSlot(
                     {self_classof_call},
                     {declaring_classof_call},
                     {slot}
-                )));"),
-            ]
+                )));"
+            )]
         } else {
             vec![]
         };
@@ -2520,15 +2631,15 @@ pub trait CSType: Sized {
             Some(template) => {
                 // generic
                 let template_names = template
-                .just_names()
-                .map(|t| {
-                    format!(
-                        "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"
-                    )
-                })
-                .join(", ");
+                    .just_names()
+                    .map(|t| {
+                        format!(
+                            "::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<{t}>::get()"
+                        )
+                    })
+                    .join(", ");
 
-            vec![
+                vec![
                 format!("static auto* ___internal_method_base = THROW_UNLESS((::il2cpp_utils::FindMethod(
                     {declaring_classof_call},
                     \"{m_name}\",
@@ -2556,9 +2667,9 @@ pub trait CSType: Sized {
         let method_body_lines = [format!(
             "return ::cordl_internals::RunMethodRethrow<{m_ret_cpp_type_name}, false>({});",
             method_invoke_params
-            .into_iter()
-            .chain(param_names)
-            .join(", ")
+                .into_iter()
+                .chain(param_names)
+                .join(", ")
         )];
 
         //   static auto ___internal__logger = ::Logger::get().WithContext("::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals");
@@ -2566,22 +2677,18 @@ pub trait CSType: Sized {
         //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
         let method_body = match cpp_type.is_interface {
-            true => {
-                resolve_instance_slot_lines
-                    .iter()
-                    .chain(method_body_lines.iter())
-                    .cloned()
-                    .map(|l| -> Arc<dyn Writable> { Arc::new(CppLine::make(l)) })
-                    .collect_vec()
-            },
-            false => {
-                method_info_lines
+            true => resolve_instance_slot_lines
                 .iter()
                 .chain(method_body_lines.iter())
                 .cloned()
                 .map(|l| -> Arc<dyn Writable> { Arc::new(CppLine::make(l)) })
-                .collect_vec()
-            }
+                .collect_vec(),
+            false => method_info_lines
+                .iter()
+                .chain(method_body_lines.iter())
+                .cloned()
+                .map(|l| -> Arc<dyn Writable> { Arc::new(CppLine::make(l)) })
+                .collect_vec(),
         };
 
         let method_impl = CppMethodImpl {
