@@ -170,8 +170,6 @@ pub struct CppMethodSizeStruct {
 pub struct CppFieldDecl {
     pub cpp_name: String,
     pub field_ty: String,
-    pub field_offset: u32,
-    pub field_size: u32,
     pub instance: bool,
     pub readonly: bool,
     pub const_expr: bool,
