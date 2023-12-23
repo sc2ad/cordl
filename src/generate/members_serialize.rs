@@ -703,6 +703,32 @@ impl Sortable for CppNestedStruct {
     }
 }
 
+impl Writable for CppNestedUnion {
+    fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        let size = &self.size;
+        let offset = &self.offset;
+
+        writeln!(writer, "// nameless union offset {offset:x}, size {size:x}")?;
+        writeln!(writer, "union {{")?;
+        self.declarations
+            .iter()
+            .sorted_by(|a, b| a.sort_level().cmp(&b.sort_level()))
+            .try_for_each(|member| -> color_eyre::Result<()>{
+                member.write(writer)?;
+                Ok(())
+            })?;
+
+        writeln!(writer, "}};")?;
+        Ok(())
+    }
+}
+
+impl Sortable for CppNestedUnion {
+    fn sort_level(&self) -> SortLevel {
+        SortLevel::NestedStruct
+    }
+}
+
 impl Writable for CppMember {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
         match self {
@@ -715,6 +741,7 @@ impl Writable for CppMember {
             CppMember::ConstructorDecl(c) => c.write(writer),
             CppMember::ConstructorImpl(ci) => ci.write(writer),
             CppMember::NestedStruct(e) => e.write(writer),
+            CppMember::NestedUnion(u) => u.write(writer),
             CppMember::CppUsingAlias(alias) => alias.write(writer),
             CppMember::CppLine(line) => line.write(writer),
             CppMember::CppStaticAssert(sa) => sa.write(writer),
@@ -745,6 +772,7 @@ impl Sortable for CppMember {
             CppMember::ConstructorDecl(t) => t.sort_level(),
             CppMember::ConstructorImpl(t) => t.sort_level(),
             CppMember::NestedStruct(t) => t.sort_level(),
+            CppMember::NestedUnion(t) => t.sort_level(),
             CppMember::CppUsingAlias(t) => t.sort_level(),
             CppMember::CppStaticAssert(_) => SortLevel::Unknown,
             CppMember::Comment(_) => SortLevel::Unknown,
