@@ -119,6 +119,8 @@ fn main() -> color_eyre::Result<()> {
         pointer_size: generate::metadata::PointerSize::Bytes8,
         // For most il2cpp versions
         packing_field_offset: 7,
+        specified_packing_field_offset: 13,
+        packing_is_default_offset: 11,
     };
     let t = time::Instant::now();
     info!("Parsing metadata methods");
@@ -253,54 +255,54 @@ fn main() -> color_eyre::Result<()> {
         }
     }
 
-    {
-        let total = metadata.metadata_registration.generic_method_table.len() as f64;
-        info!("Making generic type instantiations");
-        for (i, generic_class) in metadata
-            .metadata_registration
-            .generic_method_table
-            .iter()
-            .enumerate()
-        {
-            trace!(
-                "Making generic type instantiations {:.4}% ({i}/{total})",
-                (i as f64 / total * 100.0)
-            );
-            let method_spec = metadata
-                .metadata_registration
-                .method_specs
-                .get(generic_class.generic_method_index as usize)
-                .unwrap();
+    // {
+    //     let total = metadata.metadata_registration.generic_method_table.len() as f64;
+    //     info!("Making generic type instantiations");
+    //     for (i, generic_class) in metadata
+    //         .metadata_registration
+    //         .generic_method_table
+    //         .iter()
+    //         .enumerate()
+    //     {
+    //         trace!(
+    //             "Making generic type instantiations {:.4}% ({i}/{total})",
+    //             (i as f64 / total * 100.0)
+    //         );
+    //         let method_spec = metadata
+    //             .metadata_registration
+    //             .method_specs
+    //             .get(generic_class.generic_method_index as usize)
+    //             .unwrap();
 
-            cpp_context_collection.make_generic_from(method_spec, &mut metadata, &STATIC_CONFIG);
-        }
-    }
-    {
-        let total = metadata.metadata_registration.generic_method_table.len() as f64;
-        info!("Filling generic types!");
-        for (i, generic_class) in metadata
-            .metadata_registration
-            .generic_method_table
-            .iter()
-            .enumerate()
-        {
-            trace!(
-                "Filling generic type instantiations {:.4}% ({i}/{total})",
-                (i as f64 / total * 100.0)
-            );
-            let method_spec = metadata
-                .metadata_registration
-                .method_specs
-                .get(generic_class.generic_method_index as usize)
-                .unwrap();
+    //         cpp_context_collection.make_generic_from(method_spec, &mut metadata, &STATIC_CONFIG);
+    //     }
+    // }
+    // {
+    //     let total = metadata.metadata_registration.generic_method_table.len() as f64;
+    //     info!("Filling generic types!");
+    //     for (i, generic_class) in metadata
+    //         .metadata_registration
+    //         .generic_method_table
+    //         .iter()
+    //         .enumerate()
+    //     {
+    //         trace!(
+    //             "Filling generic type instantiations {:.4}% ({i}/{total})",
+    //             (i as f64 / total * 100.0)
+    //         );
+    //         let method_spec = metadata
+    //             .metadata_registration
+    //             .method_specs
+    //             .get(generic_class.generic_method_index as usize)
+    //             .unwrap();
 
-            cpp_context_collection.fill_generic_class_inst(
-                method_spec,
-                &mut metadata,
-                &STATIC_CONFIG,
-            );
-        }
-    }
+    //         cpp_context_collection.fill_generic_class_inst(
+    //             method_spec,
+    //             &mut metadata,
+    //             &STATIC_CONFIG,
+    //         );
+    //     }
+    // }
 
     if cli.gen_generic_methods_specializations {
         let total = metadata.metadata_registration.generic_method_table.len() as f64;

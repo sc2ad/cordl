@@ -224,7 +224,7 @@ pub trait CSType: Sized {
         // TODO: Come up with a way to avoid this extra call to layout the entire type
         // We really just want to call it once for a given size and then move on
         // Every type should have a valid metadata size, even if it is 0
-        let (metadata_size, alignment) = offsets::get_size_and_alignment(t, tdi, generic_inst_types, metadata);
+        let (metadata_size, packing) = offsets::get_size_and_packing(t, tdi, generic_inst_types, metadata);
 
         // Modified later for nested types
         let mut cpptype = CppType {
@@ -233,7 +233,7 @@ pub trait CSType: Sized {
             prefix_comments: vec![format!("Type: {ns}::{name}")],
 
             calculated_size: Some(metadata_size as usize),
-            packing: None,
+            packing: Some(packing as usize),
 
             cpp_name_components,
             cs_name_components,
@@ -689,8 +689,13 @@ pub trait CSType: Sized {
                 if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
                     ("::ConstString".to_string(), false)
                 } else {
+                    let include_depth = match f_type.valuetype {
+                        true => usize::MAX,
+                        false => 0,
+                    };
+
                     let field_name_components =
-                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, 0);
+                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, include_depth);
 
                     (
                         field_name_components.combine_all(),
@@ -722,6 +727,7 @@ pub trait CSType: Sized {
                         let field_decl = CppFieldDecl {
                             cpp_name: f_cpp_name,
                             field_ty: field_ty_cpp_name,
+                            offset: f_offset,
                             instance: false,
                             readonly: f_type.is_constant(),
                             value: None,
@@ -773,6 +779,7 @@ pub trait CSType: Sized {
                         let field_decl = CppFieldDecl {
                             cpp_name: f_cpp_name,
                             field_ty: field_ty_cpp_name,
+                            offset: f_offset,
                             instance: false,
                             readonly: f_type.is_constant(),
                             value: Some(def_value),
@@ -1102,6 +1109,7 @@ pub trait CSType: Sized {
                     cpp_name: cordl_field_name.to_string(),
                     field_ty: field_ty_cpp_name.clone(),
                     instance: !f_type.is_static() && !f_type.is_constant(),
+                    offset: f_offset as u32,
                     brief_comment: Some(format!(
                         "Field {f_name}, offset 0x{f_offset:x}, size 0x{f_size:x} "
                     )),
@@ -1168,6 +1176,8 @@ pub trait CSType: Sized {
         // you can't sort instance fields on offset/size because it will throw off the unionization process
         instance_fields
             .into_iter()
+            .sorted_by(|a, b| a.size.cmp(&b.size).reverse())
+            .sorted_by(|a, b| a.offset.cmp(&b.offset))
             .for_each(|field| {
                 let offset = field.offset as u32;
                 let size = field.size as u32;
@@ -1186,8 +1196,12 @@ pub trait CSType: Sized {
                         size,
                     });
 
+                if current_max > current_set.max() {
+                    current_set.size = size
+                }
+
                 // if we have a last vector & the size of its fields + current_offset is smaller than current max add to that list
-                if let Some(last) = current_set.fields.last_mut() && current_offset + accumulated_size(last) < current_max {
+                if let Some(last) = current_set.fields.last_mut() && current_offset + accumulated_size(last) == offset {
                     last.push(field);
                 } else {
                     current_set.fields.push(vec![field]);
@@ -1246,7 +1260,8 @@ pub trait CSType: Sized {
                         CppMember::NestedUnion(
                             CppNestedUnion {
                                 brief_comment: Some(format!("Anonymous union offset 0x{:x}, size 0x{:x}", field_set.offset, field_set.size)),
-                                declarations: declarations.into_iter().map(|d| d.into()).collect_vec()
+                                declarations: declarations.into_iter().map(|d| d.into()).collect_vec(),
+                                offset: field_set.offset,
                             }
                         )
                     ]
@@ -1613,6 +1628,7 @@ pub trait CSType: Sized {
                 CppMember::FieldDecl(CppFieldDecl {
                     cpp_name: REFERENCE_TYPE_WRAPPER_SIZE.to_string(),
                     field_ty: "auto".to_string(),
+                    offset: u32::MAX,
                     instance: false,
                     readonly: false,
                     const_expr: true,
@@ -1632,6 +1648,7 @@ pub trait CSType: Sized {
                 CppMember::FieldDecl(CppFieldDecl {
                     cpp_name: format!("{REFERENCE_TYPE_FIELD_SIZE}[{fixup_size}]"),
                     field_ty: "uint8_t".to_string(),
+                    offset: u32::MAX,
                     instance: true,
                     readonly: false,
                     const_expr: false,
@@ -1773,6 +1790,7 @@ pub trait CSType: Sized {
             CppMember::FieldDecl(CppFieldDecl {
                 cpp_name: VALUE_TYPE_WRAPPER_SIZE.to_string(),
                 field_ty: "auto".to_string(),
+                offset: u32::MAX,
                 instance: false,
                 readonly: false,
                 const_expr: true,
@@ -2311,7 +2329,7 @@ pub trait CSType: Sized {
             cpp_name: t.clone(),
             parameters: vec![],
             template: None,
-            is_constexpr: false,
+            is_constexpr: true,
             is_explicit: false,
             is_default: false,
             is_no_except: false,
@@ -2326,6 +2344,7 @@ pub trait CSType: Sized {
         let default_ctor_impl = CppConstructorImpl {
             is_default: true,
             declaring_full_name: cpp_type.cpp_name_components.remove_pointer().combine_all(),
+            template: cpp_type.cpp_template.clone(),
             ..default_ctor_decl.clone().into()
         };
 

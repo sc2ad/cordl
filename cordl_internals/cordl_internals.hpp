@@ -23,7 +23,12 @@
 template <typename T>
 using ByRefConst = ::ByRef<T>;
 
-struct StringW;
+struct Il2CppString;
+
+template<typename Ptr>
+struct StringWrapper;
+using StringW = StringWrapper<Il2CppString*>;
+
 template <typename T, typename Ptr> struct ArrayW;
 template <typename T, typename Ptr> struct ListW;
 struct Il2CppObject;

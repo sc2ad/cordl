@@ -53,6 +53,8 @@ pub struct Metadata<'a> {
 
     pub pointer_size: PointerSize,
     pub packing_field_offset: u8,
+    pub specified_packing_field_offset: u8,
+    pub packing_is_default_offset: u8,
 }
 
 impl<'a> Metadata<'a> {

@@ -19,7 +19,7 @@ use super::type_extensions::TypeDefinitionExtensions;
 
 const IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS: u32 = 1;
 
-pub fn get_size_and_alignment<'a>(
+pub fn get_size_and_packing<'a>(
     t: &'a Il2CppTypeDefinition,
     tdi: TypeDefinitionIndex,
     generic_inst_types: Option<&Vec<usize>>,
@@ -45,7 +45,7 @@ pub fn get_size_and_alignment<'a>(
         sa.size
     };
 
-    (return_size as u32, sa.alignment as u32)
+    (return_size as u32, sa.packing as u32)
 }
 
 pub fn get_il2cpptype_sa(
@@ -55,7 +55,6 @@ pub fn get_il2cpptype_sa(
 ) -> SizeAndAlignment {
     get_type_size_and_alignment(ty, generic_inst_types, metadata)
 }
-
 
 pub fn get_sizeof_type<'a>(
     t: &'a Il2CppTypeDefinition,
@@ -96,6 +95,56 @@ pub fn get_sizeof_type<'a>(
     metadata_size
 }
 
+fn packing_is_default(
+    bitfield: u32,
+    packing_is_default_offset: u8,
+) -> bool {
+    ((bitfield >> (packing_is_default_offset - 1)) & 0x1) != 0
+}
+
+const PACKING_SIZE_ZERO: u32 = 0;
+const PACKING_SIZE_ONE: u32 = 1;
+const PACKING_SIZE_TWO: u32 = 2;
+const PACKING_SIZE_FOUR: u32 = 3;
+const PACKING_SIZE_EIGHT: u32 = 4;
+const PACKING_SIZE_SIXTEEN: u32 = 5;
+const PACKING_SIZE_THIRTYTWO: u32 = 6;
+const PACKING_SIZE_SIXTYFOUR: u32 = 7;
+const PACKING_SIZE_ONEHUNDREDTWENTYEIGHT: u32 = 8;
+
+fn packing_value(
+    bitfield: u32,
+    packing_field_offset: u8,
+) -> u8 {
+    match (bitfield >> (packing_field_offset - 1)) & 0xF {
+        PACKING_SIZE_ZERO => 0,
+        PACKING_SIZE_ONE => 1,
+        PACKING_SIZE_TWO => 2,
+        PACKING_SIZE_FOUR => 4,
+        PACKING_SIZE_EIGHT => 8,
+        PACKING_SIZE_SIXTEEN => 16,
+        PACKING_SIZE_THIRTYTWO => 32,
+        PACKING_SIZE_SIXTYFOUR => 64,
+        PACKING_SIZE_ONEHUNDREDTWENTYEIGHT => 128,
+        _ => {
+            warn!("Invalid packing value read");
+            0
+        }
+    }
+}
+
+fn get_packing(
+    metadata: &Metadata<'_>,
+    ty_def: &Il2CppTypeDefinition,
+) -> u8 {
+    packing_value(ty_def.bitfield, metadata.packing_field_offset)
+
+    // match packing_is_default(ty_def.bitfield, metadata.packing_is_default_offset) {
+    //     true => ,
+    //     false => packing_value(ty_def.bitfield, metadata.specified_packing_field_offset),
+    // }
+}
+
 /// Inspired by libil2cpp Class::LayoutFieldsLocked
 pub fn layout_fields(
     metadata: &Metadata<'_>,
@@ -109,6 +158,15 @@ pub fn layout_fields(
 
     let mut minimum_alignment: u8;
     let mut natural_alignment: u8 = 0;
+
+    // packing calculation based on RuntimeType::GetPacking
+    let packing = get_packing(metadata, declaring_ty_def);
+
+    assert!(
+        packing <= 128,
+        "Packing must be valid! Actual: {:?}",
+        packing
+    );
 
     // assign base size values based on parent type (or no parent type)
     if declaring_ty_def.parent_index == u32::MAX {
@@ -130,15 +188,7 @@ pub fn layout_fields(
 
     // if we have fields, do something with their values
     if declaring_ty_def.field_count > 0 {
-        let packing = u8::pow(
-            ((declaring_ty_def.bitfield >> (metadata.packing_field_offset - 1)) & 0xF) as u8,
-            2,
-        );
-        assert!(
-            packing <= 128,
-            "Packing must be valid! Actual: {:?}",
-            packing
-        );
+
 
         let mut local_offsets: Vec<u32> = vec![];
         let sa = layout_instance_fields(
@@ -197,6 +247,7 @@ pub fn layout_fields(
         actual_size,
         alignment: minimum_alignment,
         natural_alignment,
+        packing,
     }
 }
 
@@ -239,6 +290,7 @@ fn layout_instance_fields(
         if alignment < 4 && sa.natural_alignment != 0 {
             alignment = sa.natural_alignment;
         }
+
         if packing != 0 {
             alignment = std::cmp::min(sa.alignment, packing);
         }
@@ -273,6 +325,7 @@ fn layout_instance_fields(
         actual_size,
         alignment: minimum_alignment,
         natural_alignment,
+        packing,
     }
 }
 
@@ -438,6 +491,7 @@ fn get_type_size_and_alignment(
         natural_alignment: 0,
         size: 0,
         actual_size: 0,
+        packing: 0,
     };
 
     if ty.byref && !ty.valuetype {
@@ -637,4 +691,5 @@ pub struct SizeAndAlignment {
     actual_size: usize,
     alignment: u8,
     natural_alignment: u8,
+    packing: u8,
 }

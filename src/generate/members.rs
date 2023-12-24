@@ -170,6 +170,7 @@ pub struct CppMethodSizeStruct {
 pub struct CppFieldDecl {
     pub cpp_name: String,
     pub field_ty: String,
+    pub offset: u32,
     pub instance: bool,
     pub readonly: bool,
     pub const_expr: bool,
@@ -374,6 +375,7 @@ pub struct CppNestedStruct {
 pub struct CppNestedUnion {
     pub declarations: Vec<Rc<CppMember>>,
     pub brief_comment: Option<String>,
+    pub offset: u32,
 }
 
 impl From<CppConstructorDecl> for CppConstructorImpl {
