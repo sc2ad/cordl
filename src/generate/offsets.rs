@@ -273,7 +273,9 @@ fn layout_instance_fields(
             alignment = sa.natural_alignment;
         }
 
-        if let Some(packing) = packing && packing != 0 {
+        if let Some(packing) = packing
+            && packing != 0
+        {
             alignment = std::cmp::min(sa.alignment, packing);
         }
 

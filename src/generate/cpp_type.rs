@@ -392,13 +392,13 @@ impl CppType {
                     let a_offset = match a.as_ref() {
                         CppMember::FieldDecl(f) => f.offset,
                         CppMember::NestedUnion(u) => u.offset,
-                        _ => u32::MAX
+                        _ => u32::MAX,
                     };
 
                     let b_offset = match b.as_ref() {
                         CppMember::FieldDecl(f) => f.offset,
                         CppMember::NestedUnion(u) => u.offset,
-                        _ => u32::MAX
+                        _ => u32::MAX,
                     };
 
                     a_offset.cmp(&b_offset)
@@ -421,7 +421,6 @@ impl CppType {
             if self.packing.is_some() {
                 writeln!(writer, "#pragma pack(pop)")?;
             }
-
 
             // NON MEMBER DECLARATIONS
             writeln!(writer, "// Non member Declarations")?;

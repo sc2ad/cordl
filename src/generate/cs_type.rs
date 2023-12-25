@@ -788,7 +788,7 @@ pub trait CSType: Sized {
 
             let klass_resolver = cpp_type.classof_cpp_name();
 
-            let getter_call = 
+            let getter_call =
             format!("return {CORDL_METHOD_HELPER_NAMESPACE}::getStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>();");
 
             let setter_var_name = "value";
@@ -1137,13 +1137,20 @@ pub trait CSType: Sized {
 
             // ref type instance fields are specially named because the field getters are supposed to be used
             let f_cpp_name = &field_info.cpp_field.cpp_name;
-            let cordl_field_name = fixup_backing_field(&f_cpp_name);
+            let cordl_field_name = fixup_backing_field(f_cpp_name);
             let field_access = format!("this->{cordl_field_name}");
 
             let getter_call = format!("return {field_access};");
             let setter_var_name = "value";
-            let setter_call = format!("il2cpp_functions::gc_wbarrier_set_field(this, &{field_access}, cordl_internals::convert(std::forward<decltype({setter_var_name})>({setter_var_name})));");
-
+            let setter_call = match !f_type.valuetype {
+                // ref type field write on a ref type
+                true => {
+                    format!("il2cpp_functions::gc_wbarrier_set_field(this, &{field_access}, cordl_internals::convert(std::forward<decltype({setter_var_name})>({setter_var_name})));")
+                }
+                false => {
+                    format!("{field_access} = {setter_var_name};")
+                }
+            };
             // don't get a template that has no names
             let useful_template =
                 cpp_type
