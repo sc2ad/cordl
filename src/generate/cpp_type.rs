@@ -390,14 +390,14 @@ impl CppType {
                     // fields and unions need to be sorted by offset to work correctly
 
                     let a_offset = match a.as_ref() {
-                        CppMember::FieldDecl(f) => f.offset.clone(),
-                        CppMember::NestedUnion(u) => u.offset.clone(),
+                        CppMember::FieldDecl(f) => f.offset,
+                        CppMember::NestedUnion(u) => u.offset,
                         _ => u32::MAX
                     };
 
                     let b_offset = match b.as_ref() {
-                        CppMember::FieldDecl(f) => f.offset.clone(),
-                        CppMember::NestedUnion(u) => u.offset.clone(),
+                        CppMember::FieldDecl(f) => f.offset,
+                        CppMember::NestedUnion(u) => u.offset,
                         _ => u32::MAX
                     };
 

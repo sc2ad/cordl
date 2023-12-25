@@ -21,7 +21,10 @@ use itertools::Itertools;
 
 use crate::{
     data::name_components::NameComponents,
-    generate::{members::{CppUsingAlias, CppNestedUnion}, offsets},
+    generate::{
+        members::{CppNestedUnion, CppUsingAlias},
+        offsets,
+    },
     helpers::cursor::ReadBytesExtensions,
 };
 
@@ -68,19 +71,26 @@ pub const VT_PTR_TYPE: &str = "::bs_hook::VTPtr";
 
 const SIZEOF_IL2CPP_OBJECT: u32 = 0x10;
 
-struct FieldInfo {
+#[derive(Clone, Debug)]
+pub struct FieldInfo<'a> {
     cpp_field: CppFieldDecl,
-    offset: usize,
+    field: &'a Il2CppFieldDefinition,
+    field_type: &'a Il2CppType,
+    is_constant: bool,
+    is_static: bool,
+    is_pointer: bool,
+
+    offset: Option<u32>,
     size: usize,
 }
 
-struct FieldInfoSet {
-    fields: Vec<Vec<FieldInfo>>,
+struct FieldInfoSet<'a> {
+    fields: Vec<Vec<FieldInfo<'a>>>,
     size: u32,
     offset: u32,
 }
 
-impl FieldInfoSet {
+impl<'a> FieldInfoSet<'a> {
     fn max(&self) -> u32 {
         self.size + self.offset
     }
@@ -224,7 +234,8 @@ pub trait CSType: Sized {
         // TODO: Come up with a way to avoid this extra call to layout the entire type
         // We really just want to call it once for a given size and then move on
         // Every type should have a valid metadata size, even if it is 0
-        let (metadata_size, packing) = offsets::get_size_and_packing(t, tdi, generic_inst_types, metadata);
+        let (metadata_size, packing) =
+            offsets::get_size_and_packing(t, tdi, generic_inst_types, metadata);
 
         // Modified later for nested types
         let mut cpptype = CppType {
@@ -561,8 +572,8 @@ pub trait CSType: Sized {
 
             match f_type.is_static() || f_type.is_constant() {
                 // return u32::MAX for static fields as an "invalid offset" value
-                true => u32::MAX,
-                false => {
+                true => None,
+                false => Some({
                     // If we have a hotfix offset, use that instead
                     // We can safely assume this always returns None even if we "next" past the end
                     let offset = if let Some(computed_offset) = iter.next() {
@@ -587,7 +598,7 @@ pub trait CSType: Sized {
                         }
                         false => offset,
                     }
-                }
+                }),
             }
         };
 
@@ -598,13 +609,9 @@ pub trait CSType: Sized {
                 .get(field.type_index as usize)
                 .unwrap();
 
-            let sa = offsets::get_il2cpptype_sa(
-                metadata,
-                f_type,
-                gen_args,
-            );
+            let sa = offsets::get_il2cpptype_sa(metadata, f_type, gen_args);
 
-            return sa.size;
+            sa.size
 
             // // TODO: is valuetype even a good way of checking whether we should be size of pointer?
             // match f_type.valuetype {
@@ -654,484 +661,652 @@ pub trait CSType: Sized {
             // }
         };
 
-        for (i, field) in t.fields(metadata.metadata).iter().enumerate() {
-            let f_type = metadata
-                .metadata_registration
-                .types
-                .get(field.type_index as usize)
-                .unwrap();
-
-            let field_index = FieldIndex::new(t.field_start.index() + i as u32);
-            let f_name = field.name(metadata.metadata);
-
-            let f_cpp_name = config.name_cpp_plus(f_name, &[cpp_type.cpp_name().as_str()]);
-
-            let f_offset = get_offset(field, i, &mut offset_iter);
-
-            // calculate / fetch the field size
-            let f_size = if let Some(generics) = &cpp_type.generic_instantiations_args_types {
-                get_size(field, Some(generics))
-            } else {
-                get_size(field, None)
-            } as usize;
-
-            if let TypeData::TypeDefinitionIndex(field_tdi) = f_type.data
-                && metadata.blacklisted_types.contains(&field_tdi)
-            {
-                if !cpp_type.is_value_type && !cpp_type.is_enum_type {
-                    continue;
-                }
-                warn!("Value type uses {tdi:?} which is blacklisted! TODO");
-            }
-
-            // Var types are default pointers so we need to get the name component's pointer bool
-            let (field_ty_cpp_name, field_is_pointer) =
-                if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
-                    ("::ConstString".to_string(), false)
-                } else {
-                    let include_depth = match f_type.valuetype {
-                        true => usize::MAX,
-                        false => 0,
-                    };
-
-                    let field_name_components =
-                        cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, include_depth);
-
-                    (
-                        field_name_components.combine_all(),
-                        field_name_components.is_pointer,
-                    )
-                };
-
-            // TODO: Check a flag to look for default values to speed this up
-            let def_value = Self::field_default_value(metadata, field_index);
-
-            assert!(def_value.is_none() || (def_value.is_some() && f_type.is_param_optional()));
-
-            let declaring_cpp_template = if cpp_type
-                .cpp_template
-                .as_ref()
-                .is_some_and(|t| !t.names.is_empty())
-            {
-                cpp_type.cpp_template.clone()
-            } else {
-                None
-            };
-
-            if f_type.is_constant() {
-                let def_value = def_value.expect("Constant with no default value?");
-
-                match f_type.ty.is_primitive_builtin() {
-                    false => {
-                        // other type
-                        let field_decl = CppFieldDecl {
-                            cpp_name: f_cpp_name,
-                            field_ty: field_ty_cpp_name,
-                            offset: f_offset,
-                            instance: false,
-                            readonly: f_type.is_constant(),
-                            value: None,
-                            const_expr: false,
-                            brief_comment: Some(format!("Field {f_name} value: {def_value}")),
-                        };
-                        let field_impl = CppFieldImpl {
-                            value: def_value,
-                            const_expr: true,
-                            declaring_type: cpp_type
-                                .cpp_name_components
-                                .remove_pointer()
-                                .combine_all(),
-                            declaring_type_template: declaring_cpp_template,
-                            ..field_decl.clone().into()
-                        };
-
-                        // get enum type to include impl
-                        // this is needed since the enum constructor is not defined
-                        // in the declaration
-                        // TODO: Make enum ctors inline defined
-                        if f_type.valuetype && f_type.ty == Il2CppTypeEnum::Valuetype {
-                            let field_cpp_tag: CppTypeTag =
-                                CppTypeTag::from_type_data(f_type.data, metadata.metadata);
-                            let field_cpp_td_tag: CppTypeTag = field_cpp_tag.get_tdi().into();
-                            let field_cpp_type = ctx_collection.get_cpp_type(field_cpp_td_tag);
-
-                            if field_cpp_type.is_some_and(|f| f.is_enum_type) {
-                                let field_cpp_context = ctx_collection
-                                    .get_context(field_cpp_td_tag)
-                                    .expect("No context for cpp enum type");
-
-                                cpp_type.requirements.add_impl_include(
-                                    field_cpp_type,
-                                    CppInclude::new_context_typeimpl(field_cpp_context),
-                                );
-                            }
-                        }
-
-                        cpp_type
-                            .declarations
-                            .push(CppMember::FieldDecl(field_decl).into());
-                        cpp_type
-                            .implementations
-                            .push(CppMember::FieldImpl(field_impl).into());
-                    }
-                    true => {
-                        // primitive type
-                        let field_decl = CppFieldDecl {
-                            cpp_name: f_cpp_name,
-                            field_ty: field_ty_cpp_name,
-                            offset: f_offset,
-                            instance: false,
-                            readonly: f_type.is_constant(),
-                            value: Some(def_value),
-                            const_expr: true,
-                            brief_comment: Some(format!(
-                                "Field {f_name} offset 0x{f_offset:x} size 0x{f_size:x}"
-                            )),
-                        };
-
-                        cpp_type
-                            .declarations
-                            .push(CppMember::FieldDecl(field_decl).into());
-                    }
-                }
-            } else {
-                // non const field
-                // instance field access on ref types is special
-                let is_instance = !f_type.is_static() && !f_type.is_constant();
-                let declaring_is_ref = !t.is_value_type() && !t.is_enum_type();
-
-                // ref type instance fields are specially named because the field getters are supposed to be used
-                let cordl_field_name = if declaring_is_ref && is_instance {
-                    format!("_cordl_{f_cpp_name}")
-                } else {
-                    f_cpp_name.clone()
-                };
-
-                let field_access = format!("this->{cordl_field_name}");
-
-                let klass_resolver = cpp_type.classof_cpp_name();
-
-                let getter_call = match f_type.is_static() {
-                    true => {
-                        format!(
-                        "return {CORDL_METHOD_HELPER_NAMESPACE}::getStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>();"
-                    )
-                    }
-                    false => {
-                        format!("return {field_access};")
-                    }
-                };
-
-                let setter_var_name = "value";
-                let setter_call = match f_type.is_static() {
-                    true => {
-                        format!(
-                        "{CORDL_METHOD_HELPER_NAMESPACE}::setStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
-                    )
-                    }
-                    false => {
-                        match !f_type.valuetype && declaring_is_ref {
-                            // ref type field write on a ref type
-                            true => {
-                                format!("il2cpp_functions::gc_wbarrier_set_field(this, &{field_access}, cordl_internals::convert(std::forward<decltype({setter_var_name})>({setter_var_name})));")
-                            }
-                            false => {
-                                format!("{field_access} = {setter_var_name};")
-                            }
-                        }
-                    }
-                };
-
-                // don't get a template that has no names
-                let useful_template =
-                    cpp_type
-                        .cpp_template
-                        .clone()
-                        .and_then(|t| match t.names.is_empty() {
-                            true => None,
-                            false => Some(t),
-                        });
-
-                let (getter_name, setter_name) = match is_instance {
-                    true => (
-                        format!("__get_{}", f_cpp_name),
-                        format!("__set_{}", f_cpp_name),
-                    ),
-                    false => (
-                        format!("getStaticF_{}", f_cpp_name),
-                        format!("setStaticF_{}", f_cpp_name),
-                    ),
-                };
-
-                let (get_return_type, const_get_return_type) = match is_instance {
-                    // Var types are default pointers
-                    true if field_is_pointer => (
-                        field_ty_cpp_name.clone(),
-                        format!(
-                            "::cordl_internals::to_const_pointer<{}>",
-                            field_ty_cpp_name.clone()
-                        ),
-                    ),
-                    true => (
-                        format!("{field_ty_cpp_name}&"),
-                        format!("{field_ty_cpp_name} const&"),
-                    ),
-
-                    // static/const fields
-                    _ => (field_ty_cpp_name.clone(), field_ty_cpp_name.clone()),
-                };
-
-                let getter_decl = CppMethodDecl {
-                    cpp_name: getter_name.clone(),
-                    instance: is_instance,
-                    return_type: get_return_type,
-
-                    brief: None,
-                    body: None, // TODO:
-                    // Const if instance for now
-                    is_const: false,
-                    is_constexpr: !f_type.is_static() || f_type.is_constant(),
-                    is_inline: true,
-                    is_virtual: false,
-                    is_operator: false,
-                    is_no_except: false, // TODO:
-                    parameters: vec![],
-                    prefix_modifiers: vec![],
-                    suffix_modifiers: vec![],
-                    template: None,
-                };
-
-                let const_getter_decl = CppMethodDecl {
-                    cpp_name: getter_name,
-                    instance: is_instance,
-                    return_type: const_get_return_type,
-
-                    brief: None,
-                    body: None, // TODO:
-                    // Const if instance for now
-                    is_const: true,
-                    is_constexpr: !f_type.is_static() || f_type.is_constant(),
-                    is_inline: true,
-                    is_virtual: false,
-                    is_operator: false,
-                    is_no_except: false, // TODO:
-                    parameters: vec![],
-                    prefix_modifiers: vec![],
-                    suffix_modifiers: vec![],
-                    template: None,
-                };
-
-                let setter_decl = CppMethodDecl {
-                    cpp_name: setter_name,
-                    instance: is_instance,
-                    return_type: "void".to_string(),
-
-                    brief: None,
-                    body: None,      //TODO:
-                    is_const: false, // TODO: readonly fields?
-                    is_constexpr: !f_type.is_static() || f_type.is_constant(),
-                    is_inline: true,
-                    is_virtual: false,
-                    is_operator: false,
-                    is_no_except: false, // TODO:
-                    parameters: vec![CppParam {
-                        def_value: None,
-                        modifiers: "".to_string(),
-                        name: setter_var_name.to_string(),
-                        ty: field_ty_cpp_name.clone(),
-                    }],
-                    prefix_modifiers: vec![],
-                    suffix_modifiers: vec![],
-                    template: None,
-                };
-
-                let getter_impl = CppMethodImpl {
-                    body: vec![Arc::new(CppLine::make(getter_call.clone()))],
-                    declaring_cpp_full_name: cpp_type
-                        .cpp_name_components
-                        .remove_pointer()
-                        .combine_all(),
-                    template: useful_template.clone(),
-
-                    ..getter_decl.clone().into()
-                };
-
-                let const_getter_impl = CppMethodImpl {
-                    body: vec![Arc::new(CppLine::make(getter_call))],
-                    declaring_cpp_full_name: cpp_type
-                        .cpp_name_components
-                        .remove_pointer()
-                        .combine_all(),
-                    template: useful_template.clone(),
-
-                    ..const_getter_decl.clone().into()
-                };
-
-                let setter_impl = CppMethodImpl {
-                    body: vec![Arc::new(CppLine::make(setter_call))],
-                    declaring_cpp_full_name: cpp_type
-                        .cpp_name_components
-                        .remove_pointer()
-                        .combine_all(),
-                    template: useful_template.clone(),
-
-                    ..setter_decl.clone().into()
-                };
-
-                if is_instance {
-                    // instance fields on a ref type should declare a cpp property
-                    if declaring_is_ref {
-                        let prop_decl = CppPropertyDecl {
-                            cpp_name: f_cpp_name,
-                            prop_ty: field_ty_cpp_name.clone(),
-                            instance: !f_type.is_static() && !f_type.is_constant(),
-                            getter: getter_decl.cpp_name.clone().into(),
-                            setter: setter_decl.cpp_name.clone().into(),
-                            indexable: false,
-                            brief_comment: Some(format!(
-                                "Field {f_name}, offset 0x{f_offset:x}, size 0x{f_size:x} "
-                            )),
-                        };
-
-                        cpp_type
-                            .declarations
-                            .push(CppMember::Property(prop_decl).into());
-                    }
-                }
-
-                // only push accessors if declaring ref type, or if static field
-                if declaring_is_ref || !is_instance {
-                    // decl
-                    cpp_type
-                        .declarations
-                        .push(CppMember::MethodDecl(setter_decl).into());
-
-                    cpp_type
-                        .declarations
-                        .push(CppMember::MethodDecl(getter_decl).into());
-
-                    // only push the const getter for instance fields
-                    if is_instance {
-                        cpp_type
-                            .declarations
-                            .push(CppMember::MethodDecl(const_getter_decl).into());
-                    }
-
-                    // impl
-                    cpp_type
-                        .implementations
-                        .push(CppMember::MethodImpl(setter_impl).into());
-
-                    cpp_type
-                        .implementations
-                        .push(CppMember::MethodImpl(getter_impl).into());
-
-                    // only push the const getter for instance fields
-                    if is_instance {
-                        cpp_type
-                            .implementations
-                            .push(CppMember::MethodImpl(const_getter_impl).into());
-                    }
-                }
-
-                // only push def dependency if instance & valuetype field & not a primitive builtin
-                if is_instance && f_type.valuetype && !f_type.ty.is_primitive_builtin() {
-                    let field_cpp_tag: CppTypeTag =
-                        CppTypeTag::from_type_data(f_type.data, metadata.metadata);
-                    let field_cpp_td_tag: CppTypeTag = field_cpp_tag.get_tdi().into();
-                    let field_cpp_type = ctx_collection.get_cpp_type(field_cpp_td_tag);
-
-                    if field_cpp_type.is_some() {
-                        let field_cpp_context = ctx_collection
-                            .get_context(field_cpp_td_tag)
-                            .expect("No context for cpp enum type");
-
-                        cpp_type.requirements.add_def_include(
-                            field_cpp_type,
-                            CppInclude::new_context_typedef(field_cpp_context),
-                        );
-
-                        cpp_type.requirements.add_impl_include(
-                            field_cpp_type,
-                            CppInclude::new_context_typeimpl(field_cpp_context),
-                        );
-                    }
-                }
-            }
-        }
-
-        let mut offset_iter = offsets.iter();
-
-        let instance_field_decls = t
+        let fields = t
             .fields(metadata.metadata)
             .iter()
             .enumerate()
-            .map(|(i, field)| {
-                // instance fields get collected into a vector so we can do our union shenanigans for fields with offsets that bleed into other fields
-                let f_name = field.name(metadata.metadata);
-                let f_cpp_name = config.name_cpp_plus(f_name, &[cpp_type.cpp_name().as_str()]);
-
-                let field_index = FieldIndex::new(t.field_start.index() + i as u32);
-
+            .filter_map(|(i, field)| {
                 let f_type = metadata
                     .metadata_registration
                     .types
                     .get(field.type_index as usize)
                     .unwrap();
 
-                let field_name_components =
-                    cpp_type.cppify_name_il2cpp(ctx_collection, metadata, f_type, 0);
+                let field_index = FieldIndex::new(t.field_start.index() + i as u32);
+                let f_name = field.name(metadata.metadata);
 
-                let field_ty_cpp_name = field_name_components.combine_all();
+                let f_cpp_name = config.name_cpp_plus(f_name, &[cpp_type.cpp_name().as_str()]);
 
-                // non const field
-                // instance field access on ref types is special
-                let is_instance = !f_type.is_static() && !f_type.is_constant();
-                let declaring_is_ref = !t.is_value_type() && !t.is_enum_type();
+                let f_offset = get_offset(field, i, &mut offset_iter);
 
-                // ref type instance fields are specially named because the field getters are supposed to be used
-                let cordl_field_name = if declaring_is_ref && is_instance {
-                    format!("_cordl_{f_cpp_name}")
-                } else {
-                    f_cpp_name.clone()
-                };
-
-                let f_offset = get_offset(field, i, &mut offset_iter) as usize;
+                // calculate / fetch the field size
                 let f_size = if let Some(generics) = &cpp_type.generic_instantiations_args_types {
                     get_size(field, Some(generics))
                 } else {
                     get_size(field, None)
-                } as usize;
-
-                let def_value = Self::field_default_value(metadata, field_index);
-
-                let decl = CppFieldDecl {
-                    cpp_name: cordl_field_name.to_string(),
-                    field_ty: field_ty_cpp_name.clone(),
-                    instance: !f_type.is_static() && !f_type.is_constant(),
-                    offset: f_offset as u32,
-                    brief_comment: Some(format!(
-                        "Field {f_name}, offset 0x{f_offset:x}, size 0x{f_size:x} "
-                    )),
-                    readonly: false,
-                    const_expr: false,
-                    value: def_value,
                 };
 
-                FieldInfo {
-                    cpp_field: decl,
+                if let TypeData::TypeDefinitionIndex(field_tdi) = f_type.data
+                    && metadata.blacklisted_types.contains(&field_tdi)
+                {
+                    if !cpp_type.is_value_type && !cpp_type.is_enum_type {
+                        return None;
+                    }
+                    warn!("Value type uses {tdi:?} which is blacklisted! TODO");
+                }
+
+                // Var types are default pointers so we need to get the name component's pointer bool
+                let (field_ty_cpp_name, field_is_pointer) =
+                    if f_type.is_constant() && f_type.ty == Il2CppTypeEnum::String {
+                        ("::ConstString".to_string(), false)
+                    } else {
+                        let include_depth = match f_type.valuetype {
+                            true => usize::MAX,
+                            false => 0,
+                        };
+
+                        let field_name_components = cpp_type.cppify_name_il2cpp(
+                            ctx_collection,
+                            metadata,
+                            f_type,
+                            include_depth,
+                        );
+
+                        (
+                            field_name_components.combine_all(),
+                            field_name_components.is_pointer,
+                        )
+                    };
+
+                // TODO: Check a flag to look for default values to speed this up
+                let def_value = Self::field_default_value(metadata, field_index);
+
+                assert!(def_value.is_none() || (def_value.is_some() && f_type.is_param_optional()));
+
+                let cpp_field_decl = CppFieldDecl {
+                    cpp_name: f_cpp_name,
+                    field_ty: field_ty_cpp_name,
+                    offset: f_offset.unwrap_or(u32::MAX),
+                    instance: !f_type.is_static() && !f_type.is_constant(),
+                    readonly: f_type.is_constant(),
+                    brief_comment: Some(format!("Field {f_name} value: {def_value:?}")),
+                    value: def_value,
+                    const_expr: false,
+                };
+
+                Some(FieldInfo {
+                    cpp_field: cpp_field_decl,
+                    field,
+                    field_type: f_type,
+                    is_constant: f_type.is_constant(),
+                    is_static: f_type.is_static(),
+                    is_pointer: field_is_pointer,
                     offset: f_offset,
                     size: f_size,
-                }
+                })
             })
-            // since static fields have u32::MAX as offset, we can filter on that
-            .filter(|f| f.offset as u32 != u32::MAX)
-            .collect();
+            .collect_vec();
+
+        if t.is_value_type() || t.is_enum_type() {
+            cpp_type.handle_valuetype_fields(&fields, metadata, tdi);
+        } else {
+            cpp_type.handle_referencetype_fields(&fields, metadata, tdi);
+        }
+
+        cpp_type.handle_instance_fields(&fields, ctx_collection, metadata, tdi);
+        cpp_type.handle_static_fields(&fields, metadata, tdi);
+        cpp_type.handle_const_fields(&fields, ctx_collection, metadata, tdi);
+    }
+
+    fn handle_static_fields(
+        &mut self,
+        fields: &[FieldInfo],
+        metadata: &Metadata,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = Self::get_type_definition(metadata, tdi);
+
+        // if no fields, skip
+        if t.field_count == 0 {
+            return;
+        }
+
+        for field_info in fields.iter().filter(|f| f.is_static) {
+            let f_type = field_info.field_type;
+            let f_name = field_info.field.name(metadata.metadata);
+            let f_offset = field_info.offset.unwrap_or(u32::MAX);
+            let f_size = field_info.size;
+            let field_ty_cpp_name = &field_info.cpp_field.field_ty;
+
+            // non const field
+            // instance field access on ref types is special
+            // ref type instance fields are specially named because the field getters are supposed to be used
+            let f_cpp_name = field_info.cpp_field.cpp_name.clone();
+
+            let field_access = format!("this->{f_cpp_name}");
+
+            let klass_resolver = cpp_type.classof_cpp_name();
+
+            let getter_call = match f_type.is_static() {
+                true => {
+                    format!(
+                        "return {CORDL_METHOD_HELPER_NAMESPACE}::getStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>();"
+                    )
+                }
+                false => {
+                    format!("return {field_access};")
+                }
+            };
+
+            let setter_var_name = "value";
+            let setter_call = format!(
+                        "{CORDL_METHOD_HELPER_NAMESPACE}::setStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
+                    );
+
+            // don't get a template that has no names
+            let useful_template =
+                cpp_type
+                    .cpp_template
+                    .clone()
+                    .and_then(|t| match t.names.is_empty() {
+                        true => None,
+                        false => Some(t),
+                    });
+
+            let getter_name = format!("getStaticF_{}", f_cpp_name);
+            let setter_name = format!("setStaticF_{}", f_cpp_name);
+
+            let get_return_type = field_ty_cpp_name.clone();
+
+            let getter_decl = CppMethodDecl {
+                cpp_name: getter_name.clone(),
+                instance: false,
+                return_type: get_return_type,
+
+                brief: None,
+                body: None, // TODO:
+                // Const if instance for now
+                is_const: false,
+                is_constexpr: !f_type.is_static() || f_type.is_constant(),
+                is_inline: true,
+                is_virtual: false,
+                is_operator: false,
+                is_no_except: false, // TODO:
+                parameters: vec![],
+                prefix_modifiers: vec![],
+                suffix_modifiers: vec![],
+                template: None,
+            };
+
+            let setter_decl = CppMethodDecl {
+                cpp_name: setter_name,
+                instance: false,
+                return_type: "void".to_string(),
+
+                brief: None,
+                body: None,      //TODO:
+                is_const: false, // TODO: readonly fields?
+                is_constexpr: !f_type.is_static() || f_type.is_constant(),
+                is_inline: true,
+                is_virtual: false,
+                is_operator: false,
+                is_no_except: false, // TODO:
+                parameters: vec![CppParam {
+                    def_value: None,
+                    modifiers: "".to_string(),
+                    name: setter_var_name.to_string(),
+                    ty: field_ty_cpp_name.clone(),
+                }],
+                prefix_modifiers: vec![],
+                suffix_modifiers: vec![],
+                template: None,
+            };
+
+            let getter_impl = CppMethodImpl {
+                body: vec![Arc::new(CppLine::make(getter_call.clone()))],
+                declaring_cpp_full_name: cpp_type
+                    .cpp_name_components
+                    .remove_pointer()
+                    .combine_all(),
+                template: useful_template.clone(),
+
+                ..getter_decl.clone().into()
+            };
+
+            let setter_impl = CppMethodImpl {
+                body: vec![Arc::new(CppLine::make(setter_call))],
+                declaring_cpp_full_name: cpp_type
+                    .cpp_name_components
+                    .remove_pointer()
+                    .combine_all(),
+                template: useful_template.clone(),
+
+                ..setter_decl.clone().into()
+            };
+
+            // instance fields on a ref type should declare a cpp property
+
+            let prop_decl = CppPropertyDecl {
+                cpp_name: f_cpp_name,
+                prop_ty: field_ty_cpp_name.clone(),
+                instance: !f_type.is_static() && !f_type.is_constant(),
+                getter: getter_decl.cpp_name.clone().into(),
+                setter: setter_decl.cpp_name.clone().into(),
+                indexable: false,
+                brief_comment: Some(format!(
+                    "Field {f_name}, offset 0x{f_offset:x}, size 0x{f_size:x} "
+                )),
+            };
+
+            // only push accessors if declaring ref type, or if static field
+            cpp_type
+                .declarations
+                .push(CppMember::Property(prop_decl).into());
+
+            // decl
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(setter_decl).into());
+
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(getter_decl).into());
+
+            // impl
+            cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(setter_impl).into());
+
+            cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(getter_impl).into());
+        }
+    }
+    fn handle_const_fields(
+        &mut self,
+        fields: &[FieldInfo],
+        ctx_collection: &CppContextCollection,
+        metadata: &Metadata,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = Self::get_type_definition(metadata, tdi);
+
+        // if no fields, skip
+        if t.field_count == 0 {
+            return;
+        }
+
+        let declaring_cpp_template = if cpp_type
+            .cpp_template
+            .as_ref()
+            .is_some_and(|t| !t.names.is_empty())
+        {
+            cpp_type.cpp_template.clone()
+        } else {
+            None
+        };
+
+        for field_info in fields.iter().filter(|f| f.is_constant) {
+            let f_type = field_info.field_type;
+            let f_name = field_info.field.name(metadata.metadata);
+            let f_offset = field_info.offset.unwrap_or(u32::MAX);
+            let f_size = field_info.size;
+
+            let def_value = field_info.cpp_field.value.as_ref();
+
+            let def_value = def_value.expect("Constant with no default value?");
+
+            match f_type.ty.is_primitive_builtin() {
+                false => {
+                    // other type
+                    let field_decl = CppFieldDecl {
+                        instance: false,
+                        readonly: f_type.is_constant(),
+                        value: None,
+                        const_expr: false,
+                        brief_comment: Some(format!("Field {f_name} value: {def_value}")),
+                        ..field_info.cpp_field.clone()
+                    };
+                    let field_impl = CppFieldImpl {
+                        value: def_value.clone(),
+                        const_expr: true,
+                        declaring_type: cpp_type.cpp_name_components.remove_pointer().combine_all(),
+                        declaring_type_template: declaring_cpp_template.clone(),
+                        ..field_decl.clone().into()
+                    };
+
+                    // get enum type to include impl
+                    // this is needed since the enum constructor is not defined
+                    // in the declaration
+                    // TODO: Make enum ctors inline defined
+                    if f_type.valuetype && f_type.ty == Il2CppTypeEnum::Valuetype {
+                        let field_cpp_tag: CppTypeTag =
+                            CppTypeTag::from_type_data(f_type.data, metadata.metadata);
+                        let field_cpp_td_tag: CppTypeTag = field_cpp_tag.get_tdi().into();
+                        let field_cpp_type = ctx_collection.get_cpp_type(field_cpp_td_tag);
+
+                        if field_cpp_type.is_some_and(|f| f.is_enum_type) {
+                            let field_cpp_context = ctx_collection
+                                .get_context(field_cpp_td_tag)
+                                .expect("No context for cpp enum type");
+
+                            cpp_type.requirements.add_impl_include(
+                                field_cpp_type,
+                                CppInclude::new_context_typeimpl(field_cpp_context),
+                            );
+                        }
+                    }
+
+                    cpp_type
+                        .declarations
+                        .push(CppMember::FieldDecl(field_decl).into());
+                    cpp_type
+                        .implementations
+                        .push(CppMember::FieldImpl(field_impl).into());
+                }
+                true => {
+                    // primitive type
+                    let field_decl = CppFieldDecl {
+                        instance: false,
+                        readonly: f_type.is_constant(),
+                        value: Some(def_value.clone()),
+                        const_expr: true,
+                        brief_comment: Some(format!(
+                            "Field {f_name} offset 0x{f_offset:x} size 0x{f_size:x}"
+                        )),
+                        ..field_info.cpp_field.clone()
+                    };
+
+                    cpp_type
+                        .declarations
+                        .push(CppMember::FieldDecl(field_decl).into());
+                }
+            }
+        }
+    }
+
+    fn handle_instance_fields(
+        &mut self,
+        fields: &[FieldInfo],
+        ctx_collection: &CppContextCollection,
+        metadata: &Metadata,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = Self::get_type_definition(metadata, tdi);
+
+        // if no fields, skip
+        if t.field_count == 0 {
+            return;
+        }
+
+        for field_info in fields.iter().filter(|f| !f.is_constant && !f.is_static) {
+            let f_type = field_info.field_type;
+
+            // only push def dependency if instance & valuetype field & not a primitive builtin
+            if f_type.valuetype && !f_type.ty.is_primitive_builtin() {
+                let field_cpp_tag: CppTypeTag =
+                    CppTypeTag::from_type_data(f_type.data, metadata.metadata);
+                let field_cpp_td_tag: CppTypeTag = field_cpp_tag.get_tdi().into();
+                let field_cpp_type = ctx_collection.get_cpp_type(field_cpp_td_tag);
+
+                if field_cpp_type.is_some() {
+                    let field_cpp_context = ctx_collection
+                        .get_context(field_cpp_td_tag)
+                        .expect("No context for cpp enum type");
+
+                    cpp_type.requirements.add_def_include(
+                        field_cpp_type,
+                        CppInclude::new_context_typedef(field_cpp_context),
+                    );
+
+                    cpp_type.requirements.add_impl_include(
+                        field_cpp_type,
+                        CppInclude::new_context_typeimpl(field_cpp_context),
+                    );
+                }
+            }
+        }
+
+        let instance_field_decls = fields
+            .iter()
+            .filter(|f| f.offset.is_some())
+            .cloned()
+            .collect_vec();
+
+        let property_exists = |to_find: &str| {
+            cpp_type.declarations.iter().any(|d| match d.as_ref() {
+                CppMember::Property(p) => p.cpp_name == to_find,
+                _ => false,
+            })
+        };
 
         // oh no! the fields are unionizing! don't tell elon musk!
-        Self::unionize_fields(instance_field_decls)
+        let resulting_fields = Self::add_or_unionize_fields(&instance_field_decls)
+            .into_iter()
+            .map(|d| match d {
+                CppMember::FieldDecl(mut f) => {
+                    if property_exists(&f.cpp_name) {
+                        f.cpp_name = format!("_cordl_{}", &f.cpp_name);
+                    }
+
+                    CppMember::FieldDecl(f)
+                }
+                _ => d,
+            })
+            .collect_vec();
+
+        resulting_fields
             .into_iter()
             .for_each(|member| cpp_type.declarations.push(member.into()));
+    }
+
+    fn handle_valuetype_fields(
+        &mut self,
+        _fields: &[FieldInfo],
+        _metadata: &Metadata,
+        _tdi: TypeDefinitionIndex,
+    ) {
+        // Value types don't need any field fixups
+    }
+
+    fn handle_referencetype_fields(
+        &mut self,
+        fields: &[FieldInfo],
+        metadata: &Metadata,
+        tdi: TypeDefinitionIndex,
+    ) {
+        let cpp_type = self.get_mut_cpp_type();
+        let t = Self::get_type_definition(metadata, tdi);
+
+        // if no fields, skip
+        if t.field_count == 0 {
+            return;
+        }
+
+        for field_info in fields.iter().filter(|f| !f.is_constant && !f.is_static) {
+            let f_type = field_info.field_type;
+            let f_name = field_info.field.name(metadata.metadata);
+            let f_offset = field_info.offset.unwrap_or(u32::MAX);
+            let f_size = field_info.size;
+            let field_ty_cpp_name = &field_info.cpp_field.field_ty;
+
+            // ref type instance fields are specially named because the field getters are supposed to be used
+            let f_cpp_name = &field_info.cpp_field.cpp_name;
+            let field_access = format!("this->{f_cpp_name}");
+            let getter_call = format!("return {field_access};");
+
+            let setter_var_name = "value";
+            let setter_call = format!("il2cpp_functions::gc_wbarrier_set_field(this, &{field_access}, cordl_internals::convert(std::forward<decltype({setter_var_name})>({setter_var_name})));");
+
+            // don't get a template that has no names
+            let useful_template =
+                cpp_type
+                    .cpp_template
+                    .clone()
+                    .and_then(|t| match t.names.is_empty() {
+                        true => None,
+                        false => Some(t),
+                    });
+
+            let getter_name = format!("__get_{}", f_cpp_name);
+            let setter_name = format!("__set_{}", f_cpp_name);
+
+            let (get_return_type, const_get_return_type) = match field_info.is_pointer {
+                // Var types are default pointers
+                true => (
+                    field_ty_cpp_name.clone(),
+                    format!("::cordl_internals::to_const_pointer<{field_ty_cpp_name}>",),
+                ),
+                false => (field_ty_cpp_name.clone(), field_ty_cpp_name.clone()),
+            };
+
+            let getter_decl = CppMethodDecl {
+                cpp_name: getter_name.clone(),
+                instance: true,
+                return_type: get_return_type,
+
+                brief: None,
+                body: None, // TODO:
+                // Const if instance for now
+                is_const: false,
+                is_constexpr: !f_type.is_static() || f_type.is_constant(),
+                is_inline: true,
+                is_virtual: false,
+                is_operator: false,
+                is_no_except: false, // TODO:
+                parameters: vec![],
+                prefix_modifiers: vec![],
+                suffix_modifiers: vec![],
+                template: None,
+            };
+
+            let const_getter_decl = CppMethodDecl {
+                cpp_name: getter_name,
+                instance: true,
+                return_type: const_get_return_type,
+
+                brief: None,
+                body: None, // TODO:
+                // Const if instance for now
+                is_const: true,
+                is_constexpr: !f_type.is_static() || f_type.is_constant(),
+                is_inline: true,
+                is_virtual: false,
+                is_operator: false,
+                is_no_except: false, // TODO:
+                parameters: vec![],
+                prefix_modifiers: vec![],
+                suffix_modifiers: vec![],
+                template: None,
+            };
+
+            let setter_decl = CppMethodDecl {
+                cpp_name: setter_name,
+                instance: true,
+                return_type: "void".to_string(),
+
+                brief: None,
+                body: None,      //TODO:
+                is_const: false, // TODO: readonly fields?
+                is_constexpr: !f_type.is_static() || f_type.is_constant(),
+                is_inline: true,
+                is_virtual: false,
+                is_operator: false,
+                is_no_except: false, // TODO:
+                parameters: vec![CppParam {
+                    def_value: None,
+                    modifiers: "".to_string(),
+                    name: setter_var_name.to_string(),
+                    ty: field_ty_cpp_name.clone(),
+                }],
+                prefix_modifiers: vec![],
+                suffix_modifiers: vec![],
+                template: None,
+            };
+
+            let getter_impl = CppMethodImpl {
+                body: vec![Arc::new(CppLine::make(getter_call.clone()))],
+                declaring_cpp_full_name: cpp_type
+                    .cpp_name_components
+                    .remove_pointer()
+                    .combine_all(),
+                template: useful_template.clone(),
+
+                ..getter_decl.clone().into()
+            };
+
+            let const_getter_impl = CppMethodImpl {
+                body: vec![Arc::new(CppLine::make(getter_call))],
+                declaring_cpp_full_name: cpp_type
+                    .cpp_name_components
+                    .remove_pointer()
+                    .combine_all(),
+                template: useful_template.clone(),
+
+                ..const_getter_decl.clone().into()
+            };
+
+            let setter_impl = CppMethodImpl {
+                body: vec![Arc::new(CppLine::make(setter_call))],
+                declaring_cpp_full_name: cpp_type
+                    .cpp_name_components
+                    .remove_pointer()
+                    .combine_all(),
+                template: useful_template.clone(),
+
+                ..setter_decl.clone().into()
+            };
+
+            // instance fields on a ref type should declare a cpp property
+
+            let prop_decl = CppPropertyDecl {
+                cpp_name: f_cpp_name.clone(),
+                prop_ty: field_ty_cpp_name.clone(),
+                instance: !f_type.is_static() && !f_type.is_constant(),
+                getter: getter_decl.cpp_name.clone().into(),
+                setter: setter_decl.cpp_name.clone().into(),
+                indexable: false,
+                brief_comment: Some(format!(
+                    "Field {f_name}, offset 0x{f_offset:x}, size 0x{f_size:x} "
+                )),
+            };
+
+            // only push accessors if declaring ref type, or if static field
+            cpp_type
+                .declarations
+                .push(CppMember::Property(prop_decl).into());
+
+            // decl
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(setter_decl).into());
+
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(getter_decl).into());
+
+            // impl
+            cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(setter_impl).into());
+
+            cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(getter_impl).into());
+
+            // only push the const getter for instance fields
+
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(const_getter_decl).into());
+
+            cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(const_getter_impl).into());
+        }
     }
 
     fn field_collision_check(instance_fields: &[FieldInfo]) -> bool {
@@ -1140,32 +1315,32 @@ pub trait CSType: Sized {
             .iter()
             .sorted_by(|a, b| a.offset.cmp(&b.offset))
             .any(|field| {
-                if field.offset < next_offset {
+                let offset = field.offset.unwrap_or(u32::MAX);
+                if offset < next_offset {
                     true
                 } else {
-                    next_offset = field.offset + field.size;
+                    next_offset = offset + field.size as u32;
                     false
                 }
             });
     }
 
-    fn unionize_fields(instance_fields: Vec<FieldInfo>) -> Vec<CppMember> {
-        if !Self::field_collision_check(&instance_fields) {
+    /// generates the fields for the value type or reference type\
+    /// handles unions
+    fn add_or_unionize_fields(instance_fields: &[FieldInfo]) -> Vec<CppMember> {
+        // make all fields like usual
+        if !Self::field_collision_check(instance_fields) {
             return instance_fields
-                .into_iter()
-                .map(|d| CppMember::FieldDecl(d.cpp_field))
+                .iter()
+                .map(|d| CppMember::FieldDecl(d.cpp_field.clone()))
                 .collect_vec();
         }
+        // we have a collision, investigate and handle
 
         let mut offset_map = HashMap::new();
 
-        fn accumulated_size(
-            fields: &[FieldInfo]
-        ) -> u32 {
-            fields
-                .iter()
-                .map(|f| f.size as u32)
-                .sum()
+        fn accumulated_size(fields: &[FieldInfo]) -> u32 {
+            fields.iter().map(|f| f.size as u32).sum()
         }
 
         let mut current_max: u32 = 0;
@@ -1175,11 +1350,12 @@ pub trait CSType: Sized {
 
         // you can't sort instance fields on offset/size because it will throw off the unionization process
         instance_fields
-            .into_iter()
-            .sorted_by(|a, b| a.size.cmp(&b.size).reverse())
+            .iter()
+            .sorted_by(|a, b| a.size.cmp(&b.size))
+            .rev()
             .sorted_by(|a, b| a.offset.cmp(&b.offset))
             .for_each(|field| {
-                let offset = field.offset as u32;
+                let offset = field.offset.unwrap_or(u32::MAX);
                 let size = field.size as u32;
                 let max = offset + size;
 
@@ -1188,84 +1364,83 @@ pub trait CSType: Sized {
                     current_max = max;
                 }
 
-                let current_set = offset_map
-                    .entry(current_offset)
-                    .or_insert_with(|| FieldInfoSet {
-                        fields: vec![],
-                        offset: current_offset,
-                        size,
-                    });
+                let current_set =
+                    offset_map
+                        .entry(current_offset)
+                        .or_insert_with(|| FieldInfoSet {
+                            fields: vec![],
+                            offset: current_offset,
+                            size,
+                        });
 
                 if current_max > current_set.max() {
                     current_set.size = size
                 }
 
                 // if we have a last vector & the size of its fields + current_offset is smaller than current max add to that list
-                if let Some(last) = current_set.fields.last_mut() && current_offset + accumulated_size(last) == offset {
-                    last.push(field);
+                if let Some(last) = current_set.fields.last_mut()
+                    && current_offset + accumulated_size(last) == offset
+                {
+                    last.push(field.clone());
                 } else {
-                    current_set.fields.push(vec![field]);
+                    current_set.fields.push(vec![field.clone()]);
                 }
-            }
-        );
+            });
 
         offset_map
             .into_values()
             .map(|field_set| {
                 // if we only have one list, just emit it as a set of fields
                 if field_set.fields.len() == 1 {
-                    field_set
+                    return field_set
                         .fields
                         .into_iter()
                         .flat_map(|v| v.into_iter())
                         .map(|d| CppMember::FieldDecl(d.cpp_field))
-                        .collect_vec()
-                } else {
-                    // we had more than 1 list, so we have unions to emit
-                    let declarations = field_set
-                        .fields
-                        .into_iter()
-                        .map(|struct_contents| {
-                            if struct_contents.len() == 1 {
-                                // emit a struct with only 1 field as just a field
-                                struct_contents
-                                    .into_iter()
-                                    .map(|d| CppMember::FieldDecl(d.cpp_field))
-                                    .collect_vec()
-                            } else {
-                                vec![
-                                    // if we have more than 1 field, emit a nested struct
-                                    CppMember::NestedStruct(
-                                        CppNestedStruct {
-                                            base_type: None,
-                                            declaring_name: "".to_string(),
-                                            is_enum: false,
-                                            is_class: false,
-                                            declarations:
-                                            struct_contents
-                                                .into_iter()
-                                                .map(|d| CppMember::FieldDecl(d.cpp_field).into())
-                                                .collect_vec(),
-                                            brief_comment: Some(format!("Anonymous struct offset 0x{:x}, size 0x{:x}", field_set.offset, field_set.size)),
-                                        }
-                                    )
-                                ]
-                            }
-                        })
-                        .flat_map(|v| v.into_iter())
                         .collect_vec();
-
-                    // wrap our set into a union
-                    vec![
-                        CppMember::NestedUnion(
-                            CppNestedUnion {
-                                brief_comment: Some(format!("Anonymous union offset 0x{:x}, size 0x{:x}", field_set.offset, field_set.size)),
-                                declarations: declarations.into_iter().map(|d| d.into()).collect_vec(),
-                                offset: field_set.offset,
-                            }
-                        )
-                    ]
                 }
+                // we had more than 1 list, so we have unions to emit
+                let declarations = field_set
+                    .fields
+                    .into_iter()
+                    .map(|struct_contents| {
+                        if struct_contents.len() == 1 {
+                            // emit a struct with only 1 field as just a field
+                            return struct_contents
+                                .into_iter()
+                                .map(|d| CppMember::FieldDecl(d.cpp_field))
+                                .collect_vec();
+                        }
+                        vec![
+                            // if we have more than 1 field, emit a nested struct
+                            CppMember::NestedStruct(CppNestedStruct {
+                                base_type: None,
+                                declaring_name: "".to_string(),
+                                is_enum: false,
+                                is_class: false,
+                                declarations: struct_contents
+                                    .into_iter()
+                                    .map(|d| CppMember::FieldDecl(d.cpp_field).into())
+                                    .collect_vec(),
+                                brief_comment: Some(format!(
+                                    "Anonymous struct offset 0x{:x}, size 0x{:x}",
+                                    field_set.offset, field_set.size
+                                )),
+                            }),
+                        ]
+                    })
+                    .flat_map(|v| v.into_iter())
+                    .collect_vec();
+
+                // wrap our set into a union
+                vec![CppMember::NestedUnion(CppNestedUnion {
+                    brief_comment: Some(format!(
+                        "Anonymous union offset 0x{:x}, size 0x{:x}",
+                        field_set.offset, field_set.size
+                    )),
+                    declarations: declarations.into_iter().map(|d| d.into()).collect_vec(),
+                    offset: field_set.offset,
+                })]
             })
             .flat_map(|v| v.into_iter())
             .collect_vec()
@@ -1310,7 +1485,7 @@ pub trait CSType: Sized {
             // parent will be a value wrapper type
             // which will have the size
             // OF THE TYPE ITSELF, NOT PARENT
-            true => {},
+            true => {}
             // handle as reference type
             false => {
                 // make sure our parent is intended\
@@ -1746,7 +1921,7 @@ pub trait CSType: Sized {
             is_class: false,
             is_enum: true,
             declarations: enum_entries.map(Rc::new).collect(),
-            brief_comment: Some(format!("Nested struct {unwrapped_name}"))
+            brief_comment: Some(format!("Nested struct {unwrapped_name}")),
         };
         cpp_type
             .declarations
