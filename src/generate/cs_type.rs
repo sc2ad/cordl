@@ -732,6 +732,7 @@ pub trait CSType: Sized {
                     brief_comment: Some(format!("Field {f_name} value: {def_value:?}")),
                     value: def_value,
                     const_expr: false,
+                    is_private: false
                 };
 
                 Some(FieldInfo {
@@ -1084,12 +1085,15 @@ pub trait CSType: Sized {
         };
 
         // oh no! the fields are unionizing! don't tell elon musk!
-        let resulting_fields = Self::add_or_unionize_fields(&instance_field_decls)
+        let resulting_fields = Self::make_or_unionize_fields(&instance_field_decls)
             .into_iter()
             .map(|d| match d {
                 CppMember::FieldDecl(mut f) => {
                     if property_exists(&f.cpp_name) {
                         f.cpp_name = format!("_cordl_{}", &f.cpp_name);
+                        
+                        // make private if a property with this name exists
+                        f.is_private = true;
                     }
 
                     CppMember::FieldDecl(f)
@@ -1328,7 +1332,7 @@ pub trait CSType: Sized {
 
     /// generates the fields for the value type or reference type\
     /// handles unions
-    fn add_or_unionize_fields(instance_fields: &[FieldInfo]) -> Vec<CppMember> {
+    fn make_or_unionize_fields(instance_fields: &[FieldInfo]) -> Vec<CppMember> {
         // make all fields like usual
         if !Self::field_collision_check(instance_fields) {
             return instance_fields
@@ -1810,6 +1814,7 @@ pub trait CSType: Sized {
                     const_expr: true,
                     value: Some(format!("0x{size:x}")),
                     brief_comment: Some("The size of the true reference type".to_string()),
+                    is_private: false,
                 })
                 .into(),
             );
@@ -1833,6 +1838,7 @@ pub trait CSType: Sized {
                         "The size this ref type adds onto its base type, may evaluate to 0"
                             .to_string(),
                     ),
+                    is_private: false,
                 })
                 .into(),
             );
@@ -1972,6 +1978,7 @@ pub trait CSType: Sized {
                 const_expr: true,
                 value: Some(format!("0x{size:x}")),
                 brief_comment: Some("The size of the true value type".to_string()),
+                is_private: false
             })
             .into(),
         );

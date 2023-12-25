@@ -176,6 +176,7 @@ pub struct CppFieldDecl {
     pub const_expr: bool,
     pub value: Option<String>,
     pub brief_comment: Option<String>,
+    pub is_private: bool,
 }
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CppFieldImpl {

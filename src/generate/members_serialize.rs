@@ -117,6 +117,10 @@ impl Writable for CppFieldDecl {
             writeln!(writer, "/// @brief {comment}")?;
         }
 
+        if self.is_private {
+            writeln!(writer, "private:")?;
+        }
+
         let ty = &self.field_ty;
         let name = &self.cpp_name;
         let mut prefix_mods: Vec<&str> = vec![];
@@ -139,6 +143,10 @@ impl Writable for CppFieldDecl {
             writeln!(writer, "{prefixes} {ty} {suffixes} {name}{{{value}}};")?;
         } else {
             writeln!(writer, "{prefixes} {ty} {suffixes} {name};")?;
+        }
+
+        if self.is_private {
+            writeln!(writer, "public:")?;
         }
 
         Ok(())
@@ -721,7 +729,7 @@ impl Writable for CppNestedUnion {
         writeln!(writer, "union {{")?;
         self.declarations
             .iter()
-            .try_for_each(|member| -> color_eyre::Result<()>{
+            .try_for_each(|member| -> color_eyre::Result<()> {
                 member.write(writer)?;
                 Ok(())
             })?;
