@@ -142,7 +142,7 @@ fn get_type_def_packing(metadata: &Metadata, ty_def: &Il2CppTypeDefinition) -> O
     let packing = packing_value(ty_def.bitfield, metadata.packing_field_offset);
 
     // packing 8 is None
-    if packing == 8 || packing == 0 {
+    if packing == 0 {
         return None;
     }
 
