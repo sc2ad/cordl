@@ -89,21 +89,19 @@ pub fn get_sizeof_type<'a>(
     metadata_size
 }
 
-const PACKING_SIZE_ZERO: usize = 0;
-const PACKING_SIZE_ONE: usize = 1;
-const PACKING_SIZE_TWO: usize = 2;
-const PACKING_SIZE_FOUR: usize = 3;
-const PACKING_SIZE_EIGHT: usize = 4;
-const PACKING_SIZE_SIXTEEN: usize = 5;
-const PACKING_SIZE_THIRTYTWO: usize = 6;
-const PACKING_SIZE_SIXTYFOUR: usize = 7;
-const PACKING_SIZE_ONEHUNDREDTWENTYEIGHT: usize = 8;
+const PACKING_SIZE_ZERO: u32 = 0;
+const PACKING_SIZE_ONE: u32 = 1;
+const PACKING_SIZE_TWO: u32 = 2;
+const PACKING_SIZE_FOUR: u32 = 3;
+const PACKING_SIZE_EIGHT: u32 = 4;
+const PACKING_SIZE_SIXTEEN: u32 = 5;
+const PACKING_SIZE_THIRTYTWO: u32 = 6;
+const PACKING_SIZE_SIXTYFOUR: u32 = 7;
+const PACKING_SIZE_ONEHUNDREDTWENTYEIGHT: u32 = 8;
 
 // GlobalMetadata::StructLayoutPack
 fn packing_value(bitfield: u32, packing_field_offset: u8) -> u8 {
-    let bitfield_usize = bitfield as usize;
-    let packing_field_offset_usize = packing_field_offset as usize;
-    match (bitfield_usize >> (packing_field_offset_usize - 1)) & 0xF as usize {
+    match (bitfield >> (packing_field_offset - 1)) & 0xF {
         PACKING_SIZE_ZERO => 0,
         PACKING_SIZE_ONE => 1,
         PACKING_SIZE_TWO => 2,
@@ -141,7 +139,8 @@ fn get_packing(metadata: &Metadata<'_>, ty_def: &Il2CppTypeDefinition) -> Option
 fn get_type_def_packing(metadata: &Metadata, ty_def: &Il2CppTypeDefinition) -> Option<u8> {
     let packing = packing_value(ty_def.bitfield, metadata.packing_field_offset);
 
-    // packing 8 is None
+    // packing 8 is default
+    // 0 is likely None
     if packing == 0 {
         return None;
     }
