@@ -89,45 +89,64 @@ pub fn get_sizeof_type<'a>(
     metadata_size
 }
 
-fn packing_is_default(bitfield: u32, packing_is_default_offset: u8) -> bool {
-    ((bitfield >> (packing_is_default_offset - 1)) & 0x1) != 0
-}
+const PACKING_SIZE_ZERO: usize = 0;
+const PACKING_SIZE_ONE: usize = 1;
+const PACKING_SIZE_TWO: usize = 2;
+const PACKING_SIZE_FOUR: usize = 3;
+const PACKING_SIZE_EIGHT: usize = 4;
+const PACKING_SIZE_SIXTEEN: usize = 5;
+const PACKING_SIZE_THIRTYTWO: usize = 6;
+const PACKING_SIZE_SIXTYFOUR: usize = 7;
+const PACKING_SIZE_ONEHUNDREDTWENTYEIGHT: usize = 8;
 
-const PACKING_SIZE_ZERO: u32 = 0;
-const PACKING_SIZE_ONE: u32 = 1;
-const PACKING_SIZE_TWO: u32 = 2;
-const PACKING_SIZE_FOUR: u32 = 3;
-const PACKING_SIZE_EIGHT: u32 = 4;
-const PACKING_SIZE_SIXTEEN: u32 = 5;
-const PACKING_SIZE_THIRTYTWO: u32 = 6;
-const PACKING_SIZE_SIXTYFOUR: u32 = 7;
-const PACKING_SIZE_ONEHUNDREDTWENTYEIGHT: u32 = 8;
-
-fn packing_value(bitfield: u32, packing_field_offset: u8) -> Option<u8> {
-    match (bitfield >> (packing_field_offset - 1)) & 0xF {
-        PACKING_SIZE_ZERO => None,
-        PACKING_SIZE_ONE => Some(1),
-        PACKING_SIZE_TWO => Some(2),
-        PACKING_SIZE_FOUR => Some(4),
-        PACKING_SIZE_EIGHT => Some(8),
-        PACKING_SIZE_SIXTEEN => Some(16),
-        PACKING_SIZE_THIRTYTWO => Some(32),
-        PACKING_SIZE_SIXTYFOUR => Some(64),
-        PACKING_SIZE_ONEHUNDREDTWENTYEIGHT => Some(128),
+// GlobalMetadata::StructLayoutPack
+fn packing_value(bitfield: u32, packing_field_offset: u8) -> u8 {
+    let bitfield_usize = bitfield as usize;
+    let packing_field_offset_usize = packing_field_offset as usize;
+    match (bitfield_usize >> (packing_field_offset_usize - 1)) & 0xF as usize {
+        PACKING_SIZE_ZERO => 0,
+        PACKING_SIZE_ONE => 1,
+        PACKING_SIZE_TWO => 2,
+        PACKING_SIZE_FOUR => 4,
+        PACKING_SIZE_EIGHT => 8,
+        PACKING_SIZE_SIXTEEN => 16,
+        PACKING_SIZE_THIRTYTWO => 32,
+        PACKING_SIZE_SIXTYFOUR => 64,
+        PACKING_SIZE_ONEHUNDREDTWENTYEIGHT => 128,
         _ => {
             warn!("Invalid packing value read");
-            None
+            0
         }
     }
 }
 
-fn get_packing(metadata: &Metadata<'_>, ty_def: &Il2CppTypeDefinition) -> Option<u8> {
-    packing_value(ty_def.bitfield, metadata.packing_field_offset)
+// MetadataCache::StructLayoutPackIsDefault
+fn packing_is_default(bitfield: u32, packing_is_default_offset: u8) -> bool {
+    ((bitfield >> (packing_is_default_offset - 1)) & 0x1) != 0
+}
 
-    // match packing_is_default(ty_def.bitfield, metadata.packing_is_default_offset) {
-    //     true => ,
-    //     false => packing_value(ty_def.bitfield, metadata.specified_packing_field_offset),
-    // }
+/// RuntimeType::GetPacking
+fn get_packing(metadata: &Metadata<'_>, ty_def: &Il2CppTypeDefinition) -> Option<u8> {
+    // according to this, packing is by default n = 8
+    // https://learn.microsoft.com/en-us/cpp/preprocessor/pack?view=msvc-170
+    if packing_is_default(ty_def.bitfield, metadata.packing_is_default_offset) {
+        return None;
+    }
+    let packing = packing_value(ty_def.bitfield, metadata.specified_packing_field_offset);
+
+    Some(packing)
+}
+
+/// GlobalMetadata::FromTypeDefinition
+fn get_type_def_packing(metadata: &Metadata, ty_def: &Il2CppTypeDefinition) -> Option<u8> {
+    let packing = packing_value(ty_def.bitfield, metadata.packing_field_offset);
+
+    // packing 8 is None
+    if packing == 8 || packing == 0 {
+        return None;
+    }
+
+    Some(packing)
 }
 
 /// Inspired by libil2cpp Class::LayoutFieldsLocked
@@ -145,7 +164,7 @@ pub fn layout_fields(
     let mut natural_alignment: u8 = 0;
 
     // packing calculation based on RuntimeType::GetPacking
-    let packing = get_packing(metadata, declaring_ty_def);
+    let packing = get_type_def_packing(metadata, declaring_ty_def);
 
     assert!(
         packing.unwrap_or_default() <= 128,
