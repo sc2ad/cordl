@@ -732,7 +732,7 @@ pub trait CSType: Sized {
                     brief_comment: Some(format!("Field {f_name} value: {def_value:?}")),
                     value: def_value,
                     const_expr: false,
-                    is_private: false
+                    is_private: false,
                 };
 
                 Some(FieldInfo {
@@ -749,12 +749,11 @@ pub trait CSType: Sized {
             .collect_vec();
 
         if t.is_value_type() || t.is_enum_type() {
-            cpp_type.handle_valuetype_fields(&fields, metadata, tdi);
+            cpp_type.handle_valuetype_fields(&fields, ctx_collection, metadata, tdi);
         } else {
-            cpp_type.handle_referencetype_fields(&fields, metadata, tdi);
+            cpp_type.handle_referencetype_fields(&fields, ctx_collection, metadata, tdi);
         }
 
-        cpp_type.handle_instance_fields(&fields, ctx_collection, metadata, tdi);
         cpp_type.handle_static_fields(&fields, metadata, tdi);
         cpp_type.handle_const_fields(&fields, ctx_collection, metadata, tdi);
     }
@@ -773,7 +772,9 @@ pub trait CSType: Sized {
             return;
         }
 
-        for field_info in fields.iter().filter(|f| f.is_static) {
+        // we want only static fields
+        // we ignore constants
+        for field_info in fields.iter().filter(|f| f.is_static && !f.is_constant) {
             let f_type = field_info.field_type;
             let f_name = field_info.field.name(metadata.metadata);
             let f_offset = field_info.offset.unwrap_or(u32::MAX);
@@ -785,25 +786,14 @@ pub trait CSType: Sized {
             // ref type instance fields are specially named because the field getters are supposed to be used
             let f_cpp_name = field_info.cpp_field.cpp_name.clone();
 
-            let field_access = format!("this->{f_cpp_name}");
-
             let klass_resolver = cpp_type.classof_cpp_name();
 
-            let getter_call = match f_type.is_static() {
-                true => {
-                    format!(
-                        "return {CORDL_METHOD_HELPER_NAMESPACE}::getStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>();"
-                    )
-                }
-                false => {
-                    format!("return {field_access};")
-                }
-            };
+            let getter_call = 
+            format!("return {CORDL_METHOD_HELPER_NAMESPACE}::getStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>();");
 
             let setter_var_name = "value";
-            let setter_call = format!(
-                        "{CORDL_METHOD_HELPER_NAMESPACE}::setStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));"
-                    );
+            let setter_call =
+            format!("{CORDL_METHOD_HELPER_NAMESPACE}::setStaticField<{field_ty_cpp_name}, \"{f_name}\", {klass_resolver}>(std::forward<{field_ty_cpp_name}>({setter_var_name}));");
 
             // don't get a template that has no names
             let useful_template =
@@ -1011,12 +1001,13 @@ pub trait CSType: Sized {
                     // primitive type
                     let field_decl = CppFieldDecl {
                         instance: false,
-                        readonly: f_type.is_constant(),
-                        value: Some(def_value.clone()),
                         const_expr: true,
+                        readonly: f_type.is_constant(),
+
                         brief_comment: Some(format!(
                             "Field {f_name} offset 0x{f_offset:x} size 0x{f_size:x}"
                         )),
+                        value: Some(def_value.clone()),
                         ..field_info.cpp_field.clone()
                     };
 
@@ -1073,7 +1064,7 @@ pub trait CSType: Sized {
 
         let instance_field_decls = fields
             .iter()
-            .filter(|f| f.offset.is_some())
+            .filter(|f| f.offset.is_some() && !f.is_static && !f.is_constant)
             .cloned()
             .collect_vec();
 
@@ -1091,7 +1082,7 @@ pub trait CSType: Sized {
                 CppMember::FieldDecl(mut f) => {
                     if property_exists(&f.cpp_name) {
                         f.cpp_name = format!("_cordl_{}", &f.cpp_name);
-                        
+
                         // make private if a property with this name exists
                         f.is_private = true;
                     }
@@ -1109,16 +1100,21 @@ pub trait CSType: Sized {
 
     fn handle_valuetype_fields(
         &mut self,
-        _fields: &[FieldInfo],
-        _metadata: &Metadata,
-        _tdi: TypeDefinitionIndex,
+        fields: &[FieldInfo],
+        ctx_collection: &CppContextCollection,
+        metadata: &Metadata,
+        tdi: TypeDefinitionIndex,
     ) {
         // Value types don't need any field fixups
+
+        self.get_mut_cpp_type()
+            .handle_instance_fields(fields, ctx_collection, metadata, tdi);
     }
 
     fn handle_referencetype_fields(
         &mut self,
         fields: &[FieldInfo],
+        ctx_collection: &CppContextCollection,
         metadata: &Metadata,
         tdi: TypeDefinitionIndex,
     ) {
@@ -1130,6 +1126,8 @@ pub trait CSType: Sized {
             return;
         }
 
+        let fixup_backing_field = |s: &str| format!("_cordl_{s}");
+
         for field_info in fields.iter().filter(|f| !f.is_constant && !f.is_static) {
             let f_type = field_info.field_type;
             let f_name = field_info.field.name(metadata.metadata);
@@ -1139,7 +1137,7 @@ pub trait CSType: Sized {
 
             // ref type instance fields are specially named because the field getters are supposed to be used
             let f_cpp_name = &field_info.cpp_field.cpp_name;
-            let cordl_field_name = format!("_cordl_{f_cpp_name}");
+            let cordl_field_name = fixup_backing_field(&f_cpp_name);
             let field_access = format!("this->{cordl_field_name}");
 
             let getter_call = format!("return {field_access};");
@@ -1312,6 +1310,16 @@ pub trait CSType: Sized {
                 .implementations
                 .push(CppMember::MethodImpl(const_getter_impl).into());
         }
+
+        let backing_fields = fields
+            .iter()
+            .cloned()
+            .map(|mut f| {
+                f.cpp_field.cpp_name = fixup_backing_field(&f.cpp_field.cpp_name);
+                f
+            })
+            .collect_vec();
+        cpp_type.handle_instance_fields(&backing_fields, ctx_collection, metadata, tdi);
     }
 
     fn field_collision_check(instance_fields: &[FieldInfo]) -> bool {
@@ -1978,7 +1986,7 @@ pub trait CSType: Sized {
                 const_expr: true,
                 value: Some(format!("0x{size:x}")),
                 brief_comment: Some("The size of the true value type".to_string()),
-                is_private: false
+                is_private: false,
             })
             .into(),
         );
