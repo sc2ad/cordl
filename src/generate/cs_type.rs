@@ -244,7 +244,7 @@ pub trait CSType: Sized {
             prefix_comments: vec![format!("Type: {ns}::{name}")],
 
             calculated_size: Some(metadata_size as usize),
-            packing: Some(packing as usize),
+            packing,
 
             cpp_name_components,
             cs_name_components,

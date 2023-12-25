@@ -24,28 +24,22 @@ pub fn get_size_and_packing<'a>(
     tdi: TypeDefinitionIndex,
     generic_inst_types: Option<&Vec<usize>>,
     metadata: &'a Metadata,
-) -> (u32, u32) {
+) -> (u32, Option<u8>) {
     let sa = layout_fields(metadata, t, tdi, generic_inst_types, None);
-    let mut metadata_size = get_size_of_type_table(metadata, tdi).unwrap().instance_size;
+    let metadata_size = get_size_of_type_table(metadata, tdi).unwrap().instance_size;
 
     let sz = match metadata_size == 0 {
-        true => {
-            sa.size
-        },
-        false => {
-            metadata_size as usize
-        }
+        true => sa.size,
+        false => metadata_size as usize,
     };
 
     let return_size = if t.is_value_type() || t.is_enum_type() {
-        sz
-            .checked_sub(metadata.object_size() as usize)
-            .unwrap()
+        sz.checked_sub(metadata.object_size() as usize).unwrap()
     } else {
         sa.size
     };
 
-    (return_size as u32, sa.packing as u32)
+    (return_size as u32, sa.packing)
 }
 
 pub fn get_il2cpptype_sa(
@@ -95,10 +89,7 @@ pub fn get_sizeof_type<'a>(
     metadata_size
 }
 
-fn packing_is_default(
-    bitfield: u32,
-    packing_is_default_offset: u8,
-) -> bool {
+fn packing_is_default(bitfield: u32, packing_is_default_offset: u8) -> bool {
     ((bitfield >> (packing_is_default_offset - 1)) & 0x1) != 0
 }
 
@@ -112,31 +103,25 @@ const PACKING_SIZE_THIRTYTWO: u32 = 6;
 const PACKING_SIZE_SIXTYFOUR: u32 = 7;
 const PACKING_SIZE_ONEHUNDREDTWENTYEIGHT: u32 = 8;
 
-fn packing_value(
-    bitfield: u32,
-    packing_field_offset: u8,
-) -> u8 {
+fn packing_value(bitfield: u32, packing_field_offset: u8) -> Option<u8> {
     match (bitfield >> (packing_field_offset - 1)) & 0xF {
-        PACKING_SIZE_ZERO => 0,
-        PACKING_SIZE_ONE => 1,
-        PACKING_SIZE_TWO => 2,
-        PACKING_SIZE_FOUR => 4,
-        PACKING_SIZE_EIGHT => 8,
-        PACKING_SIZE_SIXTEEN => 16,
-        PACKING_SIZE_THIRTYTWO => 32,
-        PACKING_SIZE_SIXTYFOUR => 64,
-        PACKING_SIZE_ONEHUNDREDTWENTYEIGHT => 128,
+        PACKING_SIZE_ZERO => None,
+        PACKING_SIZE_ONE => Some(1),
+        PACKING_SIZE_TWO => Some(2),
+        PACKING_SIZE_FOUR => Some(4),
+        PACKING_SIZE_EIGHT => Some(8),
+        PACKING_SIZE_SIXTEEN => Some(16),
+        PACKING_SIZE_THIRTYTWO => Some(32),
+        PACKING_SIZE_SIXTYFOUR => Some(64),
+        PACKING_SIZE_ONEHUNDREDTWENTYEIGHT => Some(128),
         _ => {
             warn!("Invalid packing value read");
-            0
+            None
         }
     }
 }
 
-fn get_packing(
-    metadata: &Metadata<'_>,
-    ty_def: &Il2CppTypeDefinition,
-) -> u8 {
+fn get_packing(metadata: &Metadata<'_>, ty_def: &Il2CppTypeDefinition) -> Option<u8> {
     packing_value(ty_def.bitfield, metadata.packing_field_offset)
 
     // match packing_is_default(ty_def.bitfield, metadata.packing_is_default_offset) {
@@ -163,9 +148,8 @@ pub fn layout_fields(
     let packing = get_packing(metadata, declaring_ty_def);
 
     assert!(
-        packing <= 128,
-        "Packing must be valid! Actual: {:?}",
-        packing
+        packing.unwrap_or_default() <= 128,
+        "Packing must be valid! Actual: {packing:?}",
     );
 
     // assign base size values based on parent type (or no parent type)
@@ -188,8 +172,6 @@ pub fn layout_fields(
 
     // if we have fields, do something with their values
     if declaring_ty_def.field_count > 0 {
-
-
         let mut local_offsets: Vec<u32> = vec![];
         let sa = layout_instance_fields(
             metadata,
@@ -261,7 +243,7 @@ fn layout_instance_fields(
     parent_size: usize,
     actual_parent_size: usize,
     parent_alignment: u8,
-    packing: u8,
+    packing: Option<u8>,
 ) -> SizeAndAlignment {
     let mut instance_size = parent_size;
     let mut actual_size = actual_parent_size;
@@ -291,7 +273,7 @@ fn layout_instance_fields(
             alignment = sa.natural_alignment;
         }
 
-        if packing != 0 {
+        if let Some(packing) = packing && packing != 0 {
             alignment = std::cmp::min(sa.alignment, packing);
         }
 
@@ -491,7 +473,7 @@ fn get_type_size_and_alignment(
         natural_alignment: 0,
         size: 0,
         actual_size: 0,
-        packing: 0,
+        packing: None,
     };
 
     if ty.byref && !ty.valuetype {
@@ -691,5 +673,5 @@ pub struct SizeAndAlignment {
     actual_size: usize,
     alignment: u8,
     natural_alignment: u8,
-    packing: u8,
+    packing: Option<u8>,
 }

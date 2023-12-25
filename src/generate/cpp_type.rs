@@ -74,7 +74,7 @@ pub struct CppType {
     pub(crate) prefix_comments: Vec<String>,
 
     pub calculated_size: Option<usize>,
-    pub packing: Option<usize>,
+    pub packing: Option<u8>,
 
     // Computed by TypeDefinition.full_name()
     // Then fixed for generic types in CppContextCollection::make_generic_from/fill_generic_inst
