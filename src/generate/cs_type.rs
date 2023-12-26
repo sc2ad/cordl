@@ -1241,7 +1241,7 @@ pub trait CSType: Sized {
         let setter_call = match !f_type.valuetype && set_ref_wbarrier {
             // ref type field write on a ref type
             true => {
-                format!("il2cpp_functions::gc_wbarrier_set_field(this, &{field_access}, cordl_internals::convert(std::forward<decltype({setter_var_name})>({setter_var_name})));")
+                format!("il2cpp_functions::gc_wbarrier_set_field(this, static_cast<void**>(static_cast<void*>(&{field_access})), cordl_internals::convert(std::forward<decltype({setter_var_name})>({setter_var_name})));")
             }
             false => {
                 format!("{field_access} = {setter_var_name};")

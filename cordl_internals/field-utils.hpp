@@ -139,7 +139,7 @@ namespace cordl_internals {
   template<::il2cpp_utils::il2cpp_value_type T, internal::NTTPString name, auto klass_resolver>
   CORDL_HIDDEN void setStaticField(T&& v) {
     static auto* field = FindField<name, klass_resolver>();
-    ::il2cpp_functions::field_static_set_value(field, v.convert());
+    ::il2cpp_functions::field_static_set_value(field, static_cast<void*>(&v));
   }
 
   /// @brief method to set a field that's a trivial type
