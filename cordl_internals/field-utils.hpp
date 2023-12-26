@@ -272,15 +272,6 @@ namespace cordl_internals {
     }
   }
 
-  /// @brief method to set a field that's a value type
-  template <::il2cpp_utils::il2cpp_value_type T, internal::NTTPString name, auto klass_resolver>
-  [[nodiscard]] CORDL_HIDDEN T getStaticField() {
-    static auto* field = FindField<name, klass_resolver>();
-    std::array<std::byte, il2cpp_instance_sizeof(T)> data;
-    ::il2cpp_functions::field_static_get_value(field, static_cast<void*>(data.data()));
-    return T(data);
-  }
-
   /// @brief method to set a field that's a trivial type
   template <typename T, internal::NTTPString name, auto klass_resolver>
   [[nodiscard]] CORDL_HIDDEN T getStaticField() {
