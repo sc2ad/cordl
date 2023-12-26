@@ -234,17 +234,24 @@ pub trait CSType: Sized {
         // TODO: Come up with a way to avoid this extra call to layout the entire type
         // We really just want to call it once for a given size and then move on
         // Every type should have a valid metadata size, even if it is 0
-        let (metadata_size, packing) =
-            offsets::get_size_and_packing(t, tdi, generic_inst_types, metadata);
+        let size_info: offsets::SizeInfo = offsets::get_size_info(t, tdi, generic_inst_types, metadata);
+
+        // instance size is either: calculated size, or metadata size, corrected for value types
+        let calculated_size = size_info.instance_size;
+        // best results of cordl are when specified packing is strictly what is used, but experimentation may be required
+        let packing = size_info.specified_packing;
 
         // Modified later for nested types
         let mut cpptype = CppType {
             self_tag: tag,
             nested,
-            prefix_comments: vec![format!("Type: {ns}::{name}")],
+            prefix_comments: vec![
+                format!("Type: {ns}::{name}"),
+                format!("{size_info:?}")
+            ],
 
-            calculated_size: Some(metadata_size as usize),
-            packing,
+            calculated_size: Some(calculated_size as usize),
+            packing: packing,
 
             cpp_name_components,
             cs_name_components,
@@ -345,7 +352,7 @@ pub trait CSType: Sized {
                 self.create_enum_wrapper(metadata, ctx_collection, tdi);
                 self.create_enum_backing_type_constant(metadata, ctx_collection, tdi);
             }
-            self.add_default_ctor(false);
+            // self.add_default_ctor(false);
         } else if t.is_interface() {
             // self.make_interface_constructors();
             self.delete_move_ctor();
@@ -729,7 +736,7 @@ pub trait CSType: Sized {
                     offset: f_offset.unwrap_or(u32::MAX),
                     instance: !f_type.is_static() && !f_type.is_constant(),
                     readonly: f_type.is_constant(),
-                    brief_comment: Some(format!("Field {f_name} value: {def_value:?}")),
+                    brief_comment: Some(format!("Field {f_name}, offset: 0x{:x}, size: 0x{f_size:x}, def value: {def_value:?}", f_offset.unwrap_or(u32::MAX))),
                     value: def_value,
                     const_expr: false,
                     is_private: false,
@@ -1075,27 +1082,38 @@ pub trait CSType: Sized {
             })
         };
 
-        // oh no! the fields are unionizing! don't tell elon musk!
-        let resulting_fields = Self::make_or_unionize_fields(&instance_field_decls)
+        let resulting_fields = instance_field_decls
             .into_iter()
-            .map(|d| match d {
-                CppMember::FieldDecl(mut f) => {
-                    if property_exists(&f.cpp_name) {
-                        f.cpp_name = format!("_cordl_{}", &f.cpp_name);
+            .map(|d| {
+                let mut f = d.cpp_field;
+                if property_exists(&f.cpp_name) {
+                    f.cpp_name = format!("_cordl_{}", &f.cpp_name);
 
-                        // make private if a property with this name exists
-                        f.is_private = true;
-                    }
-
-                    CppMember::FieldDecl(f)
+                    // make private if a property with this name exists
+                    f.is_private = true;
                 }
-                _ => d,
+
+                FieldInfo {
+                    cpp_field: f,
+                    ..d
+                }
             })
             .collect_vec();
 
-        resulting_fields
-            .into_iter()
-            .for_each(|member| cpp_type.declarations.push(member.into()));
+        // explicit layout types are packed into single unions
+        if t.is_explicit_layout() {
+            // oh no! the fields are unionizing! don't tell elon musk!
+            let u = Self::pack_fields_into_single_union(resulting_fields);
+            cpp_type.declarations.push(CppMember::NestedUnion(u).into());
+        } else {
+            resulting_fields
+                .into_iter()
+                .map(|member| CppMember::FieldDecl(member.cpp_field))
+                .for_each(|member| cpp_type.declarations.push(member.into()));
+        };
+
+
+
     }
 
     fn handle_valuetype_fields(
@@ -1345,6 +1363,120 @@ pub trait CSType: Sized {
             });
     }
 
+    // inspired by what il2cpp does for explicitly laid out types
+    fn pack_fields_into_single_union(
+        fields: Vec<FieldInfo>
+    ) -> CppNestedUnion {
+        // get the min offset to use as a base for the packed structs
+        let min_offset = fields.iter().map(|f| f.offset.unwrap()).min().unwrap_or(0);
+
+        let packed_structs = fields
+            .into_iter()
+            .map(|field| {
+                let structs = Self::field_into_offset_structs(min_offset, field);
+
+                vec![structs.0, structs.1]
+            })
+            .flat_map(|v| v.into_iter())
+            .collect_vec();
+
+        let declarations = packed_structs
+            .into_iter()
+            .map(|s| CppMember::NestedStruct(s).into())
+            .collect_vec();
+
+        CppNestedUnion {
+            brief_comment: None,
+            declarations,
+            offset: min_offset,
+            is_private: true,
+        }
+    }
+
+    fn field_into_offset_structs(
+        min_offset: u32,
+        field: FieldInfo
+    ) -> (CppNestedStruct, CppNestedStruct) {
+        // il2cpp basically turns each field into 2 structs within a union:
+        // 1 which is packed with size 1, and padded with offset to fit to the end
+       // the other which has the same padding and layout, except this one is for alignment so it's just packed as the parent struct demands
+
+        let Some(actual_offset) = &field.offset else {
+            panic!("don't call field_into_offset_structs with non instance fields!")
+        };
+
+        let padding = actual_offset - min_offset;
+
+        let packed_padding_cpp_name = format!("___{}_padding[0x{padding:x}]", field.cpp_field.cpp_name);
+        let alignment_padding_cpp_name = format!("___{}_padding_forAlignment[0x{padding:x}]", field.cpp_field.cpp_name);
+        let alignment_cpp_name = format!("___{}_forAlignment", field.cpp_field.cpp_name);
+
+        let packed_padding_field = CppFieldDecl {
+            brief_comment: Some(format!("Padding field 0x{padding:x}")),
+            const_expr: false,
+            cpp_name: packed_padding_cpp_name,
+            field_ty: "uint8_t".into(),
+            offset: *actual_offset,
+            instance: true,
+            is_private: false,
+            readonly: false,
+            value: Some("{0}".into()),
+        };
+
+        let alignment_padding_field = CppFieldDecl {
+            brief_comment: Some(format!("Padding field 0x{padding:x} for alignment")),
+            const_expr: false,
+            cpp_name: alignment_padding_cpp_name,
+            field_ty: "uint8_t".into(),
+            offset: *actual_offset,
+            instance: true,
+            is_private: false,
+            readonly: false,
+            value: Some("{0}".into()),
+        };
+
+        let alignment_field = CppFieldDecl {
+            cpp_name: alignment_cpp_name,
+            is_private: false,
+            ..field.cpp_field.clone()
+        };
+
+        let packed_field = CppFieldDecl {
+            is_private: false,
+            ..field.cpp_field
+        };
+
+        let packed_struct = CppNestedStruct {
+            declaring_name: "".into(),
+            base_type: None,
+            declarations: vec![
+                CppMember::FieldDecl(packed_padding_field).into(),
+                CppMember::FieldDecl(packed_field ).into(),
+            ],
+            brief_comment: None,
+            is_class: false,
+            is_enum: false,
+            is_private: false,
+            packing: Some(1),
+        };
+
+        let alignment_struct = CppNestedStruct {
+            declaring_name: "".into(),
+            base_type: None,
+            declarations: vec![
+                CppMember::FieldDecl(alignment_padding_field).into(),
+                CppMember::FieldDecl(alignment_field).into(),
+            ],
+            brief_comment: None,
+            is_class: false,
+            is_enum: false,
+            is_private: false,
+            packing: None,
+        };
+
+        (packed_struct, alignment_struct)
+    }
+
     /// generates the fields for the value type or reference type\
     /// handles unions
     fn make_or_unionize_fields(instance_fields: &[FieldInfo]) -> Vec<CppMember> {
@@ -1438,6 +1570,7 @@ pub trait CSType: Sized {
                                 declaring_name: "".to_string(),
                                 is_enum: false,
                                 is_class: false,
+                                is_private: false,
                                 declarations: struct_contents
                                     .into_iter()
                                     .map(|d| CppMember::FieldDecl(d.cpp_field).into())
@@ -1446,6 +1579,7 @@ pub trait CSType: Sized {
                                     "Anonymous struct offset 0x{:x}, size 0x{:x}",
                                     field_set.offset, field_set.size
                                 )),
+                                packing: None,
                             }),
                         ]
                     })
@@ -1460,6 +1594,7 @@ pub trait CSType: Sized {
                     )),
                     declarations: declarations.into_iter().map(|d| d.into()).collect_vec(),
                     offset: field_set.offset,
+                    is_private: false,
                 })]
             })
             .flat_map(|v| v.into_iter())
@@ -1942,8 +2077,10 @@ pub trait CSType: Sized {
             declaring_name: unwrapped_name.clone(),
             is_class: false,
             is_enum: true,
+            is_private: false,
             declarations: enum_entries.map(Rc::new).collect(),
             brief_comment: Some(format!("Nested struct {unwrapped_name}")),
+            packing: None,
         };
         cpp_type
             .declarations

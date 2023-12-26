@@ -369,7 +369,9 @@ pub struct CppNestedStruct {
     pub declarations: Vec<Rc<CppMember>>,
     pub is_enum: bool,
     pub is_class: bool,
+    pub is_private: bool,
     pub brief_comment: Option<String>,
+    pub packing: Option<u8>,
 }
 
 #[derive(Clone, Debug)]
@@ -377,6 +379,7 @@ pub struct CppNestedUnion {
     pub declarations: Vec<Rc<CppMember>>,
     pub brief_comment: Option<String>,
     pub offset: u32,
+    pub is_private: bool,
 }
 
 impl From<CppConstructorDecl> for CppConstructorImpl {
