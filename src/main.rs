@@ -119,6 +119,7 @@ fn main() -> color_eyre::Result<()> {
         pointer_size: generate::metadata::PointerSize::Bytes8,
         // For most il2cpp versions
         packing_field_offset: 7,
+        size_is_default_offset:  12,
         specified_packing_field_offset: 13,
         packing_is_default_offset: 11,
     };

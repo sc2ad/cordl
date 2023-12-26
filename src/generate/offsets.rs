@@ -41,7 +41,7 @@ pub fn get_size_info<'a>(
     let mut instance_size = size_metadata.instance_size;
     let mut native_size = size_metadata.native_size;
 
-    let sa = layout_fields(metadata, t, tdi, generic_inst_types, None);
+    let sa = layout_fields(metadata, t, tdi, generic_inst_types, None, true);
     let mut calculated_instance_size = sa.size;
 
     let minimum_alignment = sa.alignment;
@@ -87,7 +87,7 @@ pub fn get_size_and_packing<'a>(
     let mut metadata_size = size_metadata.instance_size;
 
     if metadata_size == 0 && !t.is_interface() {
-        let sa = layout_fields(metadata, t, tdi, generic_inst_types, None);
+        let sa = layout_fields(metadata, t, tdi, generic_inst_types, None, true);
         metadata_size = sa.size.try_into().unwrap();
     }
 
@@ -124,7 +124,7 @@ pub fn get_sizeof_type<'a>(
             "Computing instance size by laying out type for tdi: {tdi:?} {}",
             t.full_name(metadata.metadata, true)
         );
-        metadata_size = layout_fields(metadata, t, tdi, generic_inst_types, None)
+        metadata_size = layout_fields(metadata, t, tdi, generic_inst_types, None, true)
             .size
             .try_into()
             .unwrap();
@@ -210,6 +210,19 @@ fn get_type_def_packing(metadata: &Metadata, ty_def: &Il2CppTypeDefinition) -> O
     Some(packing)
 }
 
+// MetadataCache::StructLayoutPackIsDefault
+fn size_is_default(bitfield: u32, size_is_default_offset: u8) -> bool {
+    ((bitfield >> (size_is_default_offset - 1)) & 0x1) != 0
+}
+
+fn get_size(metadata: &Metadata<'_>, tdi: TypeDefinitionIndex, ty_def: &Il2CppTypeDefinition) -> Option<u32> {
+    if size_is_default(ty_def.bitfield, metadata.size_is_default_offset) {
+        return None;
+    }
+
+    get_size_of_type_table(metadata, tdi).map(|sz| sz.native_size as u32)
+}
+
 /// Inspired by libil2cpp Class::LayoutFieldsLocked
 pub fn layout_fields(
     metadata: &Metadata<'_>,
@@ -217,6 +230,7 @@ pub fn layout_fields(
     declaring_tdi: TypeDefinitionIndex,
     generic_inst_types: Option<&Vec<usize>>,
     offsets: Option<&mut Vec<u32>>,
+    strictly_calculated: bool,
 ) -> SizeAndAlignment {
     let mut instance_size: usize;
     let mut actual_size: usize;
@@ -301,11 +315,13 @@ pub fn layout_fields(
     }
 
     // if we have an explicit size, use that
-    if declaring_ty_def.is_explicit_layout()
+    if !strictly_calculated && (declaring_ty_def.is_explicit_layout() || !size_is_default(declaring_ty_def.bitfield, metadata.size_is_default_offset))
         && let Some(sz) = get_size_of_type_table(metadata, declaring_tdi)
     {
         instance_size = sz.instance_size as usize;
-        actual_size = sz.native_size as usize;
+        if sz.native_size >= 0 {
+            actual_size = sz.native_size as usize;
+        }
     }
 
     SizeAndAlignment {
@@ -380,7 +396,8 @@ fn layout_instance_fields(
         if let Some(offsets) = offsets_opt.as_mut() {
             offsets.push(offset as u32);
         }
-        actual_size = offset + std::cmp::max(sa.size, 1);
+
+        actual_size = usize::max(actual_size, offset + std::cmp::max(sa.size, 1));
         minimum_alignment = std::cmp::max(minimum_alignment, alignment);
         natural_alignment = std::cmp::max(
             natural_alignment,
@@ -479,6 +496,7 @@ fn get_parent_sa(
         parent_tdi,
         parent_generics.as_ref(),
         None,
+        false,
     )
 }
 
@@ -598,26 +616,32 @@ fn get_type_size_and_alignment(
     match ty.ty {
         Il2CppTypeEnum::I1 | Il2CppTypeEnum::U1 | Il2CppTypeEnum::Boolean => {
             sa.size = mem::size_of::<i8>();
+            sa.actual_size = sa.size;
             sa.alignment = get_alignment_of_type(OffsetType::Int8, metadata.pointer_size);
         }
         Il2CppTypeEnum::I2 | Il2CppTypeEnum::U2 | Il2CppTypeEnum::Char => {
             sa.size = mem::size_of::<i16>();
+            sa.actual_size = sa.size;
             sa.alignment = get_alignment_of_type(OffsetType::Int16, metadata.pointer_size);
         }
         Il2CppTypeEnum::I4 | Il2CppTypeEnum::U4 => {
             sa.size = mem::size_of::<i32>();
+            sa.actual_size = sa.size;
             sa.alignment = get_alignment_of_type(OffsetType::Int32, metadata.pointer_size);
         }
         Il2CppTypeEnum::I8 | Il2CppTypeEnum::U8 => {
             sa.size = mem::size_of::<i64>();
+            sa.actual_size = sa.size;
             sa.alignment = get_alignment_of_type(OffsetType::Int64, metadata.pointer_size);
         }
         Il2CppTypeEnum::R4 => {
             sa.size = mem::size_of::<f32>();
+            sa.actual_size = sa.size;
             sa.alignment = get_alignment_of_type(OffsetType::Float, metadata.pointer_size);
         }
         Il2CppTypeEnum::R8 => {
             sa.size = mem::size_of::<f64>();
+            sa.actual_size = sa.size;
             sa.alignment = get_alignment_of_type(OffsetType::Double, metadata.pointer_size);
         }
 
@@ -634,6 +658,7 @@ fn get_type_size_and_alignment(
         | Il2CppTypeEnum::U => {
             // voidptr_t
             sa.size = metadata.pointer_size as usize;
+            sa.actual_size = sa.size;
             sa.alignment = get_alignment_of_type(OffsetType::Pointer, metadata.pointer_size);
         }
         Il2CppTypeEnum::Valuetype => {
@@ -655,10 +680,12 @@ fn get_type_size_and_alignment(
             // The way we compute the instance size is by grabbing the TD and performing a full field walk over that type
             // Specifically, we call: layout_fields_for_type
             // TODO: We should cache this call
-            let res = layout_fields(metadata, value_td, value_tdi, None, None);
+            let res = layout_fields(metadata, value_td, value_tdi, None, None, false);
             sa.size = res.size - metadata.object_size() as usize;
+            sa.actual_size = res.actual_size;
             sa.alignment = res.alignment;
             sa.natural_alignment = res.natural_alignment;
+            sa.packing = res.packing;
         }
         Il2CppTypeEnum::Genericinst => {
             let TypeData::GenericClassIndex(gtype) = ty.data else {
@@ -731,9 +758,12 @@ fn get_type_size_and_alignment(
             // We compute the instance size by grabbing the TD and performing a full field walk over that type
             // by calling layout_fields_for_type
             // TODO: We should cache this call
-            let res = layout_fields(metadata, td, tdi, Some(&new_generic_inst_types), None);
+            let res = layout_fields(metadata, td, tdi, Some(&new_generic_inst_types), None, false);
             sa.size = res.size - metadata.object_size() as usize;
+            sa.actual_size = res.actual_size;
             sa.alignment = res.alignment;
+            sa.natural_alignment = res.natural_alignment;
+            sa.packing = res.packing;
             // sa.natural_alignment = res.natural_alignment;
         }
         _ => {

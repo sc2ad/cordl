@@ -46,13 +46,13 @@ pub enum SortLevel {
     SizeStruct,
     UsingAlias,
     NestedStruct,
-    Fields,
     Properties,
     Methods,
     Constructors,
     FieldsImpl,
     Unknown,
     NestedUnion,
+    Fields,
 }
 
 pub trait Sortable {
