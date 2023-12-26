@@ -682,8 +682,16 @@ impl Writable for CppLine {
 
 impl Writable for CppNestedStruct {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        if self.is_private {
+            writeln!(writer, "private:")?;
+        }
+
         if let Some(brief) = &self.brief_comment {
             writeln!(writer, "/// @brief {brief}")?;
+        }
+
+        if let Some(packing) = self.packing {
+            writeln!(writer, "#pragma pack(push, tp, {packing})")?;
         }
 
         let mut struct_declaration = match self.is_class {
@@ -710,6 +718,13 @@ impl Writable for CppNestedStruct {
         self.declarations.iter().try_for_each(|d| d.write(writer))?;
 
         writeln!(writer, "}};")?;
+        if self.packing.is_some() {
+            writeln!(writer, "#pragma pack(pop, tp)")?;
+        }
+        if self.is_private {
+            writeln!(writer, "public:")?;
+        }
+
         Ok(())
     }
 }
@@ -722,6 +737,9 @@ impl Sortable for CppNestedStruct {
 
 impl Writable for CppNestedUnion {
     fn write(&self, writer: &mut super::writer::CppWriter) -> color_eyre::Result<()> {
+        if self.is_private {
+            writeln!(writer, "private:")?;
+        }
         if let Some(brief) = &self.brief_comment {
             writeln!(writer, "/// @brief {brief}")?;
         }
@@ -735,13 +753,17 @@ impl Writable for CppNestedUnion {
             })?;
 
         writeln!(writer, "}};")?;
+
+        if self.is_private {
+            writeln!(writer, "public:")?;
+        }
         Ok(())
     }
 }
 
 impl Sortable for CppNestedUnion {
     fn sort_level(&self) -> SortLevel {
-        SortLevel::Fields
+        SortLevel::NestedUnion
     }
 }
 

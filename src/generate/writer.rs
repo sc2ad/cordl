@@ -52,6 +52,7 @@ pub enum SortLevel {
     Constructors,
     FieldsImpl,
     Unknown,
+    NestedUnion,
 }
 
 pub trait Sortable {

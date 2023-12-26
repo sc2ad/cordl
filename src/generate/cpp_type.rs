@@ -387,17 +387,15 @@ impl CppType {
                 .iter()
                 .sorted_by(|a, b| a.sort_level().cmp(&b.sort_level()))
                 .sorted_by(|a, b| {
-                    // fields and unions need to be sorted by offset to work correctly
+                    // fields need to be sorted by offset to work correctly
 
                     let a_offset = match a.as_ref() {
                         CppMember::FieldDecl(f) => f.offset,
-                        CppMember::NestedUnion(u) => u.offset,
                         _ => u32::MAX,
                     };
 
                     let b_offset = match b.as_ref() {
                         CppMember::FieldDecl(f) => f.offset,
-                        CppMember::NestedUnion(u) => u.offset,
                         _ => u32::MAX,
                     };
 

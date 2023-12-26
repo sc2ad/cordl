@@ -19,27 +19,79 @@ use super::type_extensions::TypeDefinitionExtensions;
 
 const IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS: u32 = 1;
 
+#[derive(Debug)]
+pub struct SizeInfo {
+    pub instance_size: u32,
+    pub native_size: i32,
+    pub calculated_instance_size: u32,
+    pub calculated_native_size: i32,
+    pub minimum_alignment: u8,
+    pub natural_alignment: u8,
+    pub packing: Option<u8>,
+    pub specified_packing: Option<u8>,
+}
+
+pub fn get_size_info<'a>(
+    t: &'a Il2CppTypeDefinition,
+    tdi: TypeDefinitionIndex,
+    generic_inst_types: Option<&Vec<usize>>,
+    metadata: &'a Metadata,
+) -> SizeInfo {
+    let size_metadata = get_size_of_type_table(metadata, tdi).unwrap();
+    let mut instance_size = size_metadata.instance_size;
+    let mut native_size = size_metadata.native_size;
+    let sa = layout_fields(metadata, t, tdi, generic_inst_types, None);
+
+    let minimum_alignment = sa.alignment;
+    let natural_alignment = sa.natural_alignment;
+
+    if instance_size == 0 && !t.is_interface() {
+        instance_size = sa.size.try_into().unwrap();
+        native_size = sa.actual_size.try_into().unwrap();
+    }
+
+    if t.is_value_type() || t.is_enum_type() {
+        instance_size = instance_size
+                            .checked_sub(metadata.object_size() as u32).unwrap();
+    }
+
+    let packing = get_type_def_packing(metadata, t);
+    let specified_packing = get_packing(metadata, t);
+
+    SizeInfo {
+        instance_size,
+        native_size,
+        minimum_alignment,
+        natural_alignment,
+        calculated_instance_size: sa.size as u32,
+        calculated_native_size: sa.actual_size as i32,
+        packing,
+        specified_packing,
+    }
+}
+
 pub fn get_size_and_packing<'a>(
     t: &'a Il2CppTypeDefinition,
     tdi: TypeDefinitionIndex,
     generic_inst_types: Option<&Vec<usize>>,
     metadata: &'a Metadata,
 ) -> (u32, Option<u8>) {
-    let sa = layout_fields(metadata, t, tdi, generic_inst_types, None);
-    let metadata_size = get_size_of_type_table(metadata, tdi).unwrap().instance_size;
+    let size_metadata = get_size_of_type_table(metadata, tdi).unwrap();
+    let mut metadata_size = size_metadata.instance_size;
 
-    let sz = match metadata_size == 0 {
-        true => sa.size,
-        false => metadata_size as usize,
-    };
+    if metadata_size == 0 && !t.is_interface() {
+        let sa = layout_fields(metadata, t, tdi, generic_inst_types, None);
+        metadata_size = sa.size.try_into().unwrap();
+    }
 
-    let return_size = if t.is_value_type() || t.is_enum_type() {
-        sz.checked_sub(metadata.object_size() as usize).unwrap()
-    } else {
-        sa.size
-    };
+    if t.is_value_type() || t.is_enum_type() {
+        metadata_size = metadata_size
+                            .checked_sub(metadata.object_size() as u32).unwrap()
+    }
 
-    (return_size as u32, sa.packing)
+    let packing = get_packing(metadata, t);
+
+    (metadata_size, packing)
 }
 
 pub fn get_il2cpptype_sa(
@@ -56,7 +108,9 @@ pub fn get_sizeof_type<'a>(
     generic_inst_types: Option<&Vec<usize>>,
     metadata: &'a Metadata,
 ) -> u32 {
-    let mut metadata_size = get_size_of_type_table(metadata, tdi).unwrap().instance_size;
+    let size_metadata = get_size_of_type_table(metadata, tdi).unwrap();
+    let mut metadata_size = size_metadata.instance_size;
+
     if metadata_size == 0 && !t.is_interface() {
         debug!(
             "Computing instance size by laying out type for tdi: {tdi:?} {}",
@@ -197,10 +251,13 @@ pub fn layout_fields(
             declaring_tdi,
             generic_inst_types,
             Some(&mut local_offsets),
-            instance_size,
-            actual_size,
-            minimum_alignment,
-            packing,
+            SizeAndAlignment {
+                size: instance_size,
+                actual_size,
+                alignment: minimum_alignment,
+                natural_alignment,
+                packing
+            }
         );
 
         let mut offsets_opt = offsets;
@@ -240,6 +297,7 @@ pub fn layout_fields(
         && let Some(sz) = get_size_of_type_table(metadata, declaring_tdi)
     {
         instance_size = sz.instance_size as usize;
+        actual_size = sz.native_size as usize;
     }
 
     SizeAndAlignment {
@@ -258,11 +316,13 @@ fn layout_instance_fields(
     declaring_tdi: TypeDefinitionIndex,
     generic_inst_types: Option<&Vec<usize>>,
     offsets: Option<&mut Vec<u32>>,
-    parent_size: usize,
-    actual_parent_size: usize,
-    parent_alignment: u8,
-    packing: Option<u8>,
+    parent_sa: SizeAndAlignment,
 ) -> SizeAndAlignment {
+    let parent_size = parent_sa.size;
+    let actual_parent_size = parent_sa.actual_size;
+    let parent_alignment = parent_sa.alignment;
+    let packing = parent_sa.packing;
+
     let mut instance_size = parent_size;
     let mut actual_size = actual_parent_size;
     let mut minimum_alignment = parent_alignment;
