@@ -15,7 +15,7 @@ use super::{
     context_collection::CppContextCollection,
     cpp_type_tag::CppTypeTag,
     members::{CppForwardDeclare, CppInclude, CppMember, CppNonMember, CppTemplate},
-    writer::{CppWriter, Sortable, Writable},
+    writer::{CppWriter, Sortable, Writable}, offsets::SizeInfo,
 };
 
 pub const CORDL_TYPE_MACRO: &str = "CORDL_TYPE";
@@ -73,7 +73,7 @@ pub struct CppType {
 
     pub(crate) prefix_comments: Vec<String>,
 
-    pub calculated_size: Option<usize>,
+    pub size_info: Option<SizeInfo>,
     pub packing: Option<u8>,
 
     // Computed by TypeDefinition.full_name()

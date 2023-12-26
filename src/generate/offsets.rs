@@ -19,7 +19,7 @@ use super::type_extensions::TypeDefinitionExtensions;
 
 const IL2CPP_SIZEOF_STRUCT_WITH_NO_INSTANCE_FIELDS: u32 = 1;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SizeInfo {
     pub instance_size: u32,
     pub native_size: i32,
@@ -40,7 +40,9 @@ pub fn get_size_info<'a>(
     let size_metadata = get_size_of_type_table(metadata, tdi).unwrap();
     let mut instance_size = size_metadata.instance_size;
     let mut native_size = size_metadata.native_size;
+
     let sa = layout_fields(metadata, t, tdi, generic_inst_types, None);
+    let mut calculated_instance_size = sa.size;
 
     let minimum_alignment = sa.alignment;
     let natural_alignment = sa.natural_alignment;
@@ -52,7 +54,11 @@ pub fn get_size_info<'a>(
 
     if t.is_value_type() || t.is_enum_type() {
         instance_size = instance_size
-                            .checked_sub(metadata.object_size() as u32).unwrap();
+            .checked_sub(metadata.object_size() as u32)
+            .unwrap();
+        calculated_instance_size = calculated_instance_size
+            .checked_sub(metadata.object_size() as usize)
+            .unwrap();
     }
 
     let packing = get_type_def_packing(metadata, t);
@@ -60,10 +66,11 @@ pub fn get_size_info<'a>(
 
     SizeInfo {
         instance_size,
+        calculated_instance_size: calculated_instance_size as u32,
+
         native_size,
         minimum_alignment,
         natural_alignment,
-        calculated_instance_size: sa.size as u32,
         calculated_native_size: sa.actual_size as i32,
         packing,
         specified_packing,
@@ -86,7 +93,8 @@ pub fn get_size_and_packing<'a>(
 
     if t.is_value_type() || t.is_enum_type() {
         metadata_size = metadata_size
-                            .checked_sub(metadata.object_size() as u32).unwrap()
+            .checked_sub(metadata.object_size() as u32)
+            .unwrap()
     }
 
     let packing = get_packing(metadata, t);
@@ -256,8 +264,8 @@ pub fn layout_fields(
                 actual_size,
                 alignment: minimum_alignment,
                 natural_alignment,
-                packing
-            }
+                packing,
+            },
         );
 
         let mut offsets_opt = offsets;

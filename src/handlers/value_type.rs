@@ -82,7 +82,7 @@ fn value_type_handler(cpp_type: &mut CppType) {
         cpp_type,
         format!(
             "{VALUE_WRAPPER_TYPE}<0x{:x}>",
-            cpp_type.calculated_size.unwrap()
+            cpp_type.size_info.as_ref().map(|s| s.calculated_instance_size).unwrap()
         )
         .as_str(),
     );
@@ -93,7 +93,7 @@ fn enum_type_handler(cpp_type: &mut CppType) {
         cpp_type,
         format!(
             "{ENUM_WRAPPER_TYPE}<0x{:x}>",
-            cpp_type.calculated_size.unwrap()
+            cpp_type.size_info.as_ref().map(|s| s.calculated_instance_size).unwrap()
         )
         .as_str(),
     );

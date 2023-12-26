@@ -234,7 +234,8 @@ pub trait CSType: Sized {
         // TODO: Come up with a way to avoid this extra call to layout the entire type
         // We really just want to call it once for a given size and then move on
         // Every type should have a valid metadata size, even if it is 0
-        let size_info: offsets::SizeInfo = offsets::get_size_info(t, tdi, generic_inst_types, metadata);
+        let size_info: offsets::SizeInfo =
+            offsets::get_size_info(t, tdi, generic_inst_types, metadata);
 
         // instance size is either: calculated size, or metadata size, corrected for value types
         let calculated_size = size_info.instance_size;
@@ -245,13 +246,10 @@ pub trait CSType: Sized {
         let mut cpptype = CppType {
             self_tag: tag,
             nested,
-            prefix_comments: vec![
-                format!("Type: {ns}::{name}"),
-                format!("{size_info:?}")
-            ],
+            prefix_comments: vec![format!("Type: {ns}::{name}"), format!("{size_info:?}")],
 
-            calculated_size: Some(calculated_size as usize),
-            packing: packing,
+            size_info: Some(size_info),
+            packing,
 
             cpp_name_components,
             cs_name_components,
@@ -352,7 +350,7 @@ pub trait CSType: Sized {
                 self.create_enum_wrapper(metadata, ctx_collection, tdi);
                 self.create_enum_backing_type_constant(metadata, ctx_collection, tdi);
             }
-            // self.add_default_ctor(false);
+            self.add_default_ctor(false);
         } else if t.is_interface() {
             // self.make_interface_constructors();
             self.delete_move_ctor();
@@ -374,6 +372,10 @@ pub trait CSType: Sized {
         self.make_fields(metadata, ctx_collection, config, tdi);
         self.make_properties(metadata, ctx_collection, config, tdi);
         self.make_methods(metadata, config, ctx_collection, tdi);
+
+        if !t.is_interface() {
+            self.create_size_padding(metadata, tdi);
+        }
 
         if let Some(func) = metadata.custom_type_handler.get(&tdi) {
             func(self.get_mut_cpp_type())
@@ -1093,10 +1095,7 @@ pub trait CSType: Sized {
                     f.is_private = true;
                 }
 
-                FieldInfo {
-                    cpp_field: f,
-                    ..d
-                }
+                FieldInfo { cpp_field: f, ..d }
             })
             .collect_vec();
 
@@ -1111,9 +1110,6 @@ pub trait CSType: Sized {
                 .map(|member| CppMember::FieldDecl(member.cpp_field))
                 .for_each(|member| cpp_type.declarations.push(member.into()));
         };
-
-
-
     }
 
     fn handle_valuetype_fields(
@@ -1364,9 +1360,7 @@ pub trait CSType: Sized {
     }
 
     // inspired by what il2cpp does for explicitly laid out types
-    fn pack_fields_into_single_union(
-        fields: Vec<FieldInfo>
-    ) -> CppNestedUnion {
+    fn pack_fields_into_single_union(fields: Vec<FieldInfo>) -> CppNestedUnion {
         // get the min offset to use as a base for the packed structs
         let min_offset = fields.iter().map(|f| f.offset.unwrap()).min().unwrap_or(0);
 
@@ -1395,11 +1389,11 @@ pub trait CSType: Sized {
 
     fn field_into_offset_structs(
         min_offset: u32,
-        field: FieldInfo
+        field: FieldInfo,
     ) -> (CppNestedStruct, CppNestedStruct) {
         // il2cpp basically turns each field into 2 structs within a union:
         // 1 which is packed with size 1, and padded with offset to fit to the end
-       // the other which has the same padding and layout, except this one is for alignment so it's just packed as the parent struct demands
+        // the other which has the same padding and layout, except this one is for alignment so it's just packed as the parent struct demands
 
         let Some(actual_offset) = &field.offset else {
             panic!("don't call field_into_offset_structs with non instance fields!")
@@ -1407,8 +1401,12 @@ pub trait CSType: Sized {
 
         let padding = actual_offset - min_offset;
 
-        let packed_padding_cpp_name = format!("___{}_padding[0x{padding:x}]", field.cpp_field.cpp_name);
-        let alignment_padding_cpp_name = format!("___{}_padding_forAlignment[0x{padding:x}]", field.cpp_field.cpp_name);
+        let packed_padding_cpp_name =
+            format!("___{}_padding[0x{padding:x}]", field.cpp_field.cpp_name);
+        let alignment_padding_cpp_name = format!(
+            "___{}_padding_forAlignment[0x{padding:x}]",
+            field.cpp_field.cpp_name
+        );
         let alignment_cpp_name = format!("___{}_forAlignment", field.cpp_field.cpp_name);
 
         let packed_padding_field = CppFieldDecl {
@@ -1451,7 +1449,7 @@ pub trait CSType: Sized {
             base_type: None,
             declarations: vec![
                 CppMember::FieldDecl(packed_padding_field).into(),
-                CppMember::FieldDecl(packed_field ).into(),
+                CppMember::FieldDecl(packed_field).into(),
             ],
             brief_comment: None,
             is_class: false,
@@ -1935,7 +1933,7 @@ pub trait CSType: Sized {
             return;
         }
 
-        if let Some(size) = cpp_type.calculated_size {
+        if let Some(size) = cpp_type.size_info.as_ref().map(|s| s.instance_size) {
             let cpp_name = cpp_type.cpp_name_components.remove_pointer().combine_all();
 
             let assert = CppStaticAssert {
@@ -1950,10 +1948,71 @@ pub trait CSType: Sized {
             todo!("Why does this type not have a valid size??? {cpp_type:?}");
         }
     }
+    ///
+    /// add missing size for type
+    ///
+    fn create_size_padding(&mut self, metadata: &Metadata, tdi: TypeDefinitionIndex) {
+        let cpp_type = self.get_mut_cpp_type();
+
+        // // get type metadata size
+        let Some(type_definition_sizes) = &metadata.metadata_registration.type_definition_sizes
+        else {
+            return;
+        };
+
+        let metadata_size = &type_definition_sizes.get(tdi.index() as usize);
+
+        let Some(metadata_size) = metadata_size else {
+            return;
+        };
+
+        // // ignore types that aren't sized
+        if metadata_size.instance_size == 0 || metadata_size.instance_size == u32::MAX {
+            return;
+        }
+
+        // // if the size matches what we calculated, we're fine
+        // if metadata_size.instance_size == calculated_size {
+        //     return;
+        // }
+        // let remaining_size = metadata_size.instance_size.abs_diff(calculated_size);
+
+        let Some(size_info) = cpp_type.size_info.as_ref() else {
+            return;
+        };
+
+        let metadata_size_instance = size_info.instance_size;
+        // let metadata_size_instance = metadata_size.instance_size; // adds ref padding
+
+        // return if calculated layout size == metadata size
+        if size_info.calculated_instance_size == metadata_size_instance {
+            return;
+        }
+
+        let remaining_size = metadata_size_instance.abs_diff(size_info.calculated_instance_size);
+
+        cpp_type.declarations.push(
+            CppMember::FieldDecl(CppFieldDecl {
+                cpp_name: "_cordl_size_padding".to_string(),
+                field_ty: format!("std::array<uint8_t, 0x{remaining_size:x}>"),
+                offset: size_info.instance_size,
+                instance: true,
+                readonly: false,
+                const_expr: false,
+                value: None,
+                brief_comment: Some(format!(
+                    "Size padding 0x{:x} - 0x{:x} = 0x{remaining_size:x}",
+                    metadata_size_instance, size_info.calculated_instance_size
+                )),
+                is_private: false,
+            })
+            .into(),
+        );
+    }
 
     fn create_ref_size(&mut self) {
         let cpp_type = self.get_mut_cpp_type();
-        if let Some(size) = cpp_type.calculated_size {
+        if let Some(size) = cpp_type.size_info.as_ref().map(|s| s.instance_size) {
             cpp_type.declarations.push(
                 CppMember::FieldDecl(CppFieldDecl {
                     cpp_name: REFERENCE_TYPE_WRAPPER_SIZE.to_string(),
@@ -2113,11 +2172,15 @@ pub trait CSType: Sized {
 
     fn create_valuetype_field_wrapper(&mut self) {
         let cpp_type = self.get_mut_cpp_type();
-        if cpp_type.calculated_size.is_none() {
+        if cpp_type.size_info.is_none() {
             todo!("Why does this type not have a valid size??? {:?}", cpp_type);
         }
 
-        let size = cpp_type.calculated_size.unwrap();
+        let size = cpp_type
+            .size_info
+            .as_ref()
+            .map(|s| s.instance_size)
+            .unwrap();
 
         cpp_type.requirements.needs_byte_include();
         cpp_type.declarations.push(
