@@ -1199,7 +1199,7 @@ pub trait CSType: Sized {
         CppPropertyDecl {
             cpp_name: f_cpp_name.clone(),
             prop_ty: field_ty_cpp_name.clone(),
-            instance: field_info.is_static,
+            instance: !field_info.is_static,
             getter: Some(getter_name),
             setter: Some(setter_name),
             indexable: false,
