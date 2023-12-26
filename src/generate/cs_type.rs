@@ -748,6 +748,34 @@ pub trait CSType: Sized {
             })
             .collect_vec();
 
+        for field_info in fields.iter() {
+            let f_type = field_info.field_type;
+
+            // only push def dependency if valuetype field & not a primitive builtin
+            if f_type.valuetype && !f_type.ty.is_primitive_builtin() {
+                let field_cpp_tag: CppTypeTag =
+                    CppTypeTag::from_type_data(f_type.data, metadata.metadata);
+                let field_cpp_td_tag: CppTypeTag = field_cpp_tag.get_tdi().into();
+                let field_cpp_type = ctx_collection.get_cpp_type(field_cpp_td_tag);
+
+                if field_cpp_type.is_some() {
+                    let field_cpp_context = ctx_collection
+                        .get_context(field_cpp_td_tag)
+                        .expect("No context for cpp value type");
+
+                    cpp_type.requirements.add_def_include(
+                        field_cpp_type,
+                        CppInclude::new_context_typedef(field_cpp_context),
+                    );
+
+                    cpp_type.requirements.add_impl_include(
+                        field_cpp_type,
+                        CppInclude::new_context_typeimpl(field_cpp_context),
+                    );
+                }
+            }
+        }
+
         if t.is_value_type() || t.is_enum_type() {
             cpp_type.handle_valuetype_fields(&fields, ctx_collection, metadata, tdi);
         } else {
@@ -1032,34 +1060,6 @@ pub trait CSType: Sized {
         // if no fields, skip
         if t.field_count == 0 {
             return;
-        }
-
-        for field_info in fields.iter().filter(|f| !f.is_constant && !f.is_static) {
-            let f_type = field_info.field_type;
-
-            // only push def dependency if instance & valuetype field & not a primitive builtin
-            if f_type.valuetype && !f_type.ty.is_primitive_builtin() {
-                let field_cpp_tag: CppTypeTag =
-                    CppTypeTag::from_type_data(f_type.data, metadata.metadata);
-                let field_cpp_td_tag: CppTypeTag = field_cpp_tag.get_tdi().into();
-                let field_cpp_type = ctx_collection.get_cpp_type(field_cpp_td_tag);
-
-                if field_cpp_type.is_some() {
-                    let field_cpp_context = ctx_collection
-                        .get_context(field_cpp_td_tag)
-                        .expect("No context for cpp enum type");
-
-                    cpp_type.requirements.add_def_include(
-                        field_cpp_type,
-                        CppInclude::new_context_typedef(field_cpp_context),
-                    );
-
-                    cpp_type.requirements.add_impl_include(
-                        field_cpp_type,
-                        CppInclude::new_context_typeimpl(field_cpp_context),
-                    );
-                }
-            }
         }
 
         let instance_field_decls = fields
