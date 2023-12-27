@@ -1230,10 +1230,19 @@ pub trait CSType: Sized {
             // Var types are default pointers
             true => (
                 field_ty_cpp_name.clone(),
-                format!("::cordl_internals::to_const_pointer<{field_ty_cpp_name}>",),
+                format!("::cordl_internals::to_const_pointer<{field_ty_cpp_name}> const",),
             ),
-            false => (field_ty_cpp_name.clone(), field_ty_cpp_name.clone()),
+            false => (
+                field_ty_cpp_name.clone(),
+                format!("{field_ty_cpp_name} const"),
+            ),
         };
+
+        // field accessors emit as ref because they are fields, you should be able to access them the same
+        let (get_return_type, const_get_return_type) = (
+            format!("{get_return_type}&"),
+            format!("{const_get_return_type}&"),
+        );
 
         let getter_call = format!("return {field_access};");
         let setter_var_name = "value";
