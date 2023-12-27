@@ -45,10 +45,10 @@ namespace cordl_internals {
 
     // if you compile with the define RUNTIME_FIELD_NULL_CHECKS at runtime every field access will be null checked for you, and a c++ exception will be thrown if the instance is null.
     // in case of a unity object, the m_CachedPtr is also checked. Since this can incur some overhead you can also just not define RUNTIME_FIELD_NULL_CHECKS to save performance
-    #ifdef RUNTIME_FIELD_NULL_CHECKS
-        #define FIELD_NULL_CHECK(inst) if (!inst) throw ::cordl_internals::NullException(std::string("Field access on nullptr instance, please make sure your instance is not null"))
+    #ifdef CORDL_RUNTIME_FIELD_NULL_CHECKS
+        #define CORDL_FIELD_NULL_CHECK(inst) if (!inst) throw ::cordl_internals::NullException(std::string("Field access on nullptr instance, please make sure your instance is not null"))
     #else
-        #define FIELD_NULL_CHECK(instance)
+        #define CORDL_FIELD_NULL_CHECK(instance)
     #endif
 
     template<typename T>

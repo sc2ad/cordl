@@ -6,8 +6,7 @@
 #include "box-utils.hpp"
 #include <type_traits>
 #include <sstream>
-#include "beatsaber-hook/shared/utils/typedefs-string.hpp"
-#include "beatsaber-hook/shared/utils/il2cpp-utils-methods.hpp"
+#include "il2cpp-tabledefs.h"
 
 namespace {
 namespace cordl_internals {

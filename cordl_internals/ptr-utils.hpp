@@ -5,6 +5,7 @@
 
 #include "config.hpp"
 #include "concepts.hpp"
+#include "beatsaber-hook/shared/utils/il2cpp-type-check.hpp"
 
 namespace {
 namespace cordl_internals {

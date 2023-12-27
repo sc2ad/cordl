@@ -1213,7 +1213,7 @@ pub trait CSType: Sized {
         field_info: &FieldInfo,
         template: Option<CppTemplate>,
         declaring_cpp_name: String,
-        set_ref_wbarrier: bool
+        declaring_is_ref: bool
     ) -> (Vec<CppMethodDecl>, Vec<CppMethodImpl>) {
 
         let f_type = field_info.field_type;
@@ -1244,10 +1244,18 @@ pub trait CSType: Sized {
             format!("{const_get_return_type}&"),
         );
 
+        // for ref types we emit an instance null check that is dependent on a compile time define,
+        // that way we can prevent nullptr access and instead throw, if the user wants this
+        // technically "this" should never ever be null, but in native modding this can happen
+        let instance_null_check = match declaring_is_ref {
+            true => Some("CORDL_FIELD_NULL_CHECK(static_cast<void*>(this));"),
+            false => None
+        };
+
         let getter_call = format!("return {field_access};");
         let setter_var_name = "value";
-        // if we want to not emit wbarrier setters for ref types, we can disable that with set_ref_wbarrier
-        let setter_call = match !f_type.valuetype && set_ref_wbarrier {
+        // if the declaring type is a value type, we should not use wbarrier
+        let setter_call = match !f_type.valuetype && declaring_is_ref {
             // ref type field write on a ref type
             true => {
                 format!("il2cpp_functions::gc_wbarrier_set_field(this, static_cast<void**>(static_cast<void*>(&{field_access})), cordl_internals::convert(std::forward<decltype({setter_var_name})>({setter_var_name})));")
@@ -1321,8 +1329,27 @@ pub trait CSType: Sized {
             template: None,
         };
 
+        // construct getter and setter bodies
+        let getter_body: Vec<Arc<dyn Writable>> = if let Some(instance_null_check) = instance_null_check {
+            vec![
+                Arc::new(CppLine::make(instance_null_check.into())),
+                Arc::new(CppLine::make(getter_call)),
+            ]
+        } else {
+            vec![Arc::new(CppLine::make(getter_call))]
+        };
+
+        let setter_body: Vec<Arc<dyn Writable>> = if let Some(instance_null_check) = instance_null_check {
+            vec![
+                Arc::new(CppLine::make(instance_null_check.into())),
+                Arc::new(CppLine::make(setter_call)),
+            ]
+        } else {
+            vec![Arc::new(CppLine::make(setter_call))]
+        };
+
         let getter_impl = CppMethodImpl {
-            body: vec![Arc::new(CppLine::make(getter_call.clone()))],
+            body: getter_body.clone(),
             declaring_cpp_full_name: declaring_cpp_name.clone(),
             template: template.clone(),
 
@@ -1330,7 +1357,7 @@ pub trait CSType: Sized {
         };
 
         let const_getter_impl = CppMethodImpl {
-            body: vec![Arc::new(CppLine::make(getter_call))],
+            body: getter_body,
             declaring_cpp_full_name: declaring_cpp_name.clone(),
             template: template.clone(),
 
@@ -1338,7 +1365,7 @@ pub trait CSType: Sized {
         };
 
         let setter_impl = CppMethodImpl {
-            body: vec![Arc::new(CppLine::make(setter_call))],
+            body: setter_body,
             declaring_cpp_full_name: declaring_cpp_name.clone(),
             template: template.clone(),
 
@@ -1717,7 +1744,21 @@ pub trait CSType: Sized {
             // parent will be a value wrapper type
             // which will have the size
             // OF THE TYPE ITSELF, NOT PARENT
-            true => {}
+            true => {
+                // let Some(size_info) = &cpp_type.size_info else {
+                //     panic!("No size for value/enum type!")
+                // };
+
+                // if t.is_enum_type() {
+                //     cpp_type.requirements.needs_enum_include();
+                // } else if t.is_value_type() {
+                //     cpp_type.requirements.needs_value_include();
+                // }
+
+                // let wrapper = wrapper_type_for_tdi(t);
+
+                // cpp_type.inherit.push(wrapper.to_string());
+            }
             // handle as reference type
             false => {
                 // make sure our parent is intended\
@@ -3621,7 +3662,7 @@ pub trait CSType: Sized {
 
         match matched_ty.valuetype {
             true => "{}".to_string(),
-            false => "csnull".to_string(),
+            false => "nullptr".to_string(),
         }
     }
 
@@ -3881,7 +3922,8 @@ pub trait CSType: Sized {
                 let other_context_ty = ctx_collection.get_context_root_tag(typ_cpp_tag);
                 let own_context_ty = ctx_collection.get_context_root_tag(cpp_type.self_tag);
 
-                let inc = CppInclude::new_context_typedef(to_incl);
+                let typedef_incl = CppInclude::new_context_typedef(to_incl);
+                let typeimpl_incl = CppInclude::new_context_typeimpl(to_incl);
                 let to_incl_cpp_ty = ctx_collection
                     .get_cpp_type(typ.data.into())
                     .unwrap_or_else(|| panic!("Unable to get type to include {:?}", typ.data));
@@ -3894,7 +3936,8 @@ pub trait CSType: Sized {
                     match add_include {
                         // add def include
                         true => {
-                            requirements.add_def_include(Some(to_incl_cpp_ty), inc.clone());
+                            requirements.add_def_include(Some(to_incl_cpp_ty), typedef_incl.clone());
+                            requirements.add_impl_include(Some(to_incl_cpp_ty), typeimpl_incl.clone());
                         }
                         // TODO: Remove?
                         // ignore nested types
@@ -3907,7 +3950,7 @@ pub trait CSType: Sized {
                         false => {
                             requirements.add_forward_declare((
                                 CppForwardDeclare::from_cpp_type(to_incl_cpp_ty),
-                                inc,
+                                typedef_incl,
                             ));
                         }
                     }
@@ -4170,12 +4213,12 @@ pub trait CSType: Sized {
             Il2CppTypeEnum::I2 => "int16_t".to_string().into(),
             Il2CppTypeEnum::I4 => "int32_t".to_string().into(),
             Il2CppTypeEnum::I8 => "int64_t".to_string().into(),
-            Il2CppTypeEnum::I => "::cordl_internals::intptr_t".to_string().into(),
+            Il2CppTypeEnum::I => "void*".to_string().into(),
             Il2CppTypeEnum::U1 => "uint8_t".to_string().into(),
             Il2CppTypeEnum::U2 => "uint16_t".to_string().into(),
             Il2CppTypeEnum::U4 => "uint32_t".to_string().into(),
             Il2CppTypeEnum::U8 => "uint64_t".to_string().into(),
-            Il2CppTypeEnum::U => "::cordl_internals::uintptr_t".to_string().into(),
+            Il2CppTypeEnum::U => "void*".to_string().into(),
 
             // https://learn.microsoft.com/en-us/nimbusml/concepts/types
             // https://en.cppreference.com/w/cpp/types/floating-point
