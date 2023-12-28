@@ -39,7 +39,7 @@ impl NameComponents {
         completed
     }
 
-    pub fn ref_generics(self) -> Self {
+    pub fn into_ref_generics(self) -> Self {
         Self {
             generics: self
                 .generics

@@ -364,17 +364,44 @@ pub(crate) fn handle_instance_fields(
         let u = pack_fields_into_single_union(resulting_fields);
         cpp_type.declarations.push(CppMember::NestedUnion(u).into());
     } else {
+        // TODO: Make field offset asserts for explicit layouts!
+        add_field_offset_asserts(cpp_type, &resulting_fields);
+
         resulting_fields
             .into_iter()
             .map(|member| CppMember::FieldDecl(member.cpp_field))
             .for_each(|member| cpp_type.declarations.push(member.into()));
-
-        // TODO: Make field offset asserts for explicit layouts!
-        add_field_offset_asserts(cpp_type, fields);
     };
 }
 
 fn add_field_offset_asserts(cpp_type: &mut CppType, fields: &[FieldInfo]) {
+
+    // let cpp_name = if let Some(cpp_template) = &cpp_type.cpp_template {
+    //     // We don't handle generic instantiations since we can't tell if a ge
+    //     let mut name_components = cpp_type.cpp_name_components.clone();
+
+    //     name_components.generics = name_components.generics.map(|generics| {
+    //         generics
+    //             .into_iter()
+    //             .map(
+    //                 |generic| match cpp_template.names.iter().any(|(ty, s)| &generic == s) {
+    //                     true => "void*".to_string(),
+    //                     false => generic,
+    //                 },
+    //             )
+    //             .collect_vec()
+    //     });
+
+    //     name_components.remove_pointer().combine_all()
+    // } else {
+    //     cpp_type.cpp_name_components.remove_pointer().combine_all()
+    // };
+
+    // Skip generics for now
+    if cpp_type.cpp_template.is_some() {
+        return;
+    }
+
     let cpp_name = cpp_type.cpp_name_components.remove_pointer().combine_all();
     for field in fields {
         let field_name = &field.cpp_field.cpp_name;
@@ -384,6 +411,10 @@ fn add_field_offset_asserts(cpp_type: &mut CppType, fields: &[FieldInfo]) {
             condition: format!("offsetof({cpp_name}, {field_name}) == 0x{offset:x}"),
             message: Some("Offset mismatch!".to_string()),
         };
+        // cpp_type
+        //     .declarations
+        //     .push(CppMember::CppStaticAssert(assert).into());
+
         cpp_type
             .nonmember_declarations
             .push(CppNonMember::CppStaticAssert(assert).into())
