@@ -11,3 +11,4 @@ pub mod metadata;
 pub mod offsets;
 pub mod type_extensions;
 pub mod writer;
+pub mod cs_fields;
