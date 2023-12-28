@@ -689,7 +689,14 @@ impl CppContextCollection {
                     .map(|(_, c)| {
                         let stripped_path =
                             diff_paths(&c.fundamental_path, &STATIC_CONFIG.header_path).unwrap();
-                        format!("#include \"{}\"", stripped_path.display())
+
+                        let stripped_path_friendly = if cfg!(windows) {
+                            stripped_path.to_string_lossy().replace('\\', "/")
+                        } else {
+                            stripped_path.to_string_lossy().to_string()
+                        };
+                        // replace \\ to / on Windows
+                        format!("#include \"{stripped_path_friendly}\"")
                     })
                     .sorted()
                     .unique()
