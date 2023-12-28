@@ -1248,7 +1248,7 @@ pub trait CSType: Sized {
         // that way we can prevent nullptr access and instead throw, if the user wants this
         // technically "this" should never ever be null, but in native modding this can happen
         let instance_null_check = match declaring_is_ref {
-            true => Some("CORDL_FIELD_NULL_CHECK(static_cast<void*>(this));"),
+            true => Some("CORDL_FIELD_NULL_CHECK(static_cast<void const*>(this));"),
             false => None
         };
 
