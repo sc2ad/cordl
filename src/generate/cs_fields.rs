@@ -798,7 +798,7 @@ pub(crate) fn pack_fields_into_single_union(fields: Vec<FieldInfo>) -> CppNested
 }
 
 pub(crate) fn field_into_offset_structs(
-    min_offset: u32,
+    _min_offset: u32,
     field: FieldInfo,
 ) -> (CppNestedStruct, CppNestedStruct) {
     // il2cpp basically turns each field into 2 structs within a union:

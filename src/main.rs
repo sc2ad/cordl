@@ -13,11 +13,17 @@ use itertools::Itertools;
 extern crate pretty_env_logger;
 use filesize::PathExt;
 use include_dir::{include_dir, Dir};
-use log::{info, trace, warn};
+use log::{error, info, trace, warn};
 use rayon::prelude::*;
 use walkdir::DirEntry;
 
-use std::{fs, path::PathBuf, process::Command, sync::LazyLock, time};
+use std::{
+    fs,
+    path::PathBuf,
+    process::{Command},
+    sync::LazyLock,
+    time,
+};
 
 use clap::{Parser, Subcommand};
 
@@ -80,6 +86,11 @@ fn main() -> color_eyre::Result<()> {
     if !cli.format {
         info!("Add --format/-f to format with clang-format at end")
     }
+
+    if cli.format {
+        format_files()?;
+        return Ok(());
+    }
     // let cli = Cli {
     //     metadata: PathBuf::from("global-metadata.dat"),
     //     libil2cpp: PathBuf::from("libil2cpp.so"),
@@ -119,7 +130,7 @@ fn main() -> color_eyre::Result<()> {
         pointer_size: generate::metadata::PointerSize::Bytes8,
         // For most il2cpp versions
         packing_field_offset: 7,
-        size_is_default_offset:  12,
+        size_is_default_offset: 12,
         specified_packing_field_offset: 13,
         packing_is_default_offset: 11,
     };
@@ -702,6 +713,9 @@ fn format_files() -> Result<()> {
         }
     }
 
+    // TODO: Debug
+    warn!("Do not run with debugger, for some reason an early abrupt exit.");
+
     files
         .iter()
         // sort on file size
@@ -711,7 +725,6 @@ fn format_files() -> Result<()> {
         // parallelism
         .enumerate()
         .par_bridge()
-        .into_par_iter()
         .try_for_each(|(file_num, file)| -> Result<()> {
             let path = file.path();
             info!(
@@ -722,7 +735,17 @@ fn format_files() -> Result<()> {
             let mut command = Command::new("clang-format");
             command.arg("-i").arg(path);
 
-            command.spawn()?.wait()?.exit_ok()?;
+            let spawn = command.output()?;
+
+            if !spawn.stderr.is_empty() {
+                error!(
+                    "Error {} {}",
+                    path.display(),
+                    String::from_utf8(spawn.stderr)?
+                );
+            }
+
+            spawn.status.exit_ok()?;
 
             Ok(())
         })?;

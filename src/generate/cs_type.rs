@@ -29,7 +29,7 @@ use super::{
     config::GenerationConfig,
     context_collection::CppContextCollection,
     cpp_type::{
-        CppType, CppTypeRequirements, CORDL_METHOD_HELPER_NAMESPACE,
+        CppType, CppTypeRequirements,
         CORDL_NUM_ENUM_TYPE_CONSTRAINT, CORDL_REFERENCE_TYPE_CONSTRAINT, __CORDL_BACKING_ENUM_TYPE,
     },
     cpp_type_tag::CppTypeTag,
@@ -2326,7 +2326,7 @@ pub trait CSType: Sized {
         // resolve(classof(GlobalNamespace::BeatmapLevelPack*), classof(GlobalNamespace::IBeatmapLevelPack*), 0);
         // that way the resolve should work correctly, but it should only happen like that for non-interfaces
 
-        let resolve_metadata_slot_lines = if method.slot != u16::MAX {
+        let _resolve_metadata_slot_lines = if method.slot != u16::MAX {
             let self_classof_call = "";
             let declaring_classof_call = "";
             let slot = &method.slot;
