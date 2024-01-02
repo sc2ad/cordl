@@ -3206,10 +3206,11 @@ pub trait CSType: Sized {
         let method_decl = CppMethodDecl {
             body: None,
             brief: format!(
-                "Method {m_name} addr 0x{:x} size 0x{:x} virtual {} final {}",
+                "Method {m_name} addr 0x{:x}, size 0x{:x}, virtual {}, abstract {}, final {}",
                 method_calc.map(|m| m.addrs).unwrap_or(u64::MAX),
                 method_calc.map(|m| m.estimated_size).unwrap_or(usize::MAX),
                 method.is_virtual_method(),
+                method.is_abstract_method(),
                 method.is_final_method()
             )
             .into(),
@@ -3218,7 +3219,7 @@ pub trait CSType: Sized {
             is_no_except: false,
             cpp_name: cpp_m_name.clone(),
             return_type: m_ret_cpp_type_name.clone(),
-            parameters: m_params_no_def.clone(),
+            parameters: m_params_with_def.clone(),
             instance: !method.is_static_method(),
             template: template.clone(),
             suffix_modifiers: Default::default(),
@@ -3336,7 +3337,11 @@ pub trait CSType: Sized {
         //   auto* ___internal__method = THROW_UNLESS((::il2cpp_utils::FindMethod(this, "Equals", std::vector<Il2CppClass*>{}, ::std::vector<const Il2CppType*>{::il2cpp_utils::ExtractType(obj)})));
         //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
-        let method_body = match cpp_type.is_interface {
+        // instance methods should resolve slots if this is an interface, or if this is a virtual/abstract method, and not a final method
+        // static methods can't be virtual or interface anyway so checking for that here is irrelevant
+        let should_resolve_slot = cpp_type.is_interface || ((method.is_virtual_method() || method.is_abstract_method()) && !method.is_final_method());
+
+        let method_body = match should_resolve_slot {
             true => resolve_instance_slot_lines
                 .iter()
                 .chain(method_body_lines.iter())
