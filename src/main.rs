@@ -87,15 +87,6 @@ fn main() -> color_eyre::Result<()> {
         info!("Add --format/-f to format with clang-format at end")
     }
 
-    if cli.format {
-        format_files()?;
-        return Ok(());
-    }
-    // let cli = Cli {
-    //     metadata: PathBuf::from("global-metadata.dat"),
-    //     libil2cpp: PathBuf::from("libil2cpp.so"),
-    //     command: None,
-    // };
 
     if STATIC_CONFIG.header_path.exists() {
         std::fs::remove_dir_all(&STATIC_CONFIG.header_path)?;
