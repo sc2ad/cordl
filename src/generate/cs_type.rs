@@ -467,6 +467,98 @@ pub trait CSType: Sized {
             Some(generic_instantiation_args.into_iter().collect_vec());
     }
 
+    fn make_parameters(
+        &mut self,
+        method: &brocolib::global_metadata::Il2CppMethodDefinition,
+        method_index: MethodIndex,
+        is_generic_method_inst: bool,
+        metadata: &Metadata<'_>,
+        config: &GenerationConfig,
+        ctx_collection: &CppContextCollection,
+    ) -> Vec<CppParam> {
+        method
+            .parameters(metadata.metadata)
+            .iter()
+            .enumerate()
+            .map(|(pi, param)| {
+                let param_index = ParameterIndex::new(method.parameter_start.index() + pi as u32);
+
+                self.make_parameter(
+                    param,
+                    method_index,
+                    param_index,
+                    is_generic_method_inst,
+                    metadata,
+                    config,
+                    ctx_collection,
+                )
+            })
+            .collect()
+    }
+
+    fn make_parameter(
+        &mut self,
+        param: &brocolib::global_metadata::Il2CppParameterDefinition,
+        method_index: MethodIndex,
+        param_index: ParameterIndex,
+        is_generic_method_inst: bool,
+        metadata: &Metadata<'_>,
+        config: &GenerationConfig,
+        ctx_collection: &CppContextCollection,
+    ) -> CppParam {
+        let cpp_type = self.get_mut_cpp_type();
+
+        let param_type = metadata
+            .metadata_registration
+            .types
+            .get(param.type_index as usize)
+            .unwrap();
+
+        let def_value = Self::param_default_value(metadata, param_index);
+
+        let make_param_cpp_type_name = |cpp_type: &mut CppType| -> String {
+            let full_name = param_type.full_name(metadata.metadata);
+
+            match full_name.as_str() {
+                "System.Enum" => {
+                    cpp_type.requirements.needs_enum_include();
+                    ENUM_PTR_TYPE.into()
+                }
+                "System.ValueType" => {
+                    cpp_type.requirements.needs_value_include();
+                    VT_PTR_TYPE.into()
+                }
+                _ => cpp_type
+                    .cppify_name_il2cpp(ctx_collection, metadata, param_type, 0)
+                    .combine_all(),
+            }
+        };
+
+        let param_cpp_name = {
+            // use template name if we are a generic inst
+            let fixup_name = match is_generic_method_inst {
+                // use template name
+                false => cpp_type.il2cpp_mvar_use_param_name(
+                    metadata,
+                    method_index,
+                    make_param_cpp_type_name,
+                    param_type,
+                ),
+                // use instantiation name
+                true => make_param_cpp_type_name(cpp_type),
+            };
+
+            cpp_type.il2cpp_byref(fixup_name, param_type)
+        };
+
+        CppParam {
+            name: config.name_cpp(param.name(metadata.metadata)),
+            def_value,
+            ty: param_cpp_name,
+            modifiers: "".to_string(),
+        }
+    }
+
     fn make_methods(
         &mut self,
         metadata: &Metadata,
@@ -2098,55 +2190,14 @@ pub trait CSType: Sized {
             .get(method.return_type as usize)
             .unwrap();
 
-        let mut m_params_with_def: Vec<CppParam> =
-            Vec::with_capacity(method.parameter_count as usize);
-
-        for (pi, param) in method.parameters(metadata.metadata).iter().enumerate() {
-            let param_index = ParameterIndex::new(method.parameter_start.index() + pi as u32);
-            let param_type = metadata
-                .metadata_registration
-                .types
-                .get(param.type_index as usize)
-                .unwrap();
-
-            let def_value = Self::param_default_value(metadata, param_index);
-
-            let make_param_cpp_type_name = |cpp_type: &mut CppType| -> String {
-                let full_name = param_type.full_name(metadata.metadata);
-                if full_name == "System.Enum" {
-                    cpp_type.requirements.needs_enum_include();
-                    ENUM_PTR_TYPE.into()
-                } else if full_name == "System.ValueType" {
-                    cpp_type.requirements.needs_value_include();
-                    VT_PTR_TYPE.into()
-                } else {
-                    cpp_type
-                        .cppify_name_il2cpp(ctx_collection, metadata, param_type, 0)
-                        .combine_all()
-                }
-            };
-
-            let param_cpp_name = {
-                let fixup_name = match is_generic_method_inst {
-                    false => cpp_type.il2cpp_mvar_use_param_name(
-                        metadata,
-                        method_index,
-                        make_param_cpp_type_name,
-                        param_type,
-                    ),
-                    true => make_param_cpp_type_name(cpp_type),
-                };
-
-                cpp_type.il2cpp_byref(fixup_name, param_type)
-            };
-
-            m_params_with_def.push(CppParam {
-                name: config.name_cpp(param.name(metadata.metadata)),
-                def_value,
-                ty: param_cpp_name,
-                modifiers: "".to_string(),
-            });
-        }
+        let m_params_with_def: Vec<CppParam> = cpp_type.make_parameters(
+            method,
+            method_index,
+            is_generic_method_inst,
+            metadata,
+            config,
+            ctx_collection,
+        );
 
         let m_params_no_def: Vec<CppParam> = m_params_with_def
             .iter()
@@ -2291,7 +2342,7 @@ pub trait CSType: Sized {
             is_no_except: false,
             cpp_name: cpp_m_name.clone(),
             return_type: m_ret_cpp_type_name.clone(),
-            parameters: m_params_with_def.clone(),
+            parameters: m_params_no_def.clone(),
             instance: !method.is_static_method(),
             template: template.clone(),
             suffix_modifiers: Default::default(),
