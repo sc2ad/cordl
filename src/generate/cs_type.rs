@@ -29,8 +29,8 @@ use super::{
     config::GenerationConfig,
     context_collection::CppContextCollection,
     cpp_type::{
-        CppType, CppTypeRequirements,
-        CORDL_NUM_ENUM_TYPE_CONSTRAINT, CORDL_REFERENCE_TYPE_CONSTRAINT, __CORDL_BACKING_ENUM_TYPE,
+        CppType, CppTypeRequirements, CORDL_NUM_ENUM_TYPE_CONSTRAINT,
+        CORDL_REFERENCE_TYPE_CONSTRAINT, __CORDL_BACKING_ENUM_TYPE,
     },
     cpp_type_tag::CppTypeTag,
     cs_fields::{
@@ -276,7 +276,7 @@ pub trait CSType: Sized {
                 Some(config.namespace_cpp(declaring_td.namespace(metadata.metadata)));
             cpptype.cpp_name_components.declaring_types = None; // remove declaring types
 
-            cpptype.cpp_name_components.name = config.generic_nested_name(&combined_name);
+            cpptype.cpp_name_components.name = config.sanitize_to_cpp_name(&combined_name);
         }
 
         if t.parent_index == u32::MAX {
@@ -313,7 +313,7 @@ pub trait CSType: Sized {
 
         self.make_generics_args(metadata, ctx_collection, tdi);
         self.make_parents(metadata, ctx_collection, tdi);
-        self.make_interfaces(metadata, ctx_collection, tdi);
+        self.make_interfaces(metadata, ctx_collection, config, tdi);
 
         // we depend on parents and generic args here
         // default ctor
@@ -867,6 +867,7 @@ pub trait CSType: Sized {
         &mut self,
         metadata: &Metadata<'_>,
         ctx_collection: &CppContextCollection,
+        config: &GenerationConfig,
         tdi: TypeDefinitionIndex,
     ) {
         let cpp_type = self.get_mut_cpp_type();
@@ -876,16 +877,12 @@ pub trait CSType: Sized {
             let int_ty = &metadata.metadata_registration.types[interface_index as usize];
 
             // We have an interface, lets do something with it
-            let interface_cpp_name = cpp_type
-                .cppify_name_il2cpp(ctx_collection, metadata, int_ty, 0)
-                .remove_pointer()
-                .combine_all();
-            let interface_cpp_pointer = cpp_type
-                .cppify_name_il2cpp(ctx_collection, metadata, int_ty, 0)
-                .as_pointer()
-                .combine_all();
+            let interface_name_il2cpp =
+                &cpp_type.cppify_name_il2cpp(ctx_collection, metadata, int_ty, 0);
+            let interface_cpp_name = interface_name_il2cpp.remove_pointer().combine_all();
+            let interface_cpp_pointer = interface_name_il2cpp.as_pointer().combine_all();
 
-            let method_decl = CppMethodDecl {
+            let operator_method_decl = CppMethodDecl {
                 body: Default::default(),
                 brief: Some(format!("Convert operator to {interface_cpp_name:?}")),
                 cpp_name: interface_cpp_pointer.clone(),
@@ -902,16 +899,20 @@ pub trait CSType: Sized {
                 prefix_modifiers: vec![],
                 suffix_modifiers: vec![],
             };
+            let helper_method_decl = CppMethodDecl {
+                brief: Some(format!("Convert to {interface_cpp_name:?}")),
+                is_operator: false,
+                return_type: interface_cpp_pointer.clone(),
+                cpp_name: format!("i_{}", config.sanitize_to_cpp_name(&interface_cpp_name)),
+                ..operator_method_decl.clone()
+            };
 
-            let method_impl_template = if cpp_type
+            let method_impl_template = cpp_type
                 .cpp_template
                 .as_ref()
                 .is_some_and(|c| !c.names.is_empty())
-            {
-                cpp_type.cpp_template.clone()
-            } else {
-                None
-            };
+                .then(|| cpp_type.cpp_template.clone())
+                .flatten();
 
             let convert_line = match t.is_value_type() || t.is_enum_type() {
                 true => {
@@ -921,24 +922,40 @@ pub trait CSType: Sized {
                 false => "static_cast<void*>(this)".to_string(),
             };
 
-            let method_impl = CppMethodImpl {
-                body: vec![Arc::new(CppLine::make(format!(
-                    "return static_cast<{interface_cpp_pointer}>({convert_line});"
-                )))],
-                declaring_cpp_full_name: cpp_type
-                    .cpp_name_components
-                    .remove_pointer()
-                    .combine_all(),
-                template: method_impl_template,
-                ..method_decl.clone().into()
+            let body: Vec<Arc<dyn Writable>> = vec![Arc::new(CppLine::make(format!(
+                "return static_cast<{interface_cpp_pointer}>({convert_line});"
+            )))];
+            let declaring_cpp_full_name =
+                cpp_type.cpp_name_components.remove_pointer().combine_all();
+            let operator_method_impl = CppMethodImpl {
+                body: body.clone(),
+                declaring_cpp_full_name: declaring_cpp_full_name.clone(),
+                template: method_impl_template.clone(),
+                ..operator_method_decl.clone().into()
             };
+
+            let helper_method_impl = CppMethodImpl {
+                body: body.clone(),
+                declaring_cpp_full_name,
+                template: method_impl_template,
+                ..helper_method_decl.clone().into()
+            };
+
+            // operator
             cpp_type
                 .declarations
-                .push(CppMember::MethodDecl(method_decl).into());
-
+                .push(CppMember::MethodDecl(operator_method_decl).into());
             cpp_type
                 .implementations
-                .push(CppMember::MethodImpl(method_impl).into());
+                .push(CppMember::MethodImpl(operator_method_impl).into());
+
+            // helper method
+            cpp_type
+                .declarations
+                .push(CppMember::MethodDecl(helper_method_decl).into());
+            cpp_type
+                .implementations
+                .push(CppMember::MethodImpl(helper_method_impl).into());
         }
     }
 
@@ -2236,7 +2253,7 @@ pub trait CSType: Sized {
                     cpp_m_name
                         + "_"
                         + &config
-                            .generic_nested_name(&m_ret_cpp_type_name)
+                            .sanitize_to_cpp_name(&m_ret_cpp_type_name)
                             .replace('*', "_")
                 }
                 false => cpp_m_name,
@@ -2394,7 +2411,9 @@ pub trait CSType: Sized {
 
         // instance methods should resolve slots if this is an interface, or if this is a virtual/abstract method, and not a final method
         // static methods can't be virtual or interface anyway so checking for that here is irrelevant
-        let should_resolve_slot = cpp_type.is_interface || ((method.is_virtual_method() || method.is_abstract_method()) && !method.is_final_method());
+        let should_resolve_slot = cpp_type.is_interface
+            || ((method.is_virtual_method() || method.is_abstract_method())
+                && !method.is_final_method());
 
         let method_body = match should_resolve_slot {
             true => resolve_instance_slot_lines

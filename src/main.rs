@@ -7,7 +7,7 @@
 #![feature(exit_status_error)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
-use color_eyre::Result;
+use color_eyre::{Result, eyre::Context};
 use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
 extern crate pretty_env_logger;
@@ -103,8 +103,8 @@ fn main() -> color_eyre::Result<()> {
     // extract contents of the cordl internals folder into destination
     INTERNALS_DIR.extract(&STATIC_CONFIG.dst_internals_path)?;
 
-    let global_metadata_data = fs::read(cli.metadata)?;
-    let elf_data = fs::read(cli.libil2cpp)?;
+    let global_metadata_data = fs::read(cli.metadata).context("il2cpp metadata")?;
+    let elf_data = fs::read(cli.libil2cpp).context("libil2cpp.so shared object")?;
     let il2cpp_metadata = brocolib::Metadata::parse(&global_metadata_data, &elf_data)?;
 
     let mut metadata = Metadata {

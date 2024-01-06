@@ -86,7 +86,8 @@ impl GenerationConfig {
             _ => string.replace(['<', '`', '>', '/', '.', '|', ',', '(', ')', '[', ']'], "_"),
         }
     }
-    pub fn generic_nested_name(&self, string: &str) -> String {
+    /// for converting C++ names into just a single C++ word
+    pub fn sanitize_to_cpp_name(&self, string: &str) -> String {
         // Coincidentally the same as path_name
         string.replace(['<', '`', '>', '/', '.', ':', '|', ',', '(', ')'], "_")
     }
