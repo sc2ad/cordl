@@ -285,8 +285,7 @@ impl CppContext {
 
         let typedef_root_types = typedef_types
             .iter()
-            .cloned()
-            .filter(|t: &&CppType| self.typedef_types.contains_key(&t.self_tag))
+            .filter(|t| self.typedef_types.contains_key(&t.self_tag))
             .collect_vec();
 
         let mut ts = DependencyGraph::<CppTypeTag, _>::new(|a, b| a.cmp(b));
@@ -375,6 +374,7 @@ impl CppContext {
             forward_declare_and_includes()
                 .map(|(_fd, inc)| inc)
                 .unique()
+                .sorted()
                 // TODO: Check forward declare is not of own type
                 .try_for_each(|i| -> color_eyre::Result<()> {
                     i.write(&mut typeimpl_writer)?;
@@ -384,6 +384,25 @@ impl CppContext {
             forward_declare_and_includes()
                 .map(|(fd, _inc)| fd)
                 .unique()
+                .sorted_by(|a, b| {
+                    let do_format = |fd: &CppForwardDeclare| {
+                        format!(
+                            "{}_{}_{}_{}",
+                            fd.cpp_namespace.clone().unwrap_or_default(),
+                            fd.cpp_name,
+                            fd.literals.clone().unwrap_or_default().join(","),
+                            fd.templates
+                                .clone()
+                                .unwrap_or_default()
+                                .just_names()
+                                .join(",")
+                        )
+                    };
+                    let a_str = do_format(a);
+                    let b_str = do_format(b);
+
+                    a_str.cmp(&b_str)
+                })
                 .try_for_each(|fd| fd.write(&mut typedef_writer))?;
 
             writeln!(typedef_writer, "// Forward declare root types")?;
