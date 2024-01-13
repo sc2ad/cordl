@@ -375,7 +375,6 @@ pub(crate) fn handle_instance_fields(
 }
 
 fn add_field_offset_asserts(cpp_type: &mut CppType, fields: &[FieldInfo]) {
-
     // let cpp_name = if let Some(cpp_template) = &cpp_type.cpp_template {
     //     // We don't handle generic instantiations since we can't tell if a ge
     //     let mut name_components = cpp_type.cpp_name_components.clone();
@@ -503,9 +502,8 @@ pub(crate) fn prop_decl_from_fieldinfo(
     let field_ty_cpp_name = &field_info.cpp_field.field_ty;
 
     let f_cpp_name = &field_info.cpp_field.cpp_name;
-
-    let getter_name = format!("__get_{}", f_cpp_name);
-    let setter_name = format!("__set_{}", f_cpp_name);
+    
+    let (getter_name, setter_name) = method_names_from_fieldinfo(f_cpp_name);
 
     CppPropertyDecl {
         cpp_name: f_cpp_name.clone(),
@@ -518,6 +516,13 @@ pub(crate) fn prop_decl_from_fieldinfo(
             "Field {f_name}, offset 0x{f_offset:x}, size 0x{f_size:x} "
         )),
     }
+}
+
+fn method_names_from_fieldinfo(f_cpp_name: &str) -> (String, String) {
+    let getter_name = format!("__cordl_internal_get_{}", f_cpp_name);
+    let setter_name = format!("__cordl_internal_set_{}", f_cpp_name);
+
+    (getter_name, setter_name)
 }
 
 pub(crate) fn prop_methods_from_fieldinfo(
@@ -533,8 +538,7 @@ pub(crate) fn prop_methods_from_fieldinfo(
     let cordl_field_name = fixup_backing_field(f_cpp_name);
     let field_access = format!("this->{cordl_field_name}");
 
-    let getter_name = format!("__get_{}", f_cpp_name);
-    let setter_name = format!("__set_{}", f_cpp_name);
+    let (getter_name, setter_name) = method_names_from_fieldinfo(f_cpp_name);
 
     let (get_return_type, const_get_return_type) = match field_info.is_pointer {
         // Var types are default pointers
