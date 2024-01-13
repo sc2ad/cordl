@@ -502,7 +502,7 @@ pub(crate) fn prop_decl_from_fieldinfo(
     let field_ty_cpp_name = &field_info.cpp_field.field_ty;
 
     let f_cpp_name = &field_info.cpp_field.cpp_name;
-    
+
     let (getter_name, setter_name) = method_names_from_fieldinfo(f_cpp_name);
 
     CppPropertyDecl {

@@ -7,7 +7,7 @@
 #![feature(exit_status_error)]
 
 use brocolib::{global_metadata::TypeDefinitionIndex, runtime_metadata::TypeData};
-use color_eyre::{Result, eyre::Context};
+use color_eyre::{eyre::Context, Result};
 use generate::{config::GenerationConfig, metadata::Metadata};
 use itertools::Itertools;
 extern crate pretty_env_logger;
@@ -17,13 +17,7 @@ use log::{error, info, trace, warn};
 use rayon::prelude::*;
 use walkdir::DirEntry;
 
-use std::{
-    fs,
-    path::PathBuf,
-    process::{Command},
-    sync::LazyLock,
-    time,
-};
+use std::{fs, path::PathBuf, process::Command, sync::LazyLock, time};
 
 use clap::{Parser, Subcommand};
 
@@ -86,7 +80,6 @@ fn main() -> color_eyre::Result<()> {
     if !cli.format {
         info!("Add --format/-f to format with clang-format at end")
     }
-
 
     if STATIC_CONFIG.header_path.exists() {
         std::fs::remove_dir_all(&STATIC_CONFIG.header_path)?;

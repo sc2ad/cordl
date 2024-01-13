@@ -215,7 +215,11 @@ fn size_is_default(bitfield: u32, size_is_default_offset: u8) -> bool {
     ((bitfield >> (size_is_default_offset - 1)) & 0x1) != 0
 }
 
-fn get_size(metadata: &Metadata<'_>, tdi: TypeDefinitionIndex, ty_def: &Il2CppTypeDefinition) -> Option<u32> {
+fn get_size(
+    metadata: &Metadata<'_>,
+    tdi: TypeDefinitionIndex,
+    ty_def: &Il2CppTypeDefinition,
+) -> Option<u32> {
     if size_is_default(ty_def.bitfield, metadata.size_is_default_offset) {
         return None;
     }
@@ -315,7 +319,9 @@ pub fn layout_fields(
     }
 
     // if we have an explicit size, use that
-    if !strictly_calculated && (declaring_ty_def.is_explicit_layout() || !size_is_default(declaring_ty_def.bitfield, metadata.size_is_default_offset))
+    if !strictly_calculated
+        && (declaring_ty_def.is_explicit_layout()
+            || !size_is_default(declaring_ty_def.bitfield, metadata.size_is_default_offset))
         && let Some(sz) = get_size_of_type_table(metadata, declaring_tdi)
     {
         instance_size = sz.instance_size as usize;
@@ -758,7 +764,14 @@ fn get_type_size_and_alignment(
             // We compute the instance size by grabbing the TD and performing a full field walk over that type
             // by calling layout_fields_for_type
             // TODO: We should cache this call
-            let res = layout_fields(metadata, td, tdi, Some(&new_generic_inst_types), None, false);
+            let res = layout_fields(
+                metadata,
+                td,
+                tdi,
+                Some(&new_generic_inst_types),
+                None,
+                false,
+            );
             sa.size = res.size - metadata.object_size() as usize;
             sa.actual_size = res.actual_size;
             sa.alignment = res.alignment;

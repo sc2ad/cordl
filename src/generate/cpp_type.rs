@@ -15,7 +15,8 @@ use super::{
     context_collection::CppContextCollection,
     cpp_type_tag::CppTypeTag,
     members::{CppForwardDeclare, CppInclude, CppMember, CppNonMember, CppTemplate},
-    writer::{CppWriter, Sortable, Writable}, offsets::SizeInfo,
+    offsets::SizeInfo,
+    writer::{CppWriter, Sortable, Writable},
 };
 
 pub const CORDL_TYPE_MACRO: &str = "CORDL_TYPE";
@@ -303,7 +304,11 @@ impl CppType {
             writeln!(
                 writer,
                 "// Dependencies: {:?}",
-                self.requirements.depending_types
+                self.requirements
+                    .depending_types
+                    .iter()
+                    .sorted()
+                    .collect_vec()
             )?;
             writeln!(writer, "// Self: {:?}", self.self_tag)?;
 
