@@ -2376,6 +2376,7 @@ pub trait CSType: Sized {
         let params_types_format: String = CppParam::params_types(&method_decl.parameters)
             .map(|t| format!("::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<{t}>::get()"))
             .join(", ");
+        let params_types_count = method_decl.parameters.len();
 
         let resolve_instance_slot_lines = if method.slot != u16::MAX {
             let slot = &method.slot;
@@ -2422,17 +2423,18 @@ pub trait CSType: Sized {
                         )
                     })
                     .join(", ");
+                let template_count = template.names.len();
 
                 vec![
                 format!("static auto* ___internal_method_base = THROW_UNLESS((::il2cpp_utils::FindMethod(
                     {declaring_classof_call},
                     \"{m_name}\",
-                    std::vector<Il2CppClass*>{{{template_names}}},
-                    ::std::vector<const Il2CppType*>{{{params_types_format}}}
+                    std::array<const Il2CppClass*, {template_count}>{{{template_names}}},
+                    ::std::array<const Il2CppType*, {params_types_count}>{{{params_types_format}}}
                 )));"),
                 format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS(::il2cpp_utils::MakeGenericMethod(
                     ___internal_method_base,
-                    std::vector<Il2CppClass*>{{{template_names}}}
+                    std::array<const Il2CppClass*, {template_count}>{{{template_names}}}
                 ));"),
                 ]
             }
@@ -2441,8 +2443,8 @@ pub trait CSType: Sized {
                     format!("static auto* {METHOD_INFO_VAR_NAME} = THROW_UNLESS((::il2cpp_utils::FindMethod(
                         {declaring_classof_call},
                         \"{m_name}\",
-                        std::vector<Il2CppClass*>{{}},
-                        ::std::vector<const Il2CppType*>{{{params_types_format}}}
+                        std::array<const Il2CppClass*, 0>{{}},
+                        ::std::array<const Il2CppType*, {params_types_count}>{{{params_types_format}}}
                     )));"),
                     ]
             }
@@ -2456,9 +2458,6 @@ pub trait CSType: Sized {
                 .join(", ")
         )];
 
-        //   static auto ___internal__logger = ::Logger::get().WithContext("::Org::BouncyCastle::Crypto::Parameters::DHPrivateKeyParameters::Equals");
-        //   auto* ___internal__method = THROW_UNLESS((::il2cpp_utils::FindMethod(this, "Equals", std::vector<Il2CppClass*>{}, ::std::vector<const Il2CppType*>{::il2cpp_utils::ExtractType(obj)})));
-        //   return ::il2cpp_utils::RunMethodRethrow<bool, false>(this, ___internal__method, obj);
 
         // instance methods should resolve slots if this is an interface, or if this is a virtual/abstract method, and not a final method
         // static methods can't be virtual or interface anyway so checking for that here is irrelevant
