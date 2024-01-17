@@ -2134,7 +2134,7 @@ pub trait CSType: Sized {
         let base_ctor_params = CppParam::params_names(&decl.parameters).join(", ");
 
         let allocate_call =
-            format!("THROW_UNLESS(::il2cpp_utils::New<{ty_full_cpp_name}>({base_ctor_params}))");
+            format!("THROW_UNLESS(::il2cpp_utils::NewSpecific<{ty_full_cpp_name}>({base_ctor_params}))");
 
         let declaring_template = if cpp_type
             .cpp_template
