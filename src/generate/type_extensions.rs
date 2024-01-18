@@ -208,6 +208,13 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
 
     fn is_assignable_to(&self, other_td: &Il2CppTypeDefinition, metadata: &Metadata) -> bool {
         // same type
+        if self.name_index == other_td.name_index
+            && self.namespace_index == other_td.namespace_index
+            && self.declaring_type_index == other_td.declaring_type_index
+            && self.generic_container_index == other_td.generic_container_index
+        {
+            return true;
+        }
         if self.byval_type_index == other_td.byval_type_index {
             return true;
         }
@@ -223,6 +230,14 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
         // direct inheritance
         if other_td.byval_type_index == self.parent_index {
             return true;
+        }
+
+        if self.get_name_components(metadata).name == "Object" {
+            println!(
+                "{:?} {:?}",
+                self.get_name_components(metadata),
+                parent_ty.ty
+            );
         }
 
         // if object, clearly this does not inherit `other_td`

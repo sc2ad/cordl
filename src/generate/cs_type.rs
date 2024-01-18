@@ -3042,12 +3042,28 @@ pub trait CSType: Sized {
             | Il2CppTypeEnum::Class
             | Il2CppTypeEnum::Typedbyref => {
                 let typ_cpp_tag: CppTypeTag = typ_tag.into();
-                // Self
 
-                // we add :: here since we can't add it to method ddefinitions
-                // e.g void ::Foo::method() <- not allowed
+                // handle resolving indirection
+                let handle_resolving = |to_incl_cpp_ty: &CppType| -> NameComponents {
+                    let mut res = to_incl_cpp_ty.cpp_name_components.clone();
+
+                    for resolve_handler in metadata.custom_type_resolve_handler.iter() {
+                        res = resolve_handler(
+                            res,
+                            to_incl_cpp_ty,
+                            ctx_collection,
+                            metadata,
+                            typ,
+                            typ_usage,
+                        );
+                    }
+
+                    res
+                };
+
+                // Self
                 if typ_cpp_tag == cpp_type.self_tag {
-                    return cpp_type.cpp_name_components.clone();
+                    return handle_resolving(cpp_type);
                 }
 
                 if let TypeData::TypeDefinitionIndex(tdi) = typ.data {
@@ -3127,20 +3143,7 @@ pub trait CSType: Sized {
                     }
                 }
 
-                let mut res = to_incl_cpp_ty.cpp_name_components.clone();
-
-                for resolve_handler in metadata.custom_type_resolve_handler.iter() {
-                    res = resolve_handler(
-                        res,
-                        to_incl_cpp_ty,
-                        ctx_collection,
-                        metadata,
-                        typ,
-                        typ_usage,
-                    );
-                }
-
-                res
+                handle_resolving(to_incl_cpp_ty)
 
                 // match to_incl_cpp_ty.is_enum_type || to_incl_cpp_ty.is_value_type {
                 //     true => ret,
