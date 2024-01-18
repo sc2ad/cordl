@@ -9,7 +9,7 @@ use crate::{
         context_collection::CppContextCollection,
         cpp_type::CppType,
         members::{CppInclude, CppMember},
-        metadata::{Il2cppFullName, Metadata},
+        metadata::{Il2cppFullName, Metadata, TypeUsage},
         type_extensions::TypeDefinitionExtensions,
     },
 };
@@ -32,8 +32,8 @@ fn register_unity_object_type_resolve_handler(metadata: &mut Metadata) -> Result
 
     metadata
         .custom_type_resolve_handler
-        .push(Box::new(move |a, b, c, d, e| {
-            unity_object_resolve_handler(a, b, c, d, e, unity_object_tdi)
+        .push(Box::new(move |a, b, c, d, e, f| {
+            unity_object_resolve_handler(a, b, c, d, e, f, unity_object_tdi)
         }));
 
     Ok(())
@@ -60,8 +60,19 @@ fn unity_object_resolve_handler(
     _ctx_collection: &CppContextCollection,
     metadata: &Metadata,
     _typ: &Il2CppType,
+    typ_usage: TypeUsage,
     unity_tdi: TypeDefinitionIndex,
 ) -> NameComponents {
+    if !matches!(
+        typ_usage,
+        TypeUsage::FieldName
+            | TypeUsage::PropertyName
+            | TypeUsage::GenericArg
+            | TypeUsage::ReturnType
+    ) {
+        return original;
+    }
+
     let tdi = cpp_type.self_tag.get_tdi();
     let td = &metadata.metadata.global_metadata.type_definitions[tdi];
 

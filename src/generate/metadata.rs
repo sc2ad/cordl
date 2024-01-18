@@ -34,6 +34,21 @@ impl<'a> TypeDefinitionPair<'a> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum TypeUsage {
+    // Method usage
+    Parameter,
+    ReturnType,
+
+    // References
+    FieldName,
+    PropertyName,
+
+    // naming the CppType itself
+    TypeName,
+    GenericArg,
+}
+
 pub type TypeHandlerFn = Box<dyn Fn(&mut CppType)>;
 pub type TypeResolveHandlerFn = Box<
     dyn Fn(
@@ -42,6 +57,7 @@ pub type TypeResolveHandlerFn = Box<
         &CppContextCollection,
         &Metadata,
         &Il2CppType,
+        TypeUsage,
     ) -> NameComponents,
 >;
 pub type Il2cppNamespace<'a> = &'a str;
