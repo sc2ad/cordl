@@ -226,7 +226,14 @@ impl TypeDefinitionExtensions for Il2CppTypeDefinition {
         }
 
         // if object, clearly this does not inherit `other_td`
-        if parent_ty.ty == Il2CppTypeEnum::Object {
+        if !matches!(
+            parent_ty.ty,
+            Il2CppTypeEnum::Genericinst
+                | Il2CppTypeEnum::Byref
+                | Il2CppTypeEnum::Class
+                | Il2CppTypeEnum::Internal
+                | Il2CppTypeEnum::Array,
+        ) {
             return false;
         }
 

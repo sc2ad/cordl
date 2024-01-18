@@ -2133,8 +2133,9 @@ pub trait CSType: Sized {
         // To avoid trailing ({},)
         let base_ctor_params = CppParam::params_names(&decl.parameters).join(", ");
 
-        let allocate_call =
-            format!("THROW_UNLESS(::il2cpp_utils::NewSpecific<{ty_full_cpp_name}>({base_ctor_params}))");
+        let allocate_call = format!(
+            "THROW_UNLESS(::il2cpp_utils::NewSpecific<{ty_full_cpp_name}>({base_ctor_params}))"
+        );
 
         let declaring_template = if cpp_type
             .cpp_template
@@ -3088,7 +3089,13 @@ pub trait CSType: Sized {
                     }
                 }
 
-                to_incl_cpp_ty.cpp_name_components.clone()
+                let mut res = to_incl_cpp_ty.cpp_name_components.clone();
+
+                for resolve_handler in metadata.custom_type_resolve_handler.iter() {
+                    res = resolve_handler(res, to_incl_cpp_ty, ctx_collection, metadata, typ);
+                }
+
+                res
 
                 // match to_incl_cpp_ty.is_enum_type || to_incl_cpp_ty.is_value_type {
                 //     true => ret,
