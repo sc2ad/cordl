@@ -16,7 +16,8 @@ class Object;
 namespace {
 namespace cordl_internals {
 
-template <typename TOut = void, bool checkTypes = true, typename T, typename... TArgs> CORDL_HIDDEN TOut RunMethodRethrow(T&& instance, MethodInfo const* method, TArgs&&... params) {
+template <typename TOut = void, bool checkTypes = true, typename T, typename... TArgs>
+CORDL_HIDDEN TOut RunMethodRethrow(T&& instance, MethodInfo const* method, TArgs&&... params) {
   CRASH_UNLESS(method);
 
   // do a null check for reference instance method calls
@@ -39,7 +40,7 @@ template <typename TOut = void, bool checkTypes = true, typename T, typename... 
 
 #ifndef ALLOW_INVALID_UNITY_METHOD_CALLS
       if constexpr (std::is_convertible_v<T, UnityEngine::Object*>) {
-        if (!read_cachedptr(static_cast<UnityEngine::Object*>(inst))) {
+        if (!::cordl_internals::read_cachedptr(static_cast<UnityEngine::Object*>(inst))) {
           // if cached ptr evaluates as false, we are dealing with an invalid unity instance, and the instance method call is a bad idea
           std::stringstream str;
           // FIXME: should we use this string, or something else? log a stacktrace?
@@ -55,15 +56,15 @@ template <typename TOut = void, bool checkTypes = true, typename T, typename... 
   }
 #endif
 
-//   if constexpr (checkTypes && sizeof...(TArgs) > 0) { // param type check
-//     std::array<Il2CppType const*, sizeof...(TArgs)> types{ ExtractType(params)... };
-//     // TODO: check types array against types in methodinfo
+  //   if constexpr (checkTypes && sizeof...(TArgs) > 0) { // param type check
+  //     std::array<Il2CppType const*, sizeof...(TArgs)> types{ ExtractType(params)... };
+  //     // TODO: check types array against types in methodinfo
 
-//     auto outType = ExtractType<TOut>();
-//     if (outType) {
-//       // TODO: check return type against methodinfo return type
-//     }
-//   }
+  //     auto outType = ExtractType<TOut>();
+  //     if (outType) {
+  //       // TODO: check return type against methodinfo return type
+  //     }
+  //   }
 
   return ::il2cpp_utils::RunMethodRethrow<TOut, checkTypes, T, TArgs...>(std::forward<T>(instance), method, std::forward<TArgs>(params)...);
 }
