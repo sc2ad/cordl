@@ -26,7 +26,7 @@ use crate::{
         context_collection::CppContextCollection, cpp_type_tag::CppTypeTag,
         cs_context_collection::CsContextCollection, members::CppMember,
     },
-    handlers::{object, value_type},
+    handlers::{object, unity, value_type},
 };
 mod data;
 mod generate;
@@ -109,6 +109,7 @@ fn main() -> color_eyre::Result<()> {
         child_to_parent_map: Default::default(),
         // TODO: These should come from args to the program?
         custom_type_handler: Default::default(),
+        custom_type_resolve_handler: Default::default(),
         name_to_tdi: Default::default(),
         blacklisted_types: Default::default(),
         pointer_size: generate::metadata::PointerSize::Bytes8,
@@ -329,7 +330,7 @@ fn main() -> color_eyre::Result<()> {
 
     info!("Registering handlers!");
     // il2cpp_internals::register_il2cpp_types(&mut metadata)?;
-    // unity::register_unity(&mut metadata)?;
+    unity::register_unity(&mut metadata)?;
     object::register_system(&mut metadata)?;
     value_type::register_value_type(&mut metadata)?;
     info!("Handlers registered!");

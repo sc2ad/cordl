@@ -1,9 +1,14 @@
 use std::collections::{HashMap, HashSet};
 
-use brocolib::global_metadata::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex};
+use brocolib::{
+    global_metadata::{Il2CppTypeDefinition, MethodIndex, TypeDefinitionIndex},
+    runtime_metadata::Il2CppType,
+};
 use itertools::Itertools;
 
-use super::cpp_type::CppType;
+use crate::data::name_components::NameComponents;
+
+use super::{context_collection::CppContextCollection, cpp_type::CppType};
 
 pub struct MethodCalculations {
     pub estimated_size: usize,
@@ -29,7 +34,32 @@ impl<'a> TypeDefinitionPair<'a> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum TypeUsage {
+    // Method usage
+    Parameter,
+    ReturnType,
+
+    // References
+    FieldName,
+    PropertyName,
+
+    // naming the CppType itself
+    TypeName,
+    GenericArg,
+}
+
 pub type TypeHandlerFn = Box<dyn Fn(&mut CppType)>;
+pub type TypeResolveHandlerFn = Box<
+    dyn Fn(
+        NameComponents,
+        &CppType,
+        &CppContextCollection,
+        &Metadata,
+        &Il2CppType,
+        TypeUsage,
+    ) -> NameComponents,
+>;
 pub type Il2cppNamespace<'a> = &'a str;
 pub type Il2cppName<'a> = &'a str;
 
@@ -48,6 +78,7 @@ pub struct Metadata<'a> {
 
     //
     pub custom_type_handler: HashMap<TypeDefinitionIndex, TypeHandlerFn>,
+    pub custom_type_resolve_handler: Vec<TypeResolveHandlerFn>,
     pub name_to_tdi: HashMap<Il2cppFullName<'a>, TypeDefinitionIndex>,
     pub blacklisted_types: HashSet<TypeDefinitionIndex>,
 
