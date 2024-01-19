@@ -14,7 +14,6 @@
 #include "beatsaber-hook/shared/utils/typedefs.h"
 
 #include "concepts.hpp"
-#include "box-utils.hpp"
 
 // TODO: Implement
 template <typename T>

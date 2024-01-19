@@ -1026,7 +1026,7 @@ pub trait CSType: Sized {
             let convert_line = match t.is_value_type() || t.is_enum_type() {
                 true => {
                     // box
-                    "static_cast<void*>(::cordl_internals::Box(this))".to_string()
+                    "static_cast<void*>(::il2cpp_utils::Box(this))".to_string()
                 }
                 false => "static_cast<void*>(this)".to_string(),
             };

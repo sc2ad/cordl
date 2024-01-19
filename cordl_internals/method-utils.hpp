@@ -2,12 +2,16 @@
 
 #include "config.hpp"
 #include "concepts.hpp"
+#include "internal.hpp"
 #include "exceptions.hpp"
-#include "box-utils.hpp"
 #include <type_traits>
 #include <sstream>
 #include "il2cpp-tabledefs.h"
 #include "beatsaber-hook/shared/utils/il2cpp-utils-methods.hpp"
+
+namespace UnityEngine {
+class Object;
+}
 
 namespace {
 namespace cordl_internals {
@@ -19,7 +23,7 @@ template <typename TOut = void, bool checkTypes = true, typename T, typename... 
 #ifndef NO_RUNTIME_INSTANCE_METHOD_NULL_CHECKS
   if constexpr (::il2cpp_utils::il2cpp_reference_type<T>) {
     // get the instance value, regardless of if it is boxed or anything
-    auto inst = ExtractValue(instance);
+    auto inst = ::il2cpp_utils::ExtractValue(instance);
 
     if ((method->flags & METHOD_ATTRIBUTE_STATIC) == 0) { // method is instance method
       if (!inst) {
@@ -51,15 +55,15 @@ template <typename TOut = void, bool checkTypes = true, typename T, typename... 
   }
 #endif
 
-  if constexpr (checkTypes && sizeof...(TArgs) > 0) { // param type check
-    std::array<Il2CppType const*, sizeof...(TArgs)> types{ ExtractType(params)... };
-    // TODO: check types array against types in methodinfo
+//   if constexpr (checkTypes && sizeof...(TArgs) > 0) { // param type check
+//     std::array<Il2CppType const*, sizeof...(TArgs)> types{ ExtractType(params)... };
+//     // TODO: check types array against types in methodinfo
 
-    auto outType = ExtractType<TOut>();
-    if (outType) {
-      // TODO: check return type against methodinfo return type
-    }
-  }
+//     auto outType = ExtractType<TOut>();
+//     if (outType) {
+//       // TODO: check return type against methodinfo return type
+//     }
+//   }
 
   return ::il2cpp_utils::RunMethodRethrow<TOut, checkTypes, T, TArgs...>(std::forward<T>(instance), method, std::forward<TArgs>(params)...);
 }
