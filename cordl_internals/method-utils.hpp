@@ -246,6 +246,7 @@ namespace cordl_internals {
         auto* ret = il2cpp_functions::runtime_invoke(method, inst,
                                                      invokeParams.data(), &exp);
 
+
         // an exception was thrown, rethrow it!
         if (exp) throw il2cpp_utils::RunMethodException(exp, method);
 

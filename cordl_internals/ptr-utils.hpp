@@ -56,11 +56,6 @@ template<> struct CORDL_HIDDEN ::il2cpp_utils::GenValueTypeTrait<::cordl_interna
 
 // don't cache static here
 // we end up double cacheing
-template <typename T> struct CORDL_HIDDEN ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<::cordl_internals::Ptr<T>> {
-  static inline Il2CppType const* get() {
-    return ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_class<T>::get();
-  }
-};
 template<typename T>
 struct CORDL_HIDDEN ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<::cordl_internals::Ptr<T>> {
     static inline const Il2CppType* get() {
@@ -69,7 +64,8 @@ struct CORDL_HIDDEN ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<::cord
 };
 template<typename T>
 struct CORDL_HIDDEN ::il2cpp_utils::il2cpp_type_check::il2cpp_arg_type<::cordl_internals::Ptr<T>> {
-    static inline const Il2CppType* get([[maybe_unused]] ::cordl_internals::Ptr<T> arg) {
-        return ::il2cpp_utils::il2cpp_type_check::il2cpp_no_arg_type<T>::get();
+  static inline Il2CppType const* get([[maybe_unused]] ::cordl_internals::Ptr<T> arg) {
+        auto casted = reinterpret_cast<T*>(arg.convert());
+        return ::il2cpp_utils::il2cpp_type_check::il2cpp_arg_type<T>::get(casted);
     }
 };
