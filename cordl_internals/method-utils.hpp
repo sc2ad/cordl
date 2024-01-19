@@ -88,15 +88,14 @@ namespace cordl_internals {
     }
 
     CORDL_HIDDEN inline auto ExtractValues() {
-        return ::std::vector<void*>();
+        return ::std::array<void*, 0>();
     }
 
-    template<typename T, typename... TArgs>
-    CORDL_HIDDEN std::vector<void*> ExtractValues(T&& arg, TArgs&& ...args) {
-        auto firstVal = ExtractValue(arg);
-        auto otherVals = ExtractValues(args...);
-        otherVals.insert(otherVals.begin(), firstVal);
-        return otherVals;
+    template <typename... TArgs>
+    CORDL_HIDDEN auto ExtractValues(TArgs&&... args) {
+        constexpr std::size_t array_count = sizeof...(TArgs);
+
+        return std::array<void*, array_count>(ExtractValue(args)...);
     }
 
 #pragma endregion // extract values
@@ -178,16 +177,14 @@ namespace cordl_internals {
     }
 
     CORDL_HIDDEN auto ExtractTypes() {
-        return std::vector<Il2CppType const*>();
+        return std::array<Il2CppType const*, 0>();
     }
 
-    template <typename T, typename... TArgs>
-    CORDL_HIDDEN std::vector<Il2CppType const*> ExtractTypes(T&& arg,
-                                                             TArgs&&... args) {
-        auto tFirst = ExtractType(arg);
-        auto tOthers = ExtractTypes(args...);
-        if (tFirst) tOthers.insert(tOthers.begin(), tFirst);
-        return tOthers;
+    template <typename... TArgs>
+    CORDL_HIDDEN auto ExtractTypes(TArgs&&... args) {
+        constexpr std::size_t array_count = sizeof...(TArgs);
+
+        return std::array<Il2CppType const*, array_count>(ExtractType(args)...);
     }
 
 #pragma endregion // extract type
